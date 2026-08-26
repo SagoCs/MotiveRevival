@@ -84,6 +84,14 @@ export class PlayerService {
     return !this.audio.paused && !this.audio.ended;
   }
 
+  get volume(): number {
+    return this.audio.volume;
+  }
+
+  set volume(value: number) {
+    this.audio.volume = clamp(value, 0, 1);
+  }
+
   get currentTrack(): IndexedTrack | null {
     return this.queue[this.queueIndex] ?? null;
   }

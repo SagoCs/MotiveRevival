@@ -28,3 +28,31 @@
 
   --ease-drift: cubic-bezier(0.16, 1, 0.3, 1);
 }
+
+@property --acc-a {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #8f97e8;
+}
+
+@property --acc-b {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #6ee7d8;
+}
+
+@property --acc-glow {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #8f97e8;
+}
+
+:root {
+  --acc-a: #8f97e8;
+  --acc-b: #6ee7d8;
+  --acc-glow: #8f97e8;
+  transition:
+    --acc-a 700ms ease,
+    --acc-b 700ms ease,
+    --acc-glow 700ms ease;
+}

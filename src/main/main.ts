@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { getSettings, saveSettings } from './settings';
 import { scanLibrary, loadCachedIndex, artCacheDir } from './library';
 import { resolveLyrics } from './lyrics';
+import { kvGet, kvSet } from './storage';
 import { registerMediaScheme, attachMediaHandler } from './media';
 import type { LibraryResult, LyricsPayload, LyricsResult, Settings } from '../shared/types';
 
@@ -132,5 +133,9 @@ function registerIpc(): void {
   ipcMain.handle('lyrics:get', async (_e, payload: LyricsPayload): Promise<LyricsResult> => {
     const settings = getSettings();
     return resolveLyrics(payload, settings.autoFetchLyrics !== false);
+  });
+  ipcMain.handle('storage:get', (_e, key: string) => kvGet(key));
+  ipcMain.handle('storage:set', (_e, key: string, value: unknown) => {
+    kvSet(key, value);
   });
 }

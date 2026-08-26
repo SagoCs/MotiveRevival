@@ -131,19 +131,13 @@ export function createLyrics(
 
     if (!result.synced) {
       renderPlain(result.text);
-      setStatus(result.source === 'lrclib' ? 'Summoned from lrclib' : '');
+      setStatus('');
       onResolved?.('plain');
       return;
     }
 
     renderSynced(parseLrc(result.text));
-    setStatus(
-      result.source === 'file'
-        ? ''
-        : result.written
-          ? 'Summoned from lrclib · sheet saved beside song'
-          : 'Summoned from lrclib',
-    );
+    setStatus('');
     onResolved?.('synced');
   }
 

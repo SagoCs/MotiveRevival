@@ -1,3 +1,5 @@
+import { fx } from '../core/fx';
+
 const FRICTION_PER_FRAME = 0.915;
 const WHEEL_GAIN = 0.34;
 const VEL_CAP = 130;
@@ -6,8 +8,6 @@ const EDGE_RESISTANCE = 0.32;
 const EDGE_PULLBACK = 0.16;
 const CENTER_COMPRESS_MAX = 0.05;
 const SPEED_SQUEEZE_MAX = 0.03;
-
-import { fx } from '../core/fx';
 
 function clamp(v: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, v));
@@ -30,6 +30,7 @@ export class Carousel {
   private moved = false;
   private suppressClickUntil = 0;
   private samples: Array<{ y: number; t: number }> = [];
+  private frameFlip = false;
 
   private readonly resizeObserver: ResizeObserver;
 
@@ -175,16 +176,32 @@ export class Carousel {
 
     const hostH = this.host.clientHeight;
     if (hostH === 0) return;
+
+    this.frameFlip = !this.frameFlip;
+    const moving = Math.abs(this.vel) > 0.6;
+
+    if (this.frameFlip && !moving) return;
+
     const viewCenter = this.pos + hostH / 2;
-    const halfWindow = hostH / 2 + 220;
+    const halfWindow = hostH / 2 + 120;
     const squeeze = 1 - Math.min(Math.abs(this.vel) / VEL_CAP, 1) * SPEED_SQUEEZE_MAX;
+    const velN = clamp(this.vel / VEL_CAP, -1, 1);
 
     for (const { el, center } of this.centers) {
-      const dist = Math.abs(center - viewCenter);
-      if (dist > halfWindow) continue;
-      const t = Math.min(dist / (hostH / 2), 1);
+      const dist = center - viewCenter;
+      if (Math.abs(dist) > halfWindow) continue;
+      const t = Math.min(Math.abs(dist) / (hostH / 2), 1);
       const scale = (1 - t * CENTER_COMPRESS_MAX) * squeeze;
       el.style.setProperty('--cs', scale.toFixed(4));
+
+      if (moving) {
+        const dirFactor = clamp(dist / (hostH / 2), -1.5, 1.5);
+        const lag = -velN * 14 * dirFactor;
+        const spread = Math.abs(velN) * 26 * dirFactor;
+        el.style.setProperty('--py', `${(lag + spread).toFixed(1)}px`);
+      } else {
+        el.style.setProperty('--py', '0px');
+      }
     }
   }
 }

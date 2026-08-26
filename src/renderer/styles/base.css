@@ -10,6 +10,8 @@ body {
 }
 
 body {
+  display: flex;
+  flex-direction: column;
   background-color: var(--void-0);
   background-image:
     radial-gradient(1100px 700px at 85% -10%, rgba(124, 116, 224, 0.09), transparent 65%),
@@ -126,10 +128,10 @@ body {
 }
 
 .icon-btn.lit {
-  border-color: var(--aurora-faint);
+  border-color: color-mix(in srgb, var(--acc-b) 55%, transparent);
   box-shadow:
-    0 0 18px rgba(110, 231, 216, 0.22),
-    inset 0 0 10px rgba(110, 231, 216, 0.1);
+    0 0 18px color-mix(in srgb, var(--acc-glow) 32%, transparent),
+    inset 0 0 10px color-mix(in srgb, var(--acc-glow) 14%, transparent);
 }
 
 .ghost-btn {

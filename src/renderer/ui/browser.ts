@@ -1,4 +1,4 @@
-import { el, fmtTime } from '../core/dom';
+import { el, fmtTime, createArtImage } from '../core/dom';
 import { mediaUrl, player } from '../core/player';
 import { appBus } from '../core/appBus';
 import { libraryStore } from '../core/libraryStore';
@@ -11,10 +11,13 @@ import {
   type SearchIndexes,
 } from '../core/searchIndex';
 import { Carousel } from './carousel';
-import { closeNowPlaying, isOverlayOpen, openNowPlaying, toggleNowPlaying } from './overlay';
+import { closeNowPlaying, isOverlayOpen, openNowPlayingFromRect, toggleNowPlaying } from './overlay';
 import { ICON_SIGIL, ICON_BACK, ICON_NOTE, ICON_SEARCH } from './icons';
 import { startBands, stopBands } from '../core/audioBands';
 import { fallbackPalette, applyPalette, applyLyricsInk } from '../core/palette';
+import { uiTheme } from '../core/uiTheme';
+import { preview } from '../core/preview';
+import { enqueueIdle } from '../core/peakAnalyzer';
 import { Viz } from './viz';
 import { createLyrics } from './lyrics';
 
@@ -43,8 +46,9 @@ const state: BrowserState = { mode: 'albums', sort: 'alpha', artistFilter: null,
 let idx: SearchIndexes = { songs: [], albums: [], artists: [] };
 
 let carousel: Carousel;
-let searchInput: HTMLInputElement;
-let searchCount: HTMLSpanElement;
+let oracleInput: HTMLInputElement;
+let oracleResults: HTMLElement;
+let oracleCount: HTMLSpanElement;
 let filterChip: HTMLButtonElement;
 let detailLayer: HTMLElement;
 let detailOpen = false;
@@ -53,19 +57,23 @@ let debounceHandle = 0;
 let stageViz: Viz | null = null;
 let stageLyrics: ReturnType<typeof createLyrics> | null = null;
 let lastSongList: import('../../shared/types').IndexedTrack[] = [];
+let oracleSongs: import('../../shared/types').IndexedTrack[] = [];
 
 export function initBrowser(): void {
   const host = document.querySelector<HTMLElement>('#carousel');
   const content = document.querySelector<HTMLElement>('#carousel-content');
-  searchInput = document.querySelector<HTMLInputElement>('#search-input') ?? (() => { throw new Error('missing #search-input'); })();
-  searchCount = document.querySelector<HTMLSpanElement>('#search-count') ?? (() => { throw new Error('missing #search-count'); })();
+  oracleInput = document.querySelector<HTMLInputElement>('#oracle-input') ?? (() => { throw new Error('missing #oracle-input'); })();
+  oracleResults = document.querySelector<HTMLElement>('#oracle-results') ?? (() => { throw new Error('missing #oracle-results'); })();
+  oracleCount = document.querySelector<HTMLSpanElement>('#oracle-count') ?? (() => { throw new Error('missing #oracle-count'); })();
   filterChip = document.querySelector<HTMLButtonElement>('#filter-chip') ?? (() => { throw new Error('missing #filter-chip'); })();
   detailLayer = document.querySelector<HTMLElement>('#detail-layer') ?? (() => { throw new Error('missing #detail-layer'); })();
 
   if (!host || !content) throw new Error('missing carousel nodes');
 
-  const searchIcon = document.querySelector<HTMLSpanElement>('#search-icon');
-  if (searchIcon) searchIcon.innerHTML = ICON_SEARCH;
+  const oracleIcon = document.querySelector<HTMLSpanElement>('#oracle-icon');
+  if (oracleIcon) oracleIcon.innerHTML = ICON_SEARCH;
+
+  appBus.on('track-selected', ({ track }) => uiTheme.setBase(track.palette));
 
   const backBtn = document.querySelector<HTMLButtonElement>('#detail-back');
   if (backBtn) {
@@ -84,6 +92,10 @@ export function initBrowser(): void {
   }
 
   appBus.on('track-selected', ({ track }) => markPlaying(track.id));
+  appBus.on('track-selected', ({ track }) => uiTheme.setBase(track.palette));
+
+  preview.bus.on('pending', ({ trackId }) => markPreview('preview-pending', trackId));
+  preview.bus.on('active', ({ trackId }) => markPreview('previewing', trackId));
 
   const lyricsSlot = document.getElementById('lyrics-slot');
   if (lyricsSlot !== null) {
@@ -136,17 +148,16 @@ function wireSortChips(): void {
 }
 
 function wireSearch(): void {
-  searchInput.addEventListener('input', () => {
+  oracleInput.addEventListener('input', () => {
     window.clearTimeout(debounceHandle);
     debounceHandle = window.setTimeout(() => {
-      state.query = searchInput.value;
-      render();
+      renderOracleResults();
     }, 110);
   });
-  searchInput.addEventListener('keydown', (e) => {
+  oracleInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      carousel.firstInteractive()?.click();
+      oracleResults.querySelector<HTMLElement>('[data-interactive]')?.click();
     }
   });
 
@@ -154,6 +165,29 @@ function wireSearch(): void {
     setArtistFilter(null);
     render();
   });
+}
+
+function isOracleOpen(): boolean {
+  const el = document.getElementById('search-oracle');
+  return el !== null && !el.hidden;
+}
+
+function openOracle(): void {
+  const el = document.getElementById('search-oracle');
+  if (el === null) return;
+  el.hidden = false;
+  requestAnimationFrame(() => el.classList.add('open'));
+  oracleInput.focus();
+}
+
+function closeOracle(): void {
+  const el = document.getElementById('search-oracle');
+  if (el === null) return;
+  el.classList.remove('open');
+  el.hidden = true;
+  oracleInput.value = '';
+  oracleInput.blur();
+  oracleSongs = [];
 }
 
 function wireGlobalKeys(): void {
@@ -165,8 +199,8 @@ function wireGlobalKeys(): void {
 
     if (e.key === 'Escape') {
       if (settingsOpen) return;
-      if (state.query !== '' || searchInput.value !== '') {
-        clearSearch();
+      if (isOracleOpen()) {
+        closeOracle();
         e.preventDefault();
         return;
       }
@@ -187,7 +221,8 @@ function wireGlobalKeys(): void {
 
     if (!inInput && e.key === '/') {
       e.preventDefault();
-      searchInput.focus();
+      openOracle();
+      renderOracleResults();
       return;
     }
 
@@ -200,21 +235,134 @@ function wireGlobalKeys(): void {
 
     if (!inInput && e.key.length === 1) {
       e.preventDefault();
-      searchInput.focus();
-      const start = searchInput.selectionStart ?? searchInput.value.length;
-      const end = searchInput.selectionEnd ?? searchInput.value.length;
-      searchInput.setRangeText(e.key, start, end, 'end');
-      state.query = searchInput.value;
-      render();
+      openOracle();
+      const start = oracleInput.selectionStart ?? oracleInput.value.length;
+      const end = oracleInput.selectionEnd ?? oracleInput.value.length;
+      oracleInput.setRangeText(e.key, start, end, 'end');
+      renderOracleResults();
     }
   });
+
+  document.addEventListener(
+    'pointerdown',
+    (e) => {
+      if (!isOracleOpen()) return;
+      const t = e.target as HTMLElement | null;
+      if (t !== null && t.closest('#search-oracle') !== null) return;
+      closeOracle();
+    },
+    true,
+  );
 }
 
-function clearSearch(): void {
-  searchInput.value = '';
-  state.query = '';
-  searchInput.blur();
-  render();
+function renderOracleResults(): void {
+  const query = oracleInput.value.trim();
+
+  if (query === '') {
+    oracleSongs = [];
+    oracleCount.textContent = '';
+    oracleResults.replaceChildren(hintNode('Type to summon the archive…'));
+    return;
+  }
+
+  const songHits = scoreOf(idx.songs, query).slice(0, 12);
+  const albumHits = scoreOf(idx.albums, query).slice(0, 8);
+  const artistHits = scoreOf(idx.artists, query).slice(0, 6);
+  let total = 0;
+
+  const frag = document.createDocumentFragment();
+  if (songHits.length > 0) {
+    frag.append(sectionHeader('Songs'));
+    oracleSongs = songHits.map((hit) => hit.item.track);
+    for (const hit of songHits) {
+      frag.append(oracleSongRow(hit.item.track));
+      total += 1;
+    }
+  }
+  if (albumHits.length > 0) {
+    frag.append(sectionHeader('Albums'));
+    for (const hit of albumHits) {
+      frag.append(oracleAlbumRow(hit.item));
+      total += 1;
+    }
+  }
+  if (artistHits.length > 0) {
+    frag.append(sectionHeader('Artists'));
+    for (const hit of artistHits) {
+      frag.append(oracleArtistRow(hit.item));
+      total += 1;
+    }
+  }
+
+  if (total === 0) {
+    frag.append(hintNode('No echoes found.'));
+    oracleSongs = [];
+  }
+
+  oracleCount.textContent = `${total} found`;
+  oracleResults.replaceChildren(frag);
+}
+
+function hintNode(text: string): HTMLElement {
+  const node = el('div', 'oracle-hint mono dim');
+  node.textContent = text;
+  return node;
+}
+
+function oracleSongRow(track: import('../../shared/types').IndexedTrack): HTMLElement {
+  const row = songRow(track);
+  row.style.width = '100%';
+  return row;
+}
+
+function oracleAlbumRow(album: AlbumEntry): HTMLElement {
+  const row = el('div', 'oracle-row');
+  row.dataset.interactive = '1';
+
+  const thumb = el('div', 'song-thumb');
+  artInto(thumb, album.artFile, 'card-img');
+
+  const meta = el('div', 'song-meta');
+  const title = el('div', 'song-title');
+  title.textContent = album.name;
+  const sub = el('div', 'mono dim song-sub');
+  sub.textContent = `${album.artist} · ${album.tracks.length} track${
+    album.tracks.length === 1 ? '' : 's'
+  }`;
+  meta.append(title, sub);
+
+  row.append(thumb, meta);
+  row.addEventListener('click', () => {
+    closeOracle();
+    openAlbum(album);
+  });
+  return row;
+}
+
+function oracleArtistRow(artist: ArtistEntry): HTMLElement {
+  const row = el('div', 'oracle-row');
+  row.dataset.interactive = '1';
+
+  const thumb = el('div', 'song-thumb');
+  artInto(thumb, artist.artFile, 'card-img');
+
+  const meta = el('div', 'song-meta');
+  const title = el('div', 'song-title');
+  title.textContent = artist.name;
+  const sub = el('div', 'mono dim song-sub');
+  sub.textContent = `${artist.albums.length} album${artist.albums.length === 1 ? '' : 's'} · ${artist.trackCount} tracks`;
+  meta.append(title, sub);
+
+  row.append(thumb, meta);
+  row.addEventListener('click', () => {
+    closeOracle();
+    state.mode = 'albums';
+    setArtistFilter(artist.key);
+    syncTabs();
+    syncChips();
+    render();
+  });
+  return row;
 }
 
 function setArtistFilter(key: string | null): void {
@@ -256,32 +404,20 @@ function syncFilterChip(): void {
 
 function render(): void {
   const frag = document.createDocumentFragment();
-  let shown = 0;
   let total = 0;
 
-  if (state.mode === 'playlists' && state.query.trim() === '') {
+  if (state.mode === 'playlists') {
     frag.append(playlistsEmpty());
-    carousel.setContent(frag);
-    searchCount.textContent = '';
-    syncFilterChip();
-    return;
-  }
-
-  if (state.query.trim() !== '') {
-    shown = renderSearch(frag);
-    total = shown;
   } else {
     const counts = renderBrowse(frag);
-    shown = counts.shown;
     total = counts.total;
   }
 
   carousel.setContent(frag);
 
-  if (state.query.trim() !== '') {
-    searchCount.textContent = `${shown} found`;
-  } else {
-    searchCount.textContent = `${total} ${total === 1 ? 'item' : 'items'}`;
+  const countEl = document.getElementById('oracle-count');
+  if (countEl !== null && state.query.trim() === '') {
+    countEl.textContent = `${total} ${total === 1 ? 'item' : 'items'}`;
   }
   syncFilterChip();
 }
@@ -318,42 +454,6 @@ function renderBrowse(frag: DocumentFragment): { shown: number; total: number } 
     default:
       return { shown: 0, total: 0 };
   }
-}
-
-function renderSearch(frag: DocumentFragment): number {
-  const q = state.query.trim();
-
-  const songHits = scoreOf(idx.songs, q).slice(0, 14);
-  const albumHits = scoreOf(idx.albums, q).slice(0, 8);
-  const artistHits = scoreOf(idx.artists, q).slice(0, 6);
-
-  let shown = 0;
-
-  if (songHits.length > 0) {
-    frag.append(sectionHeader('Songs'));
-    lastSongList = songHits.map((hit) => hit.item.track);
-    for (const hit of songHits) {
-      frag.append(songRow(hit.item.track));
-      shown += 1;
-    }
-  }
-  if (albumHits.length > 0) {
-    frag.append(sectionHeader('Albums'));
-    for (const hit of albumHits) {
-      frag.append(albumCard(hit.item));
-      shown += 1;
-    }
-  }
-  if (artistHits.length > 0) {
-    frag.append(sectionHeader('Artists'));
-    for (const hit of artistHits) {
-      frag.append(artistCard(hit.item));
-      shown += 1;
-    }
-  }
-
-  if (shown === 0) frag.append(noResults());
-  return shown;
 }
 
 function sectionHeader(label: string): HTMLElement {
@@ -417,11 +517,8 @@ function compareNullable(a: number | null, b: number | null): number {
 
 function artInto(host: HTMLElement, artFile: string | null, imgClass: string): void {
   if (artFile !== null) {
-    const img = document.createElement('img');
+    const img = createArtImage(mediaUrl(artFile));
     img.className = imgClass;
-    img.alt = '';
-    img.loading = 'lazy';
-    img.src = mediaUrl(artFile);
     host.replaceChildren(img);
   } else {
     host.classList.add('noart');
@@ -515,22 +612,30 @@ function songRow(track: import('../../shared/types').IndexedTrack): HTMLElement 
   dur.textContent = track.durationSec !== null && Number.isFinite(track.durationSec) ? fmtTime(track.durationSec) : '--:--';
 
   row.append(thumb, meta, dur);
+  attachPreview(row, track);
   row.addEventListener('click', () => {
     if (carousel.wasDrag()) return;
-    playFromList(track);
+    preview.hardStop();
+    playFromList(track, row);
   });
   return row;
 }
 
 const UNKNOWN_ARTIST = 'Unknown Artist';
 
-function playFromList(track: import('../../shared/types').IndexedTrack): void {
+function playFromList(
+  track: import('../../shared/types').IndexedTrack,
+  sourceRow?: HTMLElement,
+): void {
   const index = lastSongList.findIndex((t) => t.id === track.id);
   if (index >= 0) {
     player.setContext(lastSongList, index);
   } else {
     player.setContext([track], 0);
   }
+  const thumb = sourceRow?.querySelector<HTMLElement>('.song-thumb');
+  const rect = (thumb ?? sourceRow)?.getBoundingClientRect() ?? null;
+  openNowPlayingFromRect(rect, track.artFile !== null ? mediaUrl(track.artFile) : null);
 }
 
 function markPlaying(trackId: string): void {
@@ -538,6 +643,25 @@ function markPlaying(trackId: string): void {
     node.classList.remove('playing');
   }
   document.querySelector<HTMLElement>(`[data-track-id="${trackId}"]`)?.classList.add('playing');
+}
+
+function markPreview(className: 'preview-pending' | 'previewing', trackId: string | null): void {
+  for (const node of document.querySelectorAll<HTMLElement>(`[data-track-id].${className}`)) {
+    node.classList.remove(className);
+  }
+  if (trackId === null) return;
+  document.querySelector<HTMLElement>(`[data-track-id="${trackId}"]`)?.classList.add(className);
+}
+
+function attachPreview(row: HTMLElement, track: import('../../shared/types').IndexedTrack): void {
+  row.addEventListener('mouseenter', () => {
+    preview.hoverEnter(track);
+    uiTheme.pushPreview(track.palette);
+  });
+  row.addEventListener('mouseleave', () => {
+    preview.hoverLeave();
+    uiTheme.popPreview();
+  });
 }
 
 function openAlbum(album: AlbumEntry): void {
@@ -602,8 +726,12 @@ function miniCell(
       : '--:--';
 
   cell.append(n, thumb, t, d);
+  attachPreview(cell, track);
   cell.addEventListener('click', () => {
+    preview.hardStop();
     player.setContext(context, index);
+    const rect = thumb.getBoundingClientRect();
+    openNowPlayingFromRect(rect, track.artFile !== null ? mediaUrl(track.artFile) : null);
   });
   return cell;
 }

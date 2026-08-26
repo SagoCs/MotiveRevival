@@ -7,6 +7,8 @@ const api: MrApi = {
   setMusicDir: () => ipcRenderer.invoke('settings:set-music-dir'),
   listTracks: () => ipcRenderer.invoke('library:list'),
   getLyrics: (payload: LyricsPayload) => ipcRenderer.invoke('lyrics:get', payload),
+  storageGet: (key: string) => ipcRenderer.invoke('storage:get', key),
+  storageSet: (key: string, value: unknown) => ipcRenderer.invoke('storage:set', key, value),
   window: {
     minimize: () => ipcRenderer.send('window:minimize'),
     maximize: () => ipcRenderer.send('window:maximize'),

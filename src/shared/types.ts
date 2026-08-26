@@ -18,10 +18,13 @@ export interface IndexedTrack {
   palette: string[] | null;
 }
 
+export type NowPlayingView = 'split' | 'art';
+
 export interface Settings {
   musicDir: string;
   motionEffects?: boolean;
   autoFetchLyrics?: boolean;
+  nowPlayingView?: NowPlayingView;
 }
 
 export interface LyricsPayload {
@@ -57,6 +60,8 @@ export interface MrApi {
   setMusicDir(): Promise<Settings | null>;
   listTracks(): Promise<LibraryResult>;
   getLyrics(payload: LyricsPayload): Promise<LyricsResult>;
+  storageGet(key: string): Promise<unknown>;
+  storageSet(key: string, value: unknown): Promise<void>;
   window: WindowControls;
   onLibraryProgress(cb: (p: LibraryProgress) => void): () => void;
   onLibraryIndexed(cb: (r: LibraryResult) => void): () => void;

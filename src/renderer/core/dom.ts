@@ -22,6 +22,15 @@ export function el<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
+export function createArtImage(url: string): HTMLImageElement {
+  const img = document.createElement('img');
+  img.decoding = 'async';
+  img.loading = 'lazy';
+  img.alt = '';
+  img.src = url;
+  return img;
+}
+
 export function fatal(message: string): void {
   const banner = document.getElementById('fatal-banner');
   if (!banner) return;

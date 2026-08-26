@@ -10,6 +10,7 @@ import './styles/shell.css';
 import { player } from './core/player';
 import { libraryStore } from './core/libraryStore';
 import { fx } from './core/fx';
+import { enqueueIdle } from './core/peakAnalyzer';
 import { fatal } from './core/dom';
 import { initBrowser } from './ui/browser';
 import { initOverlay } from './ui/overlay';
@@ -46,8 +47,14 @@ function boot(): void {
     fx.motion = s.motionEffects !== false;
   });
 
-  void window.mr.listTracks().then((result) => libraryStore.set(result));
-  window.mr.onLibraryIndexed((result) => libraryStore.set(result));
+  void window.mr.listTracks().then((result) => {
+    libraryStore.set(result);
+    if (result.ok) enqueueIdle(result.tracks);
+  });
+  window.mr.onLibraryIndexed((result) => {
+    libraryStore.set(result);
+    if (result.ok) enqueueIdle(result.tracks);
+  });
   window.mr.onLibraryProgress(({ done, total }) => {
     if (rootInfo && total > 0) {
       const root = libraryStore.result?.root ?? '';

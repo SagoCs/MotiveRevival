@@ -60,54 +60,61 @@ function hexToHsl(hex: string): Hsl | null {
 }
 
 export function applyLyricsInk(target: HTMLElement, palette: readonly string[] | null): void {
-  let line = 'rgba(238, 240, 255, 0.66)';
-  let active = '#f4f5ff';
+  let line = 'hsl(228 32% 88% / 0.92)';
+  let active = '#f6f6ff';
   let glow = '#8f97e8';
 
+  const tones: Hsl[] = [];
   if (palette !== null && palette.length > 0) {
-    const tones: Hsl[] = [];
     for (const entry of palette) {
       const converted = hexToHsl(entry);
       if (converted !== null) tones.push(converted);
     }
-    if (tones.length > 0) {
-      let lightest = tones[0] as Hsl | undefined;
-      let dominant = tones[0] as Hsl | undefined;
-      let brightestWash = false;
-      let maxL = -1;
-      let maxS = -1;
-      for (const t of tones) {
-        const weight = t.l + t.s * 0.35;
-        if (weight > maxS) {
-          maxS = weight;
-          dominant = t;
-        }
-        if (t.l > maxL) {
-          maxL = t.l;
-          lightest = t;
-        }
-      }
-      brightestWash = maxL > 68 && (dominant?.l ?? 0) > 55;
+  }
+  const lightest = tones.reduce<Hsl | null>((best, t) => (best === null || t.l > best.l ? t : best), null);
+  const dominant = tones[0];
 
-      if (lightest !== undefined && dominant !== undefined) {
-        const hue = (lightest.h + 360) % 360;
-        const domHue = (dominant.h + 360) % 360;
-        if (brightestWash) {
-          const sat = Math.max(30, Math.min(dominant.s, 55));
-          line = `hsl(${hue.toFixed(0)} ${sat.toFixed(0)}% 26%)`;
-          active = `hsl(${hue.toFixed(0)} ${(sat * 0.7).toFixed(0)}% 14%)`;
-          glow = `hsl(${domHue.toFixed(0)} 55% 38%)`;
-        } else {
-          const sat = Math.max(28, Math.min(lightest.s * 0.6, 58));
-          line = `hsl(${hue.toFixed(0)} ${sat.toFixed(0)}% ${Math.max(84, Math.min(92, lightest.l + 14)).toFixed(0)}% / 0.85)`;
-          active = `hsl(${hue.toFixed(0)} ${(sat * 0.6).toFixed(0)}% 96%)`;
-          glow = `hsl(${domHue.toFixed(0)} 70% 74%)`;
-        }
-      }
-    }
+  if (lightest !== null && dominant !== undefined) {
+    const hue = (lightest.h + 360) % 360;
+    const sat = Math.max(26, Math.min(lightest.s * 0.55, 48));
+    line = `hsl(${hue.toFixed(0)} ${sat.toFixed(0)}% 88% / 0.92)`;
+    active = `hsl(${hue.toFixed(0)} ${(sat * 0.65).toFixed(0)}% 96%)`;
+    glow = `hsl(${((dominant.h + 360) % 360).toFixed(0)} 70% 74%)`;
   }
 
   target.style.setProperty('--lyric-line', line);
   target.style.setProperty('--lyric-active', active);
   target.style.setProperty('--lyric-glow', glow);
+}
+
+export function deriveAccent(palette: readonly string[] | null): { a: string; b: string; g: string } {
+  if (palette === null || palette.length === 0) {
+    return { a: '#8f97e8', b: '#6ee7d8', g: '#8f97e8' };
+  }
+  const tones: Hsl[] = [];
+  for (const entry of palette) {
+    const converted = hexToHsl(entry);
+    if (converted !== null) tones.push(converted);
+  }
+  const dominant = tones[0];
+  if (dominant === undefined || tones.length === 0) {
+    return { a: '#8f97e8', b: '#6ee7d8', g: '#8f97e8' };
+  }
+  let lightest = tones[0] as Hsl | undefined;
+  for (const t of tones) {
+    if (lightest === undefined || t.l > lightest.l) lightest = t;
+  }
+  const deepSat = Math.max(30, Math.min(dominant.s * 0.85, 68));
+  const a = `hsl(${((dominant.h + 360) % 360).toFixed(0)} ${deepSat.toFixed(0)}% ${Math.max(
+    30,
+    Math.min(dominant.l * 0.7 + 12, 58),
+  ).toFixed(0)}%)`;
+  const b =
+    lightest !== undefined
+      ? `hsl(${((lightest.h + 360) % 360).toFixed(0)} ${Math.max(28, Math.min(lightest.s * 0.7, 62)).toFixed(
+          0,
+        )}% ${Math.max(66, Math.min(lightest.l + 8, 84)).toFixed(0)}%)`
+      : '#6ee7d8';
+  const g = `hsl(${((dominant.h + 360) % 360).toFixed(0)} 70% 68%)`;
+  return { a, b, g };
 }

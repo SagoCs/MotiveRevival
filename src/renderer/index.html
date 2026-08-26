@@ -8,6 +8,7 @@
 </head>
 <body>
   <div id="starfield" aria-hidden="true"></div>
+  <div id="ambient" aria-hidden="true"></div>
   <div id="grain" aria-hidden="true"></div>
 
   <div id="veil">
@@ -31,29 +32,20 @@
   </header>
 
   <div id="controlbar">
-    <div id="searchbox">
-      <span id="search-icon" aria-hidden="true"></span>
-      <input
-        id="search-input"
-        type="text"
-        spellcheck="false"
-        autocomplete="off"
-        placeholder="Type anywhere to search &mdash; songs, artists, albums"
-      >
-      <button id="filter-chip" type="button" hidden></button>
-      <span id="search-count" class="mono dim"></span>
+    <div class="control-center">
+      <nav id="mode-tabs" class="segmented" aria-label="Browse mode">
+        <button type="button" data-mode="albums" class="active">Albums</button>
+        <button type="button" data-mode="artists">Artists</button>
+        <button type="button" data-mode="songs">Songs</button>
+        <button type="button" data-mode="playlists">Playlists</button>
+      </nav>
+      <nav id="sort-chips" aria-label="Sort order">
+        <button type="button" data-sort="alpha" class="active">A&ndash;Z</button>
+        <button type="button" data-sort="duration">Longest</button>
+        <button type="button" data-sort="artist">Artist</button>
+      </nav>
     </div>
-    <nav id="mode-tabs" class="segmented" aria-label="Browse mode">
-      <button type="button" data-mode="albums" class="active">Albums</button>
-      <button type="button" data-mode="artists">Artists</button>
-      <button type="button" data-mode="songs">Songs</button>
-      <button type="button" data-mode="playlists">Playlists</button>
-    </nav>
-    <nav id="sort-chips" aria-label="Sort order">
-      <button type="button" data-sort="alpha" class="active">A&ndash;Z</button>
-      <button type="button" data-sort="duration">Longest</button>
-      <button type="button" data-sort="artist">Artist</button>
-    </nav>
+    <button id="filter-chip" type="button" hidden></button>
   </div>
 
   <main id="browser">
@@ -118,6 +110,21 @@
         <input id="setting-autofetch" type="checkbox" class="toggle" aria-label="Toggle lyric auto-fetch">
       </div>
     </div>
+  </div>
+
+  <div id="search-oracle" hidden>
+    <div class="oracle-input-row">
+      <span id="oracle-icon" aria-hidden="true"></span>
+      <input
+        id="oracle-input"
+        type="text"
+        spellcheck="false"
+        autocomplete="off"
+        placeholder="Summon songs, artists, albums&hellip;"
+      >
+      <span id="oracle-count" class="mono dim"></span>
+    </div>
+    <div id="oracle-results"></div>
   </div>
 
   <script src="./renderer.js"></script>
