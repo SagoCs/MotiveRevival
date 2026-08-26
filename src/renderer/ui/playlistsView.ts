@@ -496,6 +496,7 @@ function openContextMenu(
   ensureOutsideBound();
 
   const rowRect = row.getBoundingClientRect();
+  let menuPosition: { x: number; y: number } | null = null;
 
   const card = el('div', 'ctx-menu');
   card.dataset.interactive = '1';
@@ -533,7 +534,8 @@ function openContextMenu(
 
     view.append(addItem, playItem, albumItem);
     card.replaceChildren(view);
-    place(card, rowRect, cursorY);
+    if (menuPosition === null) menuPosition = place(card, rowRect, cursorY);
+    else placeAt(card, menuPosition);
   };
 
   const renderPlaylistListView = (): void => {
@@ -596,7 +598,8 @@ function openContextMenu(
     }
 
     card.replaceChildren(view);
-    place(card, rowRect, cursorY);
+    if (menuPosition === null) menuPosition = place(card, rowRect, cursorY);
+    else placeAt(card, menuPosition);
   };
 
   document.body.append(card);
@@ -618,15 +621,26 @@ function menuItem(label: string, arrow: string | null): HTMLButtonElement {
   return b;
 }
 
-function place(card: HTMLElement, rowRect: DOMRect, cursorY: number): void {
+function place(card: HTMLElement, rowRect: DOMRect, cursorY: number): { x: number; y: number } {
   const pw = card.offsetWidth;
   const ph = card.offsetHeight;
   let x = rowRect.right - pw + 18;
   x = Math.max(12, Math.min(x, window.innerWidth - pw - 12));
   let y = cursorY - 10;
   y = Math.max(12, Math.min(y, window.innerHeight - ph - 12));
-  card.style.left = Math.round(x).toString() + 'px';
-  card.style.top = Math.round(y).toString() + 'px';
+  const position = { x: Math.round(x), y: Math.round(y) };
+  card.style.left = `${position.x}px`;
+  card.style.top = `${position.y}px`;
+  return position;
+}
+
+function placeAt(card: HTMLElement, position: { x: number; y: number }): void {
+  const maxX = Math.max(12, window.innerWidth - card.offsetWidth - 12);
+  const maxY = Math.max(12, window.innerHeight - card.offsetHeight - 12);
+  const x = Math.max(12, Math.min(position.x, maxX));
+  const y = Math.max(12, Math.min(position.y, maxY));
+  card.style.left = `${Math.round(x)}px`;
+  card.style.top = `${Math.round(y)}px`;
 }
 
 function flashRowCheck(row: HTMLElement): void {
