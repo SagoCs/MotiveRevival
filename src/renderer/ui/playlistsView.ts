@@ -624,7 +624,10 @@ function menuItem(label: string, arrow: string | null): HTMLButtonElement {
 function place(card: HTMLElement, rowRect: DOMRect, cursorY: number): { x: number; y: number } {
   const pw = card.offsetWidth;
   const ph = card.offsetHeight;
-  let x = rowRect.right - pw + 18;
+  const gap = 14;
+  const rightX = rowRect.right + gap;
+  const leftX = rowRect.left - pw - gap;
+  let x = rightX + pw <= window.innerWidth - 12 ? rightX : leftX;
   x = Math.max(12, Math.min(x, window.innerWidth - pw - 12));
   let y = cursorY - 10;
   y = Math.max(12, Math.min(y, window.innerHeight - ph - 12));
