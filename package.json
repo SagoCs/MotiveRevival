@@ -1,0 +1,25 @@
+{
+  "name": "motiverevival",
+  "productName": "MotiveRevival",
+  "version": "0.1.0",
+  "description": "A celestial atlas for your music.",
+  "private": true,
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "npm run build && electron .",
+    "typecheck": "tsc --noEmit",
+    "test": "node scripts/test.mjs"
+  },
+  "dependencies": {
+    "@fontsource/ibm-plex-mono": "^5.0.0",
+    "@fontsource/sora": "^5.3.0",
+    "music-metadata": "^11.15.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "electron": "^38.0.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.6.0"
+  }
+}

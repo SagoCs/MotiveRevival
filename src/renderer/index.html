@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MotiveRevival</title>
+  <link rel="stylesheet" href="./renderer.css">
+</head>
+<body>
+  <div id="starfield" aria-hidden="true"></div>
+  <div id="grain" aria-hidden="true"></div>
+
+  <div id="veil">
+    <div id="veil-mark"></div>
+    <div class="veil-text">Aligning the heavens</div>
+  </div>
+
+  <div id="fatal-banner" class="mono" hidden></div>
+
+  <header id="topbar" class="window-drag">
+    <div class="wordmark">Motive<span class="wordmark-sep" aria-hidden="true"></span>Revival</div>
+    <div class="topbar-right">
+      <div id="root-info" class="mono dim">surveying the archive&hellip;</div>
+      <button id="btn-settings" type="button" class="icon-btn btn-small no-drag" aria-label="Settings"></button>
+      <div class="window-controls no-drag">
+        <button id="win-min" type="button" class="win-btn" aria-label="Minimize"></button>
+        <button id="win-max" type="button" class="win-btn" aria-label="Maximize"></button>
+        <button id="win-close" type="button" class="win-btn win-close" aria-label="Close"></button>
+      </div>
+    </div>
+  </header>
+
+  <div id="controlbar">
+    <div id="searchbox">
+      <span id="search-icon" aria-hidden="true"></span>
+      <input
+        id="search-input"
+        type="text"
+        spellcheck="false"
+        autocomplete="off"
+        placeholder="Type anywhere to search &mdash; songs, artists, albums"
+      >
+      <button id="filter-chip" type="button" hidden></button>
+      <span id="search-count" class="mono dim"></span>
+    </div>
+    <nav id="mode-tabs" class="segmented" aria-label="Browse mode">
+      <button type="button" data-mode="albums" class="active">Albums</button>
+      <button type="button" data-mode="artists">Artists</button>
+      <button type="button" data-mode="songs">Songs</button>
+      <button type="button" data-mode="playlists">Playlists</button>
+    </nav>
+    <nav id="sort-chips" aria-label="Sort order">
+      <button type="button" data-sort="alpha" class="active">A&ndash;Z</button>
+      <button type="button" data-sort="duration">Longest</button>
+      <button type="button" data-sort="artist">Artist</button>
+    </nav>
+  </div>
+
+  <main id="browser">
+    <div id="carousel"><div id="carousel-content"></div></div>
+
+    <section id="detail-layer" aria-label="Album detail" hidden>
+      <button id="detail-back" type="button" class="icon-btn btn-small" aria-label="Back to albums"></button>
+      <div id="palette-field" aria-hidden="true"></div>
+      <div id="stage">
+        <div id="stage-left">
+          <h2 id="detail-title"></h2>
+          <div id="detail-sub" class="mono dim"></div>
+          <ol id="detail-tracks"></ol>
+        </div>
+        <aside id="stage-right">
+          <div id="stage-art-wrap">
+            <div id="detail-art"></div>
+          </div>
+          <canvas id="stage-viz"></canvas>
+          <div id="lyrics-slot"></div>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <footer id="bottom-bar">
+    <button id="np-open" type="button" class="icon-btn btn-small" aria-label="Now playing" disabled></button>
+    <div id="transport-host" class="transport transport-flat"></div>
+  </footer>
+
+  <div id="overlay" hidden>
+    <div id="overlay-field" aria-hidden="true"></div>
+    <button id="overlay-close" type="button" class="icon-btn overlay-close" aria-label="Return to library"></button>
+    <div id="overlay-body">
+      <div id="overlay-main">
+        <div id="overlay-sigil"></div>
+        <canvas id="overlay-viz"></canvas>
+        <h2 id="overlay-title"></h2>
+      </div>
+      <aside id="overlay-lyrics" hidden></aside>
+    </div>
+    <div id="overlay-bottom">
+      <div id="overlay-transport" class="transport transport-inline"></div>
+    </div>
+  </div>
+
+  <div id="settings-modal" class="modal" hidden>
+    <div class="modal-card">
+      <button id="settings-close" type="button" class="icon-btn btn-small modal-close" aria-label="Close settings"></button>
+      <h3 class="modal-title">Settings</h3>
+      <div class="setting-row">
+        <span class="setting-label">Music archive</span>
+        <span id="settings-dir" class="mono dim setting-dir">&mdash;</span>
+        <button id="btn-change-dir" type="button" class="ghost-btn">Change&hellip;</button>
+      </div>
+      <div class="setting-row setting-row-second">
+        <span class="setting-label">Motion effects</span>
+        <input id="setting-motion" type="checkbox" class="toggle" aria-label="Toggle motion effects">
+      </div>
+      <div class="setting-row setting-row-second">
+        <span class="setting-label">Fetch lyrics from lrclib</span>
+        <input id="setting-autofetch" type="checkbox" class="toggle" aria-label="Toggle lyric auto-fetch">
+      </div>
+    </div>
+  </div>
+
+  <script src="./renderer.js"></script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+:root {
+  --void-0: #05070f;
+  --void-1: #070b17;
+  --void-2: #0c1122;
+
+  --moon: #c7cdf4;
+  --moon-bright: #eef0ff;
+  --moon-faint: rgba(199, 205, 244, 0.32);
+  --moon-ghost: rgba(199, 205, 244, 0.07);
+
+  --aurora: #6ee7d8;
+  --aurora-faint: rgba(110, 231, 216, 0.35);
+
+  --dim: #6f7594;
+  --crimson: #c25b74;
+
+  --line: rgba(199, 205, 244, 0.13);
+
+  --bass: 0;
+  --mid: 0;
+  --treble: 0;
+
+  --radius-card: 16px;
+
+  --font-display: 'Sora', sans-serif;
+  --font-body: 'Sora', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+
+  --ease-drift: cubic-bezier(0.16, 1, 0.3, 1);
+}
