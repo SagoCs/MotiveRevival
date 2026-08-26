@@ -16,7 +16,7 @@ export const ICON_SIGIL = `<svg viewBox="0 0 200 200" fill="none" stroke="curren
 
 export const ICON_DIAMOND = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" width="26" height="26" aria-hidden="true"><path d="M12 3l7 9-7 9-7-9z"/><path d="M12 8l3.5 4-3.5 4-3.5-4z"/></svg>`;
 
-export const ICON_SETTINGS = `<svg ${ATTRS} width="17" height="17" aria-hidden="true"><path d="M4 8h8.6M18.4 8H20M4 16h4.6M14.4 16H20"/><circle cx="15.5" cy="8" r="2.3"/><circle cx="11.5" cy="16" r="2.3"/></svg>`;
+export const ICON_SETTINGS = `<svg ${ATTRS} width="17" height="17" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c0 .66.39 1.26 1 1.51.64.26 1.36.11 1.85-.38l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9"/></svg>`;
 
 export const ICON_SEARCH = `<svg ${ATTRS} width="15" height="15" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M15.6 15.6L20 20"/></svg>`;
 

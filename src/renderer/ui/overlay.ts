@@ -1,4 +1,4 @@
-import { player } from '../core/player';
+﻿import { player } from '../core/player';
 import { appBus } from '../core/appBus';
 import { startBands, stopBands } from '../core/audioBands';
 import { fallbackPalette, applyPalette, applyLyricsInk } from '../core/palette';
@@ -118,7 +118,7 @@ export function openNowPlaying(): void {
 export function openNowPlayingFromRect(from: DOMRect | null, imageUrl: string | null): void {
   const overlay = document.querySelector<HTMLDivElement>('#overlay');
   if (overlay === null) return;
-  const animate = fx.motion && from !== null && from.width > 4 && from.height > 4;
+  const animate = fx.motion && fx.morph && from !== null && from.width > 4 && from.height > 4;
   setOverlay(true);
   if (!animate || from === null) return;
 

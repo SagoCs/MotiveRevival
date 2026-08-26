@@ -1,7 +1,10 @@
 import { el } from '../core/dom';
 import { fmtTime } from '../core/dom';
 import { player } from '../core/player';
+import { createQueuePanel } from './queuePanel';
 import { ICON_PAUSE, ICON_PLAY, ICON_PREV, ICON_NEXT } from './icons';
+
+const ICON_QUEUE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" width="17" height="17" aria-hidden="true"><path d="M9.5 6.5h10M9.5 12h10M9.5 17.5h10"/><circle cx="5.4" cy="6.5" r="1.15" fill="currentColor" stroke="none"/><circle cx="5.4" cy="12" r="1.15" fill="currentColor" stroke="none"/><circle cx="5.4" cy="17.5" r="1.15" fill="currentColor" stroke="none"/></svg>`;
 
 export interface TransportHandle {
   setInteractivity(enabled: boolean): void;
@@ -42,7 +45,28 @@ export function createTransport(host: HTMLElement): TransportHandle {
   const timeTotal = el('span', 'mono transport-time');
   timeTotal.textContent = '0:00';
 
+  const queueBtn = el('button', 'icon-btn btn-small');
+  queueBtn.classList.add('queue-toggle');
+  queueBtn.type = 'button';
+  queueBtn.setAttribute('aria-label', 'Up next queue');
+  queueBtn.setAttribute('aria-pressed', 'false');
+  queueBtn.innerHTML = ICON_QUEUE;
+
   host.append(timeNow, prevBtn, btn, nextBtn, scrub, timeTotal);
+
+  const bottomBar = host.parentElement;
+  if (bottomBar !== null) bottomBar.insertBefore(queueBtn, host);
+
+  const queuePanel = createQueuePanel();
+  const syncQueueButton = (open: boolean): void => {
+    queueBtn.classList.toggle('lit', open);
+    queueBtn.setAttribute('aria-pressed', open ? 'true' : 'false');
+  };
+  queuePanel.onStateChange(syncQueueButton);
+  syncQueueButton(queuePanel.isOpen());
+  queueBtn.addEventListener('click', () => {
+    queuePanel.toggle();
+  });
 
   let dragging = false;
 
@@ -116,6 +140,7 @@ export function createTransport(host: HTMLElement): TransportHandle {
   player.bus.on('ended', () => renderState());
   player.bus.on('queue', () => renderQueue());
   player.bus.on('trackChanged', () => renderQueue());
+  player.bus.on('queueMutated', () => renderQueue());
 
   return { setInteractivity: (enabled) => host.classList.toggle('is-disabled', !enabled) };
 }

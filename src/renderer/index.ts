@@ -9,7 +9,7 @@ import './styles/shell.css';
 
 import { player } from './core/player';
 import { libraryStore } from './core/libraryStore';
-import { fx } from './core/fx';
+import { applyMotionFlags, applyLyricSize } from './core/fx';
 import { enqueueIdle } from './core/peakAnalyzer';
 import { fatal } from './core/dom';
 import { initBrowser } from './ui/browser';
@@ -44,7 +44,8 @@ function boot(): void {
   const rootInfo = document.querySelector<HTMLDivElement>('#root-info');
 
   void window.mr.getSettings().then((s) => {
-    fx.motion = s.motionEffects !== false;
+    applyMotionFlags(s);
+    applyLyricSize(s.lyricSize);
   });
 
   void window.mr.listTracks().then((result) => {
@@ -57,15 +58,20 @@ function boot(): void {
   });
   window.mr.onLibraryProgress(({ done, total }) => {
     if (rootInfo && total > 0) {
-      const root = libraryStore.result?.root ?? '';
-      rootInfo.textContent = `${root} · surveying ${done}/${total}…`;
+      const roots = libraryStore.result?.roots ?? [];
+      const label = roots.length === 1 ? (roots[0] ?? '') : `${roots.length} archives`;
+      rootInfo.textContent = `${label} · surveying ${done}/${total}…`;
     }
   });
   libraryStore.onChange((result) => {
     if (rootInfo) {
+      const label =
+        result.roots.length === 1
+          ? (result.roots[0] ?? '')
+          : `${result.roots.length} archives`;
       rootInfo.textContent = result.ok
-        ? `${result.root} · ${result.tracks.length} tracks`
-        : `${result.root} · unreachable`;
+        ? `${label} · ${result.tracks.length} tracks`
+        : `${label} · unreachable`;
     }
   });
 

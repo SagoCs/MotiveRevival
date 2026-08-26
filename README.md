@@ -57,6 +57,7 @@ npm install        # once
 npm run build      # bundle main/preload/renderer → dist/
 npm start          # build + launch (always a cold start)
 npm run typecheck  # strict TS gate
+npm test           # LRC parser suite (20 cases)
 ```
 
 Optional: set `MOTIVE_MUSIC_DIR` to override the music folder for a session. Default archive: `D:\Music` (changeable in-app via the sliders icon → Settings).
@@ -71,8 +72,8 @@ Keyboard: type anywhere = search · `/` focuses search · `Esc` steps back (sear
 | II | Data layer | Tag/artist/album/duration indexing, embedded-art extraction + folder fallback, cached index, background rescan | ✅ Signed off |
 | III | The Browser | Universal always-on search, albums/artists/songs/playlists tabs, sorts, osu-style carousel v1, detail slide-in | ✅ Signed off |
 | IV | Chromatic | Two-pane detail stage, palette engine, live audio-band reactivity, visualizer v2, queue + next/prev | ✅ Core signed off; display-toggles deferred |
-| V | Voice | LRC parser (test-first), synced lyrics in the right rail, lrclib.net fetch writing `.lrc` beside files | ⏭ Next |
-| VI | Pulse | Hover snippets w/ waveform-peak analysis, full osu! motion polish (velocity spacing, parallax, morph transition), display toggles reimagined | Planned |
+| V | Voice | LRC parser (test-first), synced lyrics in stage rail + expanded panel, lrclib.net fetch writing `.lrc` beside files, lyric-focus/art-focus cycling | ✅ Signed off |
+| VI | Pulse | Hover snippet previews w/ waveform-peak pipeline, song-reactive UI theming, velocity spacing + art parallax, card→fullscreen morph, search oracle, remembered now-playing view | ✅ Signed off (minor polish riders) |
 | VII | Playlists | Create/reorder/persist; playlist tab awakens | Planned |
 
 ## Progress Ledger
@@ -81,8 +82,11 @@ Sign-off entries are added when changes are verified working in session.
 
 - **2026-08-26 — Movements I–III verified.** Playback pipeline, scrub-drag fix, transport wiring, numbering fix, borderless chrome, settings persistence, universal search relevance rewrite (word-boundary fuzzy), artist-card click fix (pointer-capture regression).
 - **2026-08-26 — Movement IV verified.** Two-pane stage with staggered mini-cells; per-album queue context; auto-advance; prev/next; palette field throbbing confirmed; spectrum engine v2 confirmed "truly reflective" after fftSize 2048 rebuild; overlay color-wash pulse confirmed.
-- **Deferred:** now-playing display toggles (Art/Visualizer/Metadata). Removed pending polished redesign — chips appeared inert against blank pre-selection targets; root cause not conclusively isolated. Re-imagined version planned for Movement VI.
+- **2026-08-26 — Movement V signed off.** Pure LRC parser locked behind a 20-case suite (`npm test`) covering fractions, multi-timestamps, offset sign convention, BOM/CRLF, malformed tolerance and sync boundaries. Lyrics resolve local-sheet-first, then lrclib (get → search fallback, closest duration, synced preferred) and are written beside songs so folders stay portable. LyricScroller lives in the stage rail *and* a two-column expanded panel: hue-tinted high-luminance ink, active-line glow, click-a-line-to-seek.
+- **2026-08-26 — Movement VI signed off (minor polish riders).** Hover-snippet previews on every song cell: 1.4s dwell, main playback ducks to silence and restores precisely; waveform peaks come from a lazy-first-hover decode plus a throttled idle queue, persisted permanently. Song-reactive UI theming via `@property` color crossfade (priority hovered > playing > moonlight) across scrubber, glows, borders, ambient washes. Velocity spacing + art parallax on the carousel (transform-only). Card-to-fullscreen FLIP morph with measured destination rects. Search rebuilt as a top-center summonable oracle with centered browse chrome. Frameless custom window controls; flex-column shell; scroll-performance pass on long song lists. Now-playing focus modes gated on lyric availability and remembered between sessions (default: Art Focus).
+- **Deferred:** now-playing display toggles v1 — superseded by art/title cycling + persisted default view; richer toggles may return later.
 - **Deferred:** custom folder-picker UI (frosted card style) — native dialog currently in use; queued for polish pass.
+- **Open riders:** BPM tag shown in metadata when present · minor visual tweaks flagged during Movement VI sign-off review.
 
 ## Known Behaviors
 

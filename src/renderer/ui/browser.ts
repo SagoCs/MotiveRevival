@@ -1,4 +1,4 @@
-import { el, fmtTime, createArtImage } from '../core/dom';
+﻿import { el, fmtTime, createArtImage } from '../core/dom';
 import { mediaUrl, player } from '../core/player';
 import { appBus } from '../core/appBus';
 import { libraryStore } from '../core/libraryStore';
@@ -11,7 +11,7 @@ import {
   type SearchIndexes,
 } from '../core/searchIndex';
 import { Carousel } from './carousel';
-import { closeNowPlaying, isOverlayOpen, openNowPlayingFromRect, toggleNowPlaying } from './overlay';
+import { isOverlayOpen, openNowPlayingFromRect, toggleNowPlaying } from './overlay';
 import { ICON_SIGIL, ICON_BACK, ICON_NOTE, ICON_SEARCH } from './icons';
 import { startBands, stopBands } from '../core/audioBands';
 import { fallbackPalette, applyPalette, applyLyricsInk } from '../core/palette';
@@ -20,12 +20,11 @@ import { preview } from '../core/preview';
 import { enqueueIdle } from '../core/peakAnalyzer';
 import { Viz } from './viz';
 import { createLyrics } from './lyrics';
+import { renderTabCards, searchPlaylists, closePlaylistLayer, isPlaylistLayerOpen, openDetail, attachContextMenu } from './playlistsView';
+import type { Playlist } from '../../shared/types';
 
 type Mode = 'albums' | 'artists' | 'songs' | 'playlists';
 type SortKey = 'alpha' | 'duration' | 'artist';
-
-const MODES: Mode[] = ['albums', 'artists', 'songs', 'playlists'];
-const SORTS: SortKey[] = ['alpha', 'duration', 'artist'];
 
 const SORT_LABELS: Record<Mode, [string, string, string]> = {
   albums: ['A–Z', 'Longest', 'Artist'],
@@ -38,10 +37,9 @@ interface BrowserState {
   mode: Mode;
   sort: SortKey;
   artistFilter: string | null;
-  query: string;
 }
 
-const state: BrowserState = { mode: 'albums', sort: 'alpha', artistFilter: null, query: '' };
+const state: BrowserState = { mode: 'albums', sort: 'alpha', artistFilter: null };
 
 let idx: SearchIndexes = { songs: [], albums: [], artists: [] };
 
@@ -62,18 +60,36 @@ let oracleSongs: import('../../shared/types').IndexedTrack[] = [];
 export function initBrowser(): void {
   const host = document.querySelector<HTMLElement>('#carousel');
   const content = document.querySelector<HTMLElement>('#carousel-content');
-  oracleInput = document.querySelector<HTMLInputElement>('#oracle-input') ?? (() => { throw new Error('missing #oracle-input'); })();
-  oracleResults = document.querySelector<HTMLElement>('#oracle-results') ?? (() => { throw new Error('missing #oracle-results'); })();
-  oracleCount = document.querySelector<HTMLSpanElement>('#oracle-count') ?? (() => { throw new Error('missing #oracle-count'); })();
-  filterChip = document.querySelector<HTMLButtonElement>('#filter-chip') ?? (() => { throw new Error('missing #filter-chip'); })();
-  detailLayer = document.querySelector<HTMLElement>('#detail-layer') ?? (() => { throw new Error('missing #detail-layer'); })();
+  oracleInput =
+    document.querySelector<HTMLInputElement>('#oracle-input') ??
+    (() => {
+      throw new Error('missing #oracle-input');
+    })();
+  oracleResults =
+    document.querySelector<HTMLElement>('#oracle-results') ??
+    (() => {
+      throw new Error('missing #oracle-results');
+    })();
+  oracleCount =
+    document.querySelector<HTMLSpanElement>('#oracle-count') ??
+    (() => {
+      throw new Error('missing #oracle-count');
+    })();
+  filterChip =
+    document.querySelector<HTMLButtonElement>('#filter-chip') ??
+    (() => {
+      throw new Error('missing #filter-chip');
+    })();
+  detailLayer =
+    document.querySelector<HTMLElement>('#detail-layer') ??
+    (() => {
+      throw new Error('missing #detail-layer');
+    })();
 
   if (!host || !content) throw new Error('missing carousel nodes');
 
   const oracleIcon = document.querySelector<HTMLSpanElement>('#oracle-icon');
   if (oracleIcon) oracleIcon.innerHTML = ICON_SEARCH;
-
-  appBus.on('track-selected', ({ track }) => uiTheme.setBase(track.palette));
 
   const backBtn = document.querySelector<HTMLButtonElement>('#detail-back');
   if (backBtn) {
@@ -93,6 +109,19 @@ export function initBrowser(): void {
 
   appBus.on('track-selected', ({ track }) => markPlaying(track.id));
   appBus.on('track-selected', ({ track }) => uiTheme.setBase(track.palette));
+
+  window.addEventListener(
+    'mr-go-to-album',
+    (e) => {
+      const detail = (e as CustomEvent).detail as { absPath?: string } | undefined;
+      const absPath = detail?.absPath;
+      if (!absPath) return;
+      const track = libraryStore.getTrackList().find((t) => t.absPath === absPath);
+      if (track === undefined) return;
+      const album = idx.albums.find((a) => a.tracks.some((t) => t.id === track.id));
+      if (album !== undefined) openAlbum(album);
+    },
+  );
 
   preview.bus.on('pending', ({ trackId }) => markPreview('preview-pending', trackId));
   preview.bus.on('active', ({ trackId }) => markPreview('previewing', trackId));
@@ -120,8 +149,7 @@ export function initBrowser(): void {
 }
 
 function wireTabs(): void {
-  const tabs = document.querySelectorAll<HTMLButtonElement>('#mode-tabs button');
-  for (const tab of tabs) {
+  for (const tab of document.querySelectorAll<HTMLButtonElement>('#mode-tabs button')) {
     tab.addEventListener('click', () => {
       const mode = tab.dataset.mode as Mode | undefined;
       if (!mode) return;
@@ -135,8 +163,7 @@ function wireTabs(): void {
 }
 
 function wireSortChips(): void {
-  const chips = document.querySelectorAll<HTMLButtonElement>('#sort-chips button');
-  for (const chip of chips) {
+  for (const chip of document.querySelectorAll<HTMLButtonElement>('#sort-chips button')) {
     chip.addEventListener('click', () => {
       const sort = chip.dataset.sort as SortKey | undefined;
       if (!sort) return;
@@ -145,6 +172,29 @@ function wireSortChips(): void {
       render();
     });
   }
+}
+
+function isOracleOpen(): boolean {
+  const panel = document.getElementById('search-oracle');
+  return panel !== null && !panel.hidden;
+}
+
+function openOracle(): void {
+  const panel = document.getElementById('search-oracle');
+  if (panel === null) return;
+  panel.hidden = false;
+  requestAnimationFrame(() => panel.classList.add('open'));
+  oracleInput.focus();
+}
+
+function closeOracle(): void {
+  const panel = document.getElementById('search-oracle');
+  if (panel === null) return;
+  panel.classList.remove('open');
+  panel.hidden = true;
+  oracleInput.value = '';
+  oracleInput.blur();
+  oracleSongs = [];
 }
 
 function wireSearch(): void {
@@ -167,29 +217,6 @@ function wireSearch(): void {
   });
 }
 
-function isOracleOpen(): boolean {
-  const el = document.getElementById('search-oracle');
-  return el !== null && !el.hidden;
-}
-
-function openOracle(): void {
-  const el = document.getElementById('search-oracle');
-  if (el === null) return;
-  el.hidden = false;
-  requestAnimationFrame(() => el.classList.add('open'));
-  oracleInput.focus();
-}
-
-function closeOracle(): void {
-  const el = document.getElementById('search-oracle');
-  if (el === null) return;
-  el.classList.remove('open');
-  el.hidden = true;
-  oracleInput.value = '';
-  oracleInput.blur();
-  oracleSongs = [];
-}
-
 function wireGlobalKeys(): void {
   window.addEventListener('keydown', (e) => {
     const target = e.target as HTMLElement | null;
@@ -205,12 +232,17 @@ function wireGlobalKeys(): void {
         return;
       }
       if (isOverlayOpen()) {
-        closeNowPlaying();
+        toggleNowPlaying();
         e.preventDefault();
         return;
       }
       if (detailOpen) {
         closeDetail();
+        e.preventDefault();
+        return;
+      }
+      if (isPlaylistLayerOpen()) {
+        closePlaylistLayer();
         e.preventDefault();
         return;
       }
@@ -247,8 +279,8 @@ function wireGlobalKeys(): void {
     'pointerdown',
     (e) => {
       if (!isOracleOpen()) return;
-      const t = e.target as HTMLElement | null;
-      if (t !== null && t.closest('#search-oracle') !== null) return;
+      const hit = e.target as HTMLElement | null;
+      if (hit !== null && hit.closest('#search-oracle') !== null) return;
       closeOracle();
     },
     true,
@@ -268,6 +300,7 @@ function renderOracleResults(): void {
   const songHits = scoreOf(idx.songs, query).slice(0, 12);
   const albumHits = scoreOf(idx.albums, query).slice(0, 8);
   const artistHits = scoreOf(idx.artists, query).slice(0, 6);
+  const playlistHits = searchPlaylists(query).slice(0, 5);
   let total = 0;
 
   const frag = document.createDocumentFragment();
@@ -275,7 +308,7 @@ function renderOracleResults(): void {
     frag.append(sectionHeader('Songs'));
     oracleSongs = songHits.map((hit) => hit.item.track);
     for (const hit of songHits) {
-      frag.append(oracleSongRow(hit.item.track));
+      frag.append(songRow(hit.item.track));
       total += 1;
     }
   }
@@ -293,10 +326,17 @@ function renderOracleResults(): void {
       total += 1;
     }
   }
+  if (playlistHits.length > 0) {
+    frag.append(sectionHeader('Playlists'));
+    for (const hit of playlistHits) {
+      frag.append(oraclePlaylistRow(hit));
+      total += 1;
+    }
+  }
 
   if (total === 0) {
-    frag.append(hintNode('No echoes found.'));
     oracleSongs = [];
+    frag.append(hintNode('No echoes found.'));
   }
 
   oracleCount.textContent = `${total} found`;
@@ -307,12 +347,6 @@ function hintNode(text: string): HTMLElement {
   const node = el('div', 'oracle-hint mono dim');
   node.textContent = text;
   return node;
-}
-
-function oracleSongRow(track: import('../../shared/types').IndexedTrack): HTMLElement {
-  const row = songRow(track);
-  row.style.width = '100%';
-  return row;
 }
 
 function oracleAlbumRow(album: AlbumEntry): HTMLElement {
@@ -350,7 +384,9 @@ function oracleArtistRow(artist: ArtistEntry): HTMLElement {
   const title = el('div', 'song-title');
   title.textContent = artist.name;
   const sub = el('div', 'mono dim song-sub');
-  sub.textContent = `${artist.albums.length} album${artist.albums.length === 1 ? '' : 's'} · ${artist.trackCount} tracks`;
+  sub.textContent = `${artist.albums.length} album${
+    artist.albums.length === 1 ? '' : 's'
+  } · ${artist.trackCount} tracks`;
   meta.append(title, sub);
 
   row.append(thumb, meta);
@@ -372,7 +408,7 @@ function setArtistFilter(key: string | null): void {
 
 function syncTabs(): void {
   for (const tab of document.querySelectorAll<HTMLButtonElement>('#mode-tabs button')) {
-    tab.classList.toggle('active', tab.dataset['mode'] === state.mode);
+    tab.classList.toggle('active', tab.dataset.mode === state.mode);
   }
 }
 
@@ -384,10 +420,9 @@ function syncChips(): void {
   }
   let i = 0;
   for (const chip of document.querySelectorAll<HTMLButtonElement>('#sort-chips button')) {
-    const key = chip.dataset['sort'] as SortKey | undefined;
+    const key = chip.dataset.sort as SortKey | undefined;
     chip.classList.toggle('active', key === state.sort && state.mode !== 'playlists');
-    const label = labels[i] ?? '';
-    chip.textContent = label;
+    chip.textContent = labels[i] ?? '';
     i += 1;
   }
 }
@@ -404,25 +439,18 @@ function syncFilterChip(): void {
 
 function render(): void {
   const frag = document.createDocumentFragment();
-  let total = 0;
 
   if (state.mode === 'playlists') {
-    frag.append(playlistsEmpty());
+    renderTabCards(frag);
   } else {
-    const counts = renderBrowse(frag);
-    total = counts.total;
+    renderBrowse(frag);
   }
 
   carousel.setContent(frag);
-
-  const countEl = document.getElementById('oracle-count');
-  if (countEl !== null && state.query.trim() === '') {
-    countEl.textContent = `${total} ${total === 1 ? 'item' : 'items'}`;
-  }
   syncFilterChip();
 }
 
-function renderBrowse(frag: DocumentFragment): { shown: number; total: number } {
+function renderBrowse(frag: DocumentFragment): void {
   switch (state.mode) {
     case 'albums': {
       let albums = idx.albums;
@@ -438,21 +466,20 @@ function renderBrowse(frag: DocumentFragment): { shown: number; total: number } 
         }
         frag.append(albumCard(album));
       }
-      return { shown: sorted.length, total: sorted.length };
+      break;
     }
     case 'artists': {
-      const sorted = sortArtists(idx.artists);
-      for (const artist of sorted) frag.append(artistCard(artist));
-      return { shown: sorted.length, total: sorted.length };
+      for (const artist of sortArtists(idx.artists)) frag.append(artistCard(artist));
+      break;
     }
     case 'songs': {
       const sorted = sortSongs(idx.songs.map((s) => s.track));
       lastSongList = sorted;
       for (const track of sorted) frag.append(songRow(track));
-      return { shown: sorted.length, total: sorted.length };
+      break;
     }
     default:
-      return { shown: 0, total: 0 };
+      break;
   }
 }
 
@@ -463,18 +490,13 @@ function sectionHeader(label: string): HTMLElement {
 function scoreOf<T>(items: readonly T[], query: string): Array<{ item: T; score: number }> {
   const out: Array<{ item: T; score: number }> = [];
   for (const item of items) {
-    const hay = hayOf(item);
-    if (hay === undefined) continue;
-    const score = fuzzyScore(query, hay);
+    const candidate = item as { hay?: unknown };
+    if (typeof candidate.hay !== 'string') continue;
+    const score = fuzzyScore(query, candidate.hay);
     if (score !== null) out.push({ item, score });
   }
   out.sort((a, b) => b.score - a.score);
   return out;
-}
-
-function hayOf(item: unknown): string | undefined {
-  const candidate = item as { hay?: unknown };
-  return typeof candidate.hay === 'string' ? candidate.hay : undefined;
 }
 
 function sortAlbums(albums: readonly AlbumEntry[]): AlbumEntry[] {
@@ -556,8 +578,7 @@ function albumCard(album: AlbumEntry): HTMLElement {
   card.addEventListener('click', () => {
     if (carousel.wasDrag()) return;
     if (album.tracks.length === 1) {
-      const only = album.tracks[0];
-      if (only !== undefined) player.setContext(album.tracks, 0);
+      player.setContext(album.tracks, 0);
       return;
     }
     openAlbum(album);
@@ -593,6 +614,8 @@ function artistCard(artist: ArtistEntry): HTMLElement {
   return card;
 }
 
+const UNKNOWN_ARTIST = 'Unknown Artist';
+
 function songRow(track: import('../../shared/types').IndexedTrack): HTMLElement {
   const row = el('div', 'card song-row');
   row.dataset.interactive = '1';
@@ -605,14 +628,23 @@ function songRow(track: import('../../shared/types').IndexedTrack): HTMLElement 
   const title = el('div', 'song-title');
   title.textContent = track.title;
   const sub = el('div', 'mono dim song-sub');
-  sub.textContent = `${track.artist ?? UNKNOWN_ARTIST}${track.album !== null ? ` — ${track.album}` : ''}`;
+  sub.textContent = `${track.artist ?? UNKNOWN_ARTIST}${
+    track.album !== null ? ` — ${track.album}` : ''
+  }`;
   meta.append(title, sub);
 
   const dur = el('div', 'mono dim song-dur');
-  dur.textContent = track.durationSec !== null && Number.isFinite(track.durationSec) ? fmtTime(track.durationSec) : '--:--';
+  dur.textContent =
+    track.durationSec !== null && Number.isFinite(track.durationSec)
+      ? fmtTime(track.durationSec)
+      : '--:--';
 
   row.append(thumb, meta, dur);
   attachPreview(row, track);
+  attachContextMenu(row, track, () => {
+    preview.hardStop();
+    playFromList(track, row);
+  });
   row.addEventListener('click', () => {
     if (carousel.wasDrag()) return;
     preview.hardStop();
@@ -620,8 +652,6 @@ function songRow(track: import('../../shared/types').IndexedTrack): HTMLElement 
   });
   return row;
 }
-
-const UNKNOWN_ARTIST = 'Unknown Artist';
 
 function playFromList(
   track: import('../../shared/types').IndexedTrack,
@@ -727,6 +757,12 @@ function miniCell(
 
   cell.append(n, thumb, t, d);
   attachPreview(cell, track);
+  attachContextMenu(cell, track, () => {
+    preview.hardStop();
+    player.setContext(context, index);
+    const rect = thumb.getBoundingClientRect();
+    openNowPlayingFromRect(rect, track.artFile !== null ? mediaUrl(track.artFile) : null);
+  });
   cell.addEventListener('click', () => {
     preview.hardStop();
     player.setContext(context, index);
@@ -746,14 +782,31 @@ function closeDetail(): void {
   }, 460);
 }
 
-function noResults(): HTMLElement {
-  const wrap = el('div', 'empty-note');
-  const msg = el('div', 'empty-title');
-  msg.textContent = 'No echoes found';
-  const hint = el('div', 'dim empty-hint');
-  hint.textContent = 'Try fewer letters — the stars are forgiving.';
-  wrap.append(msg, hint);
-  return wrap;
+function oraclePlaylistRow(hit: { playlist: Playlist }): HTMLElement {
+  const pl = hit.playlist;
+  const row = el('div', 'oracle-row');
+  row.dataset.interactive = '1';
+
+  const cover = pl.tracks
+    .map((ref) => libraryStore.getTrackList().find((t) => t.id === ref.trackId))
+    .find((t) => t?.artFile !== null && t !== undefined);
+
+  const thumb = el('div', 'song-thumb');
+  artInto(thumb, cover?.artFile ?? null, 'card-img');
+
+  const meta = el('div', 'song-meta');
+  const title = el('div', 'song-title');
+  title.textContent = pl.name;
+  const sub = el('div', 'mono dim song-sub');
+  sub.textContent = `Playlist · ${pl.tracks.length} track${pl.tracks.length === 1 ? '' : 's'}`;
+  meta.append(title, sub);
+
+  row.append(thumb, meta);
+  row.addEventListener('click', () => {
+    closeOracle();
+    openDetail(pl.id);
+  });
+  return row;
 }
 
 function playlistsEmpty(): HTMLElement {

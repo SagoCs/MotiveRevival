@@ -1,4 +1,4 @@
-import { fx } from '../core/fx';
+﻿import { fx } from '../core/fx';
 
 const FRICTION_PER_FRAME = 0.915;
 const WHEEL_GAIN = 0.34;
@@ -172,7 +172,7 @@ export class Carousel {
   private paint(): void {
     this.content.style.transform = `translate3d(0, ${-this.pos.toFixed(2)}px, 0)`;
 
-    if (!fx.motion) return;
+    if (!fx.motion || !fx.carousel) return;
 
     const hostH = this.host.clientHeight;
     if (hostH === 0) return;
