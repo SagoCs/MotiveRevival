@@ -2,6 +2,10 @@
 
 Living document for any agent instance working on MotiveRevival. Update it at every milestone stamp. Narrative history and the signed progress ledger live in `README.md`.
 
+## Agent Conduct
+
+- **Never launch subagents without the user's explicit prior approval** — in every session, for every task. All exploration, search, and implementation work happens directly in the main agent; if delegation seems useful, ask first.
+
 ## Project Snapshot
 
 Electron + vanilla TypeScript music player ("Moonlit Drift" aesthetic). Movements I–VI signed off (skeleton, data layer, browse carousel, chromatic theming, lyrics/lrclib, pulse previews). Movement VII — Playlists is implemented and undergoing final interaction QA. Normal view is the default playback surface; expanded now-playing is explicitly toggled. Next direction: QOL and cosmic-atmosphere polish. Open riders: BPM tag in metadata, custom frosted folder-picker UI, minor visual tweaks from the VI review.
@@ -10,7 +14,7 @@ Electron + vanilla TypeScript music player ("Moonlit Drift" aesthetic). Movement
 
 ```
 npm install
-npm run build      # esbuild → dist/ (main.cjs, preload.cjs, renderer iife + css/fonts)
+npm run build      # esbuild → dist/ (main.js, preload.js, renderer iife + css/fonts)
 npm start          # build + launch electron (ALWAYS a cold start)
 npm run typecheck  # tsc --noEmit (strict)
 npm test           # LRC parser suite → esbuild bundle → node --test (must stay 20/20)
@@ -34,8 +38,8 @@ Launch for verification from an agent shell: `Invoke-CimMethod Win32_Process Cre
 - `src/main/` — main process: `main.ts` (window frame:false, IPC, scan scheduling), `media.ts` (protocol+Range), `library.ts` (multi-root scan, tags/art/palette extraction, index.json v3 w/ dedupe), `lyrics.ts` (lrclib fetch/write-beside), `settings.ts` (musicDirs[], migration from legacy single-dir), `storage.ts` (kv.json debounced persistence)
 - `src/preload/preload.ts` — the entire bridge surface
 - `src/shared/types.ts` — every cross-process contract. Change here first.
-- `src/renderer/core/` — `player.ts` (queue, next/prev, analyser graph), `lrc.ts` parser (pure, 20 tests in `tests/`), `fuzzy.ts` (word-boundary subsequence matcher), `searchIndex.ts` (songs/albums/artists entries + hay fields), `peakAnalyzer.ts` (lazy+idle RMS decode → kv 'waveformPeaks'), `preview.ts` (dwell/duck service), `palette.ts` (hexToHsl, applyPalette, applyLyricsInk, deriveAccent), `uiTheme.ts` (--acc-* writer), `audioBands.ts` (--bass/--mid/--treble bridge)
-- `src/renderer/ui/` — `carousel.ts` (momentum physics, writes --cs/--py per card), `browser.ts` (orchestrator: tabs/sorts/oracle/detail-stage/cards), `overlay.ts` (now-playing: focus modes art-focus ⇄ split, gated on lyric availability), `lyrics.ts`, `transport.ts`, `settings.ts`, `windowControls.ts`, `viz.ts`
+- `src/renderer/core/` — `player.ts` (immortal audio element, queue/context model, analyser graph, event bus), `lrc.ts` parser (pure, 20 tests in `tests/`), `fuzzy.ts` (word-boundary subsequence matcher), `searchIndex.ts` (songs/albums/artists entries + folded hay fields), `libraryStore.ts` (library snapshot store w/ `onChange`), `playlistsStore.ts` (KV-persisted playlist CRUD, id→path→ghost resolution), `peakAnalyzer.ts` (lazy+idle RMS decode → kv `waveformPeaks`), `preview.ts` (dwell/duck hover-audio service), `palette.ts` (hexToHsl, applyPalette, applyLyricsInk, deriveAccent), `uiTheme.ts` (--acc-* writer), `audioBands.ts` (--bass/--mid/--treble bridge); helpers: `bus.ts`, `appBus.ts`, `dom.ts`, `fold.ts`, `fx.ts`, `paths.ts`
+- `src/renderer/ui/` — `browser.ts` (orchestrator: tabs/sorts/oracle/detail-stage/cards), `carousel.ts` (momentum physics, writes --cs/--py per card), `overlay.ts` (now-playing focus modes art-focus ⇄ split, lyric-gated), `lyrics.ts`, `transport.ts` (+ minimized lyric orb), `settings.ts`, `windowControls.ts`, `viz.ts`, `queuePanel.ts` (shared up-next panel, HTML5-drag reorder), `icons.ts` (inline SVG constants), `playlistsView.ts` (playlist cards, detail layer, search, song context menu)
 
 ## Conventions
 
@@ -68,9 +72,10 @@ Launch for verification from an agent shell: `Invoke-CimMethod Win32_Process Cre
   - **Storage**: renderer-owned via existing KV IPC (`storageGet/Set('playlists')`). No main-process changes.
   - **Shapes** (`shared/types.ts`, additive): `PlaylistTrackRef { trackId: string; absPath: string }`; `Playlist { id: string; name: string; createdAt: number; updatedAt: number; tracks: PlaylistTrackRef[] }`.
   - **New files**: `src/renderer/core/playlistsStore.ts` (CRUD + resolve-vs-libraryStore: id hit → live track; else absPath match; else ghost `{ ref, missing:true }`), `src/renderer/ui/playlistsView.ts` (tab cards incl. "+ New Playlist"; detail slide-in panel `#playlist-layer` mirroring `.detail-layer` styling; draggable mini-cells w/ ▲▼ reorder, per-row ✕, ghost rows dimmed/unplayable w/ ✕; header: shuffle/play/delete icons).
-  - **Markup**: `#playlist-layer` appended in `index.html` before `<script>`. **CSS**: append-only block ending `/* PLAYLISTS */` in `shell.css`. **Never touch**: `browser.ts`, `overlay.ts`, `settings.ts`, `carousel.ts`, anything in `main/` or `preload/`.
+  - **Markup**: none in `index.html` — `#playlist-layer` is built in JS (`buildLayer()` in `playlistsView.ts`) and appended to `<body>` on first use. **CSS**: append-only block at end of `shell.css`, opened by the `/* PLAYLISTS */` marker.
   - **Interactions**: hover ⊕ on song cells is OUT of scope for the branch (integrated post-merge by primary). Play-all uses `player.setContext(resolvedTracks, 0)`; shuffle uses a session-only randomized context and does not mutate saved order.
   - **Verification**: typecheck + `npm test` + build MUST pass. Do NOT launch electron (single-instance lock is held by the primary session).
+- **Playlist integration map:** all playlist logic lives in `playlistsStore.ts` / `playlistsView.ts`; `overlay.ts`, `settings.ts`, `carousel.ts`, and everything in `main/` / `preload/` remain playlist-free by design. `browser.ts` holds only the three dispatch hooks (Playlists mode tab, oracle search rows, song context-menu attach) and `index.html` only the Playlists tab button — extend those hooks, don't grow them.
 - [ ] Riders: BPM tag display (music-metadata common.bpm), custom frosted folder-picker replacing native dialog, minor VI-review visual tweaks.
 - [ ] **Next polish direction:** QOL and cosmic atmosphere. Priorities are clearer empty/loading/error states, first-run library guidance, playlist duplicate protection, stronger keyboard/focus feedback, layered moving starfields, restrained palette-reactive constellations, mouse-parallax depth, cursor/trail effects gated by motion settings, and more precise transition choreography.
 - [x] Transport polish: minimized and expanded transport alignment, normal-view default playback, Escape/music-note view toggling, and synced lyric preview over the normal scrubber with an enlarged pointer hit area.
