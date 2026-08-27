@@ -71,18 +71,25 @@ Keyboard: type anywhere = search · `/` focuses search · `Esc` steps back (sear
 | II | Data layer | Tag/artist/album/duration indexing, embedded-art extraction + folder fallback, cached index, background rescan | ✅ Signed off |
 | III | The Browser | Universal always-on search, albums/artists/songs/playlists tabs, sorts, osu-style carousel v1, detail slide-in | ✅ Signed off |
 | IV | Chromatic | Two-pane detail stage, palette engine, live audio-band reactivity, visualizer v2, queue + next/prev | ✅ Core signed off; display-toggles deferred |
-| V | Voice | LRC parser (test-first), synced lyrics in the right rail, lrclib.net fetch writing `.lrc` beside files | ⏭ Next |
-| VI | Pulse | Hover snippets w/ waveform-peak analysis, full osu! motion polish (velocity spacing, parallax, morph transition), display toggles reimagined | Planned |
-| VII | Playlists | Create/reorder/persist; playlist tab awakens | Planned |
+| V | Voice | LRC parser (test-first), synced lyrics in stage and expanded views, lrclib.net fetch writing `.lrc` beside files | ✅ Signed off |
+| VI | Pulse | Hover snippets w/ waveform-peak analysis, song-reactive theming, velocity spacing, parallax, morph transition, search oracle, remembered now-playing view | ✅ Signed off |
+| VII | Playlists | Create/reorder/persist; playlist tab awakens | ✅ Signed off |
+| VIII | Atmosphere & QOL | Deeper cosmic space, reactive constellations, refined motion, clearer states and everyday usability | Aspirational |
 
 ## Progress Ledger
 
 Sign-off entries are added when changes are verified working in session.
 
+- **2026-08-27 — Movement VII signed off.** Playlists support creation, rename/delete, persistence, context-menu additions, missing-track ghosts, drag and button reorder, session-only shuffle playback, play-all, playlist search, and detail-panel interaction. Queue and context-menu polish, transport alignment, normal-view default playback, synced lyric orb, detail-layer behavior, and reactive queue styling were also completed.
+
 - **2026-08-26 — Movements I–III verified.** Playback pipeline, scrub-drag fix, transport wiring, numbering fix, borderless chrome, settings persistence, universal search relevance rewrite (word-boundary fuzzy), artist-card click fix (pointer-capture regression).
 - **2026-08-26 — Movement IV verified.** Two-pane stage with staggered mini-cells; per-album queue context; auto-advance; prev/next; palette field throbbing confirmed; spectrum engine v2 confirmed "truly reflective" after fftSize 2048 rebuild; overlay color-wash pulse confirmed.
 - **Deferred:** now-playing display toggles (Art/Visualizer/Metadata). Removed pending polished redesign — chips appeared inert against blank pre-selection targets; root cause not conclusively isolated. Re-imagined version planned for Movement VI.
 - **Deferred:** custom folder-picker UI (frosted card style) — native dialog currently in use; queued for polish pass.
+
+## Future Direction
+
+The next major pass is QOL and cosmic-atmosphere polish: layered moving starfields, restrained palette-reactive constellations, mouse-parallax depth, optional cursor or trail effects, clearer loading and error states, first-run library guidance, stronger keyboard feedback, playlist duplicate protection, and more precise motion choreography. All visual effects should remain gated by the existing motion settings and preserve the artwork as the primary focus.
 
 ## Known Behaviors
 
