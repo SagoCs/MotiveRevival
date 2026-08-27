@@ -1,5 +1,30 @@
 const FALLBACK_HUES = [226, 172, 258];
 
+export function deriveHorizon(palette: readonly string[] | null): { a: string; b: string; g: string } {
+  const moonlit = { a: 'hsl(233 40% 19%)', b: 'hsl(172 38% 15%)', g: 'hsl(233 50% 27%)' };
+  if (palette === null || palette.length === 0) {
+    return moonlit;
+  }
+  const tones: Hsl[] = [];
+  for (const entry of palette) {
+    const converted = hexToHsl(entry);
+    if (converted !== null) tones.push(converted);
+  }
+  const dominant = tones[0];
+  if (dominant === undefined) {
+    return moonlit;
+  }
+  let lightest = tones[0] as Hsl;
+  for (const t of tones) {
+    if (t.l > lightest.l) lightest = t;
+  }
+  return {
+    a: hsl(((dominant.h + 360) % 360), Math.max(30, Math.min(dominant.s * 0.9, 64)), 18),
+    b: hsl(((lightest.h + 360) % 360), Math.max(26, Math.min(lightest.s * 0.6, 52)), 14),
+    g: hsl(((dominant.h + 360) % 360), 62, 26),
+  };
+}
+
 function hash(text: string): number {
   let h = 2166136261;
   for (let i = 0; i < text.length; i++) {

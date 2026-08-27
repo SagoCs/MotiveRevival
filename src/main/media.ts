@@ -16,6 +16,14 @@ const MIME_BY_EXT: Record<string, string> = {
   '.aac': 'audio/aac',
 };
 
+const IMAGE_MIME_BY_EXT: Record<string, string> = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+};
+
 export function registerMediaScheme(): void {
   protocol.registerSchemesAsPrivileged([
     {
@@ -55,12 +63,14 @@ async function handleMediaRequest(request: Request): Promise<Response> {
     }
     if (!stat.isFile()) return textResponse(404, 'not a file');
 
-    const mime = MIME_BY_EXT[path.extname(resolved).toLowerCase()] ?? 'application/octet-stream';
+    const ext = path.extname(resolved).toLowerCase();
+    const mime = MIME_BY_EXT[ext] ?? IMAGE_MIME_BY_EXT[ext] ?? 'application/octet-stream';
+    const isImage = IMAGE_MIME_BY_EXT[ext] !== undefined;
 
     if (request.method === 'HEAD') {
       return new Response(null, {
         status: 200,
-        headers: baseHeaders(mime, stat.size),
+        headers: baseHeaders(mime, stat.size, isImage),
       });
     }
 
@@ -83,7 +93,7 @@ async function handleMediaRequest(request: Request): Promise<Response> {
       return new Response(Readable.toWeb(stream) as unknown as BodyInit, {
         status: 206,
         headers: {
-          ...baseHeaders(mime, end - start + 1),
+          ...baseHeaders(mime, end - start + 1, isImage),
           'Content-Range': `bytes ${start}-${end}/${stat.size}`,
         },
       });
@@ -92,7 +102,7 @@ async function handleMediaRequest(request: Request): Promise<Response> {
     const stream = createReadStream(resolved);
     return new Response(Readable.toWeb(stream) as unknown as BodyInit, {
       status: 200,
-      headers: baseHeaders(mime, stat.size),
+      headers: baseHeaders(mime, stat.size, isImage),
     });
   } catch (err) {
     return textResponse(500, `media handler error: ${String(err)}`);
@@ -113,12 +123,12 @@ function isInside(root: string, candidate: string): boolean {
   return normCandidate === normRoot || normCandidate.startsWith(normRoot + path.sep);
 }
 
-function baseHeaders(mime: string, length: number): Record<string, string> {
+function baseHeaders(mime: string, length: number, isImage: boolean): Record<string, string> {
   return {
     'Content-Type': mime,
     'Content-Length': String(length),
     'Accept-Ranges': 'bytes',
-    'Cache-Control': 'no-store',
+    'Cache-Control': isImage ? 'public, max-age=86400' : 'no-store',
   };
 }
 

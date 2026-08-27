@@ -18,7 +18,7 @@ export interface IndexedTrack {
   palette: string[] | null;
 }
 
-export type NowPlayingView = 'split' | 'art';
+export type NowPlayingView = 'split' | 'art' | 'blur';
 export type LyricSize = 's' | 'm' | 'l';
 
 export interface Settings {

@@ -5,7 +5,7 @@ import { fallbackPalette, applyPalette, applyLyricsInk } from '../core/palette';
 import { fx } from '../core/fx';
 import { createTransport } from './transport';
 import { createLyrics, type LyricsState } from './lyrics';
-import type { IndexedTrack } from '../../shared/types';
+import type { IndexedTrack, NowPlayingView } from '../../shared/types';
 import { ICON_DIAMOND, ICON_NOTE, ICON_SIGIL } from './icons';
 import { Viz } from './viz';
 
@@ -34,23 +34,47 @@ export function initOverlay(): void {
   const vizCanvas = document.querySelector<HTMLCanvasElement>('#overlay-viz');
   if (vizCanvas !== null) new Viz(vizCanvas, overlay);
 
+  const blurArt = document.createElement('div');
+  blurArt.id = 'overlay-blur-art';
+  blurArt.setAttribute('aria-hidden', 'true');
+  document.getElementById('overlay-field')?.insertAdjacentElement('afterend', blurArt);
+
+  for (const side of ['left', 'right'] as const) {
+    const zone = document.createElement('div');
+    zone.className = `blur-zone zone-${side}`;
+    zone.addEventListener('click', () => {
+      if (!hasLyrics) return;
+      savedView = side === 'left' ? 'art' : 'split';
+      void window.mr.updateSettings({ nowPlayingView: savedView });
+      applySavedView();
+    });
+    overlay.append(zone);
+  }
+
   const lyricsPane = document.getElementById('overlay-lyrics');
   let overlayLyrics: ReturnType<typeof createLyrics> | null = null;
   if (lyricsPane !== null) {
-    overlayLyrics = createLyrics(lyricsPane, (state: LyricsState) => {
-      hasLyrics = state === 'synced' || state === 'plain';
-      overlay.classList.toggle('with-lyrics', hasLyrics);
-      lyricsPane.hidden = !hasLyrics;
-      applySavedView();
-    });
+    overlayLyrics = createLyrics(
+      lyricsPane,
+      (state: LyricsState) => {
+        hasLyrics = state === 'synced' || state === 'plain';
+        overlay.classList.toggle('with-lyrics', hasLyrics);
+        lyricsPane.hidden = !hasLyrics;
+        applySavedView();
+      },
+      undefined,
+      { pannable: true },
+    );
   }
 
   let current: IndexedTrack | null = null;
   let hasLyrics = false;
-  let savedView: 'split' | 'art' = 'art';
+  let savedView: NowPlayingView = 'art';
 
   const applySavedView = (): void => {
-    overlay.classList.toggle('art-focus', savedView === 'art' || !hasLyrics);
+    const view = hasLyrics ? savedView : 'art';
+    overlay.classList.toggle('art-focus', view === 'art');
+    overlay.classList.toggle('blur-mode', view === 'blur');
   };
 
   const cycleFocus = (): void => {
@@ -61,9 +85,10 @@ export function initOverlay(): void {
       window.setTimeout(() => artHost.classList.remove('reject-shake'), 340);
       return;
     }
-    const artOnly = overlay.classList.toggle('art-focus');
-    savedView = artOnly ? 'art' : 'split';
+    const next: Record<NowPlayingView, NowPlayingView> = { art: 'blur', blur: 'split', split: 'art' };
+    savedView = next[savedView];
     void window.mr.updateSettings({ nowPlayingView: savedView });
+    applySavedView();
   };
 
   artHost.addEventListener('click', cycleFocus);
@@ -76,8 +101,10 @@ export function initOverlay(): void {
       img.alt = '';
       img.src = `media://local/${encodeURIComponent(current.artFile)}`;
       artHost.replaceChildren(img);
+      blurArt.style.backgroundImage = `url("media://local/${encodeURIComponent(current.artFile)}")`;
     } else {
       artHost.innerHTML = ICON_SIGIL;
+      blurArt.style.backgroundImage = '';
     }
     titleEl.textContent = current !== null ? current.title : '';
   };
@@ -93,8 +120,8 @@ export function initOverlay(): void {
   });
 
   void window.mr.getSettings().then((s) => {
-    savedView = (s.nowPlayingView ?? 'art') === 'split' ? 'split' : 'art';
-    if (savedView === 'art') overlay.classList.add('art-focus');
+    savedView = s.nowPlayingView === 'split' || s.nowPlayingView === 'blur' ? s.nowPlayingView : 'art';
+    applySavedView();
   });
 }
 

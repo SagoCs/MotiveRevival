@@ -8,7 +8,7 @@ Living document for any agent instance working on MotiveRevival. Update it at ev
 
 ## Project Snapshot
 
-Electron + vanilla TypeScript music player ("Moonlit Drift" aesthetic). Movements I–VI signed off (skeleton, data layer, browse carousel, chromatic theming, lyrics/lrclib, pulse previews). Movement VII — Playlists is implemented and undergoing final interaction QA. Normal view is the default playback surface; expanded now-playing is explicitly toggled. Next direction: QOL and cosmic-atmosphere polish. Open riders: BPM tag in metadata, custom frosted folder-picker UI, minor visual tweaks from the VI review.
+Electron + vanilla TypeScript music player ("Moonlit Drift" aesthetic). Movements I–VI signed off (skeleton, data layer, browse carousel, chromatic theming, lyrics/lrclib, pulse previews). Movement VII — Playlists is implemented and undergoing final interaction QA. Normal view is the default playback surface; expanded now-playing is explicitly toggled. First cosmic-atmosphere slice landed: a song-reactive "horizon haze" veil above the transport hosts the centered lyric preview. Next direction: QOL and remaining cosmic-atmosphere polish. Open riders: BPM tag in metadata, custom frosted folder-picker UI, minor visual tweaks from the VI review.
 
 ## Commands
 
@@ -79,6 +79,7 @@ Launch for verification from an agent shell: `Invoke-CimMethod Win32_Process Cre
 - [ ] Riders: BPM tag display (music-metadata common.bpm), custom frosted folder-picker replacing native dialog, minor VI-review visual tweaks.
 - [ ] **Next polish direction:** QOL and cosmic atmosphere. Priorities are clearer empty/loading/error states, first-run library guidance, playlist duplicate protection, stronger keyboard/focus feedback, layered moving starfields, restrained palette-reactive constellations, mouse-parallax depth, cursor/trail effects gated by motion settings, and more precise transition choreography.
 - [x] Transport polish: minimized and expanded transport alignment, normal-view default playback, Escape/music-note view toggling, and synced lyric preview over the normal scrubber with an enlarged pointer hit area.
+- [x] Horizon haze v1: `#bottom-bar::before` veil (`--horizon-h: clamp(112px, 16vh, 172px)`; structure 97% → 70% @38% → void-1 taper; hairline border retired in favor of the lit skyline). Registered `--hz-a/b/glow` colors derived in `palette.ts:deriveHorizon` (dark+saturated, lightness-capped), written by `uiTheme.setBase`, mirrored across `pushPreview/popPreview` so the floor follows the full hovered > playing chain. `.transport-lyric` de-boxed and viewport-centered (`position: fixed` under `#bottom-bar` scope only); veil + lyric hide via `body:has()` while detail/playlist layers are open. Expanded overlay untouched.
 - [ ] Keep `README.md` ledger updated at each sign-off; bump this file's snapshot.
 
 ## Verification Ritual

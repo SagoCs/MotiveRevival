@@ -22,7 +22,7 @@ export class Carousel {
   private maxScroll = 0;
 
   private rafId = 0;
-  private centers: Array<{ el: HTMLElement; center: number }> = [];
+  private centers: Array<{ el: HTMLElement; center: number; lastCs: string | null; lastPy: string | null }> = [];
 
   private pointerId: number | null = null;
   private dragStartY = 0;
@@ -31,6 +31,8 @@ export class Carousel {
   private suppressClickUntil = 0;
   private samples: Array<{ y: number; t: number }> = [];
   private frameFlip = false;
+  private centersStartHint = 0;
+  private measureQueued = false;
 
   private readonly resizeObserver: ResizeObserver;
 
@@ -67,6 +69,44 @@ export class Carousel {
     return Date.now() < this.suppressClickUntil;
   }
 
+  appendNodes(fragment: DocumentFragment): void {
+    this.content.append(fragment);
+    if (this.measureQueued) return;
+    this.measureQueued = true;
+    requestAnimationFrame(() => {
+      this.measureQueued = false;
+      this.measure();
+      this.paint();
+    });
+  }
+
+  enterStagger(): void {
+    if (!fx.motion || !fx.carousel) return;
+    const c = this.content;
+    c.classList.remove('swap-enter');
+    void c.offsetWidth;
+    c.classList.add('swap-enter');
+    window.setTimeout(() => c.classList.remove('swap-enter'), 900);
+  }
+
+  bandChildren(bandPadRows = 2): HTMLElement[] {
+    const h = this.host.clientHeight;
+    if (h <= 0) return [];
+    const lo = this.pos - bandPadRows * 68 - 40;
+    const hi = this.pos + h + bandPadRows * 68;
+    const out: HTMLElement[] = [];
+    const kids = this.content.children;
+    for (let i = 0; i < kids.length; i++) {
+      const node = kids[i] as HTMLElement;
+      const top = node.offsetTop;
+      if (top > hi) break;
+      if (top + node.offsetHeight < lo) continue;
+      out.push(node);
+      if (out.length >= 90) break;
+    }
+    return out;
+  }
+
   firstInteractive(): HTMLElement | null {
     return this.content.querySelector<HTMLElement>('[data-interactive]');
   }
@@ -82,8 +122,9 @@ export class Carousel {
     this.centers = [];
     for (const child of Array.from(this.content.children)) {
       const el = child as HTMLElement;
-      this.centers.push({ el, center: el.offsetTop + el.offsetHeight / 2 });
+      this.centers.push({ el, center: el.offsetTop + el.offsetHeight / 2, lastCs: null, lastPy: null });
     }
+    this.centersStartHint = 0;
   }
 
   private onWheel = (e: WheelEvent): void => {
@@ -184,23 +225,44 @@ export class Carousel {
 
     const viewCenter = this.pos + hostH / 2;
     const halfWindow = hostH / 2 + 120;
+    const loBound = viewCenter - halfWindow;
+    const hiBound = viewCenter + halfWindow;
     const squeeze = 1 - Math.min(Math.abs(this.vel) / VEL_CAP, 1) * SPEED_SQUEEZE_MAX;
     const velN = clamp(this.vel / VEL_CAP, -1, 1);
 
-    for (const { el, center } of this.centers) {
-      const dist = center - viewCenter;
-      if (Math.abs(dist) > halfWindow) continue;
+    let idx = this.centersStartHint;
+    if (idx >= this.centers.length) idx = Math.max(0, this.centers.length - 1);
+    while (idx > 0 && (this.centers[idx]?.center ?? Number.POSITIVE_INFINITY) > loBound) idx -= 1;
+    while (
+      idx < this.centers.length - 1 &&
+      (this.centers[idx + 1]?.center ?? Number.NEGATIVE_INFINITY) <= loBound
+    ) {
+      idx += 1;
+    }
+    this.centersStartHint = idx;
+
+    for (; idx < this.centers.length; idx++) {
+      const entry = this.centers[idx];
+      if (entry === undefined) continue;
+      if (entry.center > hiBound) break;
+      const dist = entry.center - viewCenter;
       const t = Math.min(Math.abs(dist) / (hostH / 2), 1);
       const scale = (1 - t * CENTER_COMPRESS_MAX) * squeeze;
-      el.style.setProperty('--cs', scale.toFixed(4));
-
+      const cs = scale.toFixed(4);
+      let py = '0px';
       if (moving) {
         const dirFactor = clamp(dist / (hostH / 2), -1.5, 1.5);
         const lag = -velN * 14 * dirFactor;
         const spread = Math.abs(velN) * 26 * dirFactor;
-        el.style.setProperty('--py', `${(lag + spread).toFixed(1)}px`);
-      } else {
-        el.style.setProperty('--py', '0px');
+        py = `${(lag + spread).toFixed(1)}px`;
+      }
+      if (cs !== entry.lastCs) {
+        entry.lastCs = cs;
+        entry.el.style.setProperty('--cs', cs);
+      }
+      if (py !== entry.lastPy) {
+        entry.lastPy = py;
+        entry.el.style.setProperty('--py', py);
       }
     }
   }
