@@ -74,7 +74,8 @@ Keyboard: type anywhere = search · `/` focuses search · `Esc` steps back (sear
 | IV | Chromatic | Two-pane detail stage, palette engine, live audio-band reactivity, visualizer v2, queue + next/prev | ✅ Core signed off; display-toggles deferred |
 | V | Voice | LRC parser (test-first), synced lyrics in stage rail + expanded panel, lrclib.net fetch writing `.lrc` beside files, lyric-focus/art-focus cycling | ✅ Signed off |
 | VI | Pulse | Hover snippet previews w/ waveform-peak pipeline, song-reactive UI theming, velocity spacing + art parallax, card→fullscreen morph, search oracle, remembered now-playing view | ✅ Signed off (minor polish riders) |
-| VII | Playlists | Create/reorder/persist; playlist tab awakens | Planned |
+| VII | Playlists | Create/reorder/persist; playlist tab awakens | Implemented; final QA pending |
+| VIII | Atmosphere & QOL | Deeper cosmic space, reactive constellations, refined motion, clearer states and everyday usability | Aspirational |
 
 ## Progress Ledger
 
@@ -84,9 +85,19 @@ Sign-off entries are added when changes are verified working in session.
 - **2026-08-26 — Movement IV verified.** Two-pane stage with staggered mini-cells; per-album queue context; auto-advance; prev/next; palette field throbbing confirmed; spectrum engine v2 confirmed "truly reflective" after fftSize 2048 rebuild; overlay color-wash pulse confirmed.
 - **2026-08-26 — Movement V signed off.** Pure LRC parser locked behind a 20-case suite (`npm test`) covering fractions, multi-timestamps, offset sign convention, BOM/CRLF, malformed tolerance and sync boundaries. Lyrics resolve local-sheet-first, then lrclib (get → search fallback, closest duration, synced preferred) and are written beside songs so folders stay portable. LyricScroller lives in the stage rail *and* a two-column expanded panel: hue-tinted high-luminance ink, active-line glow, click-a-line-to-seek.
 - **2026-08-26 — Movement VI signed off (minor polish riders).** Hover-snippet previews on every song cell: 1.4s dwell, main playback ducks to silence and restores precisely; waveform peaks come from a lazy-first-hover decode plus a throttled idle queue, persisted permanently. Song-reactive UI theming via `@property` color crossfade (priority hovered > playing > moonlight) across scrubber, glows, borders, ambient washes. Velocity spacing + art parallax on the carousel (transform-only). Card-to-fullscreen FLIP morph with measured destination rects. Search rebuilt as a top-center summonable oracle with centered browse chrome. Frameless custom window controls; flex-column shell; scroll-performance pass on long song lists. Now-playing focus modes gated on lyric availability and remembered between sessions (default: Art Focus).
+- **2026-08-26 — Movement VII playlist implementation reached interaction-QA stage.** Renderer-owned playlist persistence through KV storage, live track resolution by ID/path, missing-track ghosts, create/rename/delete, drag or button reorder, session-only shuffle playback, play-all, playlist search, and song context-menu additions are present. Context menus now retain their anchor when changing views, use consistent typography, and prefer opening to the right of the source song. Default and expanded queue controls share reactive accent styling and explicit expanded-view hit-target handling. Full manual Electron QA and final sign-off remain pending.
+- **2026-08-27 — Transport and now-playing polish verified.** Normal view is now the default playback surface; expanded now-playing is opened and closed with the music-note toggle or Escape. Both views share the minimized transport geometry and controls. Synced lyrics can preview over the normal scrubber with pointer-transparent frosted styling and an enlarged hit area; scrub release updates the active LRC line through the existing rAF clock.
+- **2026-08-27 — Transport alignment and queue theming polished.** Expanded now-playing no longer shifts during transition; both transports place previous/play/next before the current-time display with matching geometry. The lyric backdrop is continuous and borderless, and queue panel accents now consume the active song theme variables.
+- **2026-08-27 — Minimized lyric and settings polish verified.** Synced lyrics now appear as a centered content-sized orb above the minimized scrubber without a full-timeline frosted layer. Settings rows have more breathing room and their toggles/segments align to a shared right edge.
 - **Deferred:** now-playing display toggles v1 — superseded by art/title cycling + persisted default view; richer toggles may return later.
 - **Deferred:** custom folder-picker UI (frosted card style) — native dialog currently in use; queued for polish pass.
 - **Open riders:** BPM tag shown in metadata when present · minor visual tweaks flagged during Movement VI sign-off review.
+
+## Future Direction
+
+The next major pass should make the existing architecture feel more celestial without burying the music or artwork under effects. The intended direction is layered depth: multiple slow starfield planes, restrained palette-reactive constellations, mouse-parallax atmosphere, subtle pointer trails or cursor light, and foreground transitions that respond to playback and album color. All motion remains gated by the existing master and granular motion settings.
+
+The same pass should improve daily usability: first-run library guidance, clearer scan and error states, stronger focus and keyboard feedback, duplicate protection when adding playlist tracks, richer action confirmations, and more precise hover, selected, playing, previewing, queued, and unavailable states.
 
 ## Known Behaviors
 

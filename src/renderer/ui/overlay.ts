@@ -6,19 +6,22 @@ import { fx } from '../core/fx';
 import { createTransport } from './transport';
 import { createLyrics, type LyricsState } from './lyrics';
 import type { IndexedTrack } from '../../shared/types';
-import { ICON_CLOSE, ICON_DIAMOND, ICON_SIGIL } from './icons';
+import { ICON_DIAMOND, ICON_NOTE, ICON_SIGIL } from './icons';
 import { Viz } from './viz';
 
 export function initOverlay(): void {
   const overlay = document.querySelector<HTMLDivElement>('#overlay');
-  const closeBtn = document.querySelector<HTMLButtonElement>('#overlay-close');
   const artHost = document.querySelector<HTMLDivElement>('#overlay-sigil');
   const titleEl = document.querySelector<HTMLHeadingElement>('#overlay-title');
   const mark = document.querySelector<HTMLDivElement>('#veil-mark');
+  const toggleBtn = document.querySelector<HTMLButtonElement>('#overlay-toggle');
 
-  if (!overlay || !closeBtn || !artHost || !titleEl) return;
-  closeBtn.innerHTML = ICON_CLOSE;
+  if (!overlay || !artHost || !titleEl) return;
   if (mark) mark.innerHTML = ICON_DIAMOND;
+  if (toggleBtn) {
+    toggleBtn.innerHTML = ICON_NOTE;
+    toggleBtn.addEventListener('click', () => closeNowPlaying());
+  }
 
   artHost.classList.add('clickable');
   artHost.title = 'Cycle focus: split ⇄ art';
@@ -81,23 +84,6 @@ export function initOverlay(): void {
     applyLyricsInk(overlay, track.palette);
     overlayLyrics?.setTrack(track);
     render();
-  });
-
-  overlay.addEventListener(
-    'click',
-    (e) => {
-      const target = e.target as HTMLElement | null;
-      if (target !== null && target.closest('#overlay-close') !== null) {
-        console.warn('[overlay] close via capture');
-        closeNowPlaying();
-      }
-    },
-    true,
-  );
-
-  closeBtn.addEventListener('click', () => {
-    console.warn('[overlay] close button clicked');
-    closeNowPlaying();
   });
 
   void window.mr.getSettings().then((s) => {

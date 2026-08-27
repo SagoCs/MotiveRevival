@@ -9,9 +9,9 @@
   flex-direction: column;
   overflow: hidden;
   border-radius: 18px;
-  border: 1px solid rgba(199, 205, 244, 0.14);
+  border: 1px solid color-mix(in srgb, var(--acc-b) 32%, rgba(199, 205, 244, 0.14));
   background:
-    radial-gradient(300px 170px at 18% -50px, rgba(124, 116, 224, 0.1), transparent 70%),
+    radial-gradient(300px 170px at 18% -50px, color-mix(in srgb, var(--acc-a) 14%, transparent), transparent 70%),
     linear-gradient(180deg, rgba(11, 16, 30, 0.95), rgba(6, 9, 18, 0.97));
   backdrop-filter: blur(16px);
   box-shadow:
@@ -52,7 +52,7 @@
   font-size: 11.5px;
   letter-spacing: 0.26em;
   text-transform: uppercase;
-  color: var(--moon);
+  color: color-mix(in srgb, var(--acc-b) 54%, var(--moon));
 }
 
 .queue-count {
@@ -68,7 +68,8 @@
 }
 
 .queue-close:hover {
-  color: var(--moon-bright);
+  color: var(--acc-b);
+  border-color: color-mix(in srgb, var(--acc-b) 55%, transparent);
 }
 
 .queue-list {
@@ -105,8 +106,8 @@
 }
 
 .queue-row:hover {
-  border-color: color-mix(in srgb, var(--acc-b) 45%, rgba(255, 255, 255, 0.18));
-  background: color-mix(in srgb, var(--acc-a) 8%, rgba(12, 17, 34, 0.42));
+  border-color: color-mix(in srgb, var(--acc-b) 58%, rgba(255, 255, 255, 0.18));
+  background: color-mix(in srgb, var(--acc-a) 12%, rgba(12, 17, 34, 0.42));
 }
 
 .queue-row.q-dragging {
@@ -137,7 +138,7 @@
 .queue-grip {
   display: inline-flex;
   justify-content: center;
-  color: var(--moon-faint);
+  color: color-mix(in srgb, var(--acc-b) 42%, var(--moon-faint));
   opacity: 0.75;
 }
 
@@ -150,7 +151,7 @@
   align-items: center;
   justify-content: center;
   background: var(--moon-ghost);
-  border: 1px solid rgba(199, 205, 244, 0.08);
+  border: 1px solid color-mix(in srgb, var(--acc-b) 25%, rgba(199, 205, 244, 0.08));
 }
 
 .queue-thumb img {

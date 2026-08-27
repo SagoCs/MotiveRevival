@@ -11,7 +11,7 @@ import {
   type SearchIndexes,
 } from '../core/searchIndex';
 import { Carousel } from './carousel';
-import { isOverlayOpen, openNowPlayingFromRect, toggleNowPlaying } from './overlay';
+import { isOverlayOpen, toggleNowPlaying } from './overlay';
 import { ICON_SIGIL, ICON_BACK, ICON_NOTE, ICON_SEARCH } from './icons';
 import { startBands, stopBands } from '../core/audioBands';
 import { fallbackPalette, applyPalette, applyLyricsInk } from '../core/palette';
@@ -57,7 +57,7 @@ let stageLyrics: ReturnType<typeof createLyrics> | null = null;
 let lastSongList: import('../../shared/types').IndexedTrack[] = [];
 let oracleSongs: import('../../shared/types').IndexedTrack[] = [];
 
-export function initBrowser(): void {
+export function initBrowser(onCompactLyric?: (text: string | null, upcoming: boolean) => void): void {
   const host = document.querySelector<HTMLElement>('#carousel');
   const content = document.querySelector<HTMLElement>('#carousel-content');
   oracleInput =
@@ -128,7 +128,7 @@ export function initBrowser(): void {
 
   const lyricsSlot = document.getElementById('lyrics-slot');
   if (lyricsSlot !== null) {
-    stageLyrics = createLyrics(lyricsSlot);
+    stageLyrics = createLyrics(lyricsSlot, undefined, onCompactLyric);
     appBus.on('track-selected', ({ track }) => stageLyrics?.setTrack(track));
   }
 
@@ -663,9 +663,6 @@ function playFromList(
   } else {
     player.setContext([track], 0);
   }
-  const thumb = sourceRow?.querySelector<HTMLElement>('.song-thumb');
-  const rect = (thumb ?? sourceRow)?.getBoundingClientRect() ?? null;
-  openNowPlayingFromRect(rect, track.artFile !== null ? mediaUrl(track.artFile) : null);
 }
 
 function markPlaying(trackId: string): void {
@@ -760,14 +757,10 @@ function miniCell(
   attachContextMenu(cell, track, () => {
     preview.hardStop();
     player.setContext(context, index);
-    const rect = thumb.getBoundingClientRect();
-    openNowPlayingFromRect(rect, track.artFile !== null ? mediaUrl(track.artFile) : null);
   });
   cell.addEventListener('click', () => {
     preview.hardStop();
     player.setContext(context, index);
-    const rect = thumb.getBoundingClientRect();
-    openNowPlayingFromRect(rect, track.artFile !== null ? mediaUrl(track.artFile) : null);
   });
   return cell;
 }

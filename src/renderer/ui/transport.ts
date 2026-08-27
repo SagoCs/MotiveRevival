@@ -8,6 +8,7 @@ const ICON_QUEUE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" s
 
 export interface TransportHandle {
   setInteractivity(enabled: boolean): void;
+  setCompactLyric(text: string | null, upcoming: boolean): void;
 }
 
 export function createTransport(host: HTMLElement): TransportHandle {
@@ -40,7 +41,9 @@ export function createTransport(host: HTMLElement): TransportHandle {
 
   const fill = el('div', 'scrub-fill');
   const knob = el('div', 'scrub-knob');
-  scrub.append(fill, knob);
+  const lyric = el('div', 'transport-lyric');
+  lyric.hidden = true;
+  scrub.append(fill, knob, lyric);
 
   const timeTotal = el('span', 'mono transport-time');
   timeTotal.textContent = '0:00';
@@ -52,7 +55,7 @@ export function createTransport(host: HTMLElement): TransportHandle {
   queueBtn.setAttribute('aria-pressed', 'false');
   queueBtn.innerHTML = ICON_QUEUE;
 
-  host.append(timeNow, prevBtn, btn, nextBtn, scrub, timeTotal);
+  host.append(prevBtn, btn, nextBtn, timeNow, scrub, timeTotal);
 
   const bottomBar = host.parentElement;
   if (bottomBar !== null) bottomBar.insertBefore(queueBtn, host);
@@ -142,7 +145,14 @@ export function createTransport(host: HTMLElement): TransportHandle {
   player.bus.on('trackChanged', () => renderQueue());
   player.bus.on('queueMutated', () => renderQueue());
 
-  return { setInteractivity: (enabled) => host.classList.toggle('is-disabled', !enabled) };
+  return {
+    setInteractivity: (enabled) => host.classList.toggle('is-disabled', !enabled),
+    setCompactLyric: (text, upcoming) => {
+      lyric.textContent = text ?? '';
+      lyric.hidden = text === null || text === '';
+      lyric.classList.toggle('upcoming', upcoming);
+    },
+  };
 }
 
 function clamp01(v: number): number {

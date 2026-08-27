@@ -34,12 +34,12 @@ function boot(): void {
   void player;
 
   initOverlay();
-  initBrowser();
   initSettingsPanel(() => {});
   initWindowControls();
 
   const transportHost = document.getElementById('transport-host');
-  if (transportHost) createTransport(transportHost);
+  const transport = transportHost !== null ? createTransport(transportHost) : null;
+  initBrowser((text, upcoming) => transport?.setCompactLyric(text, upcoming));
 
   const rootInfo = document.querySelector<HTMLDivElement>('#root-info');
 

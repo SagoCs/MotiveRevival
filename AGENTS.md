@@ -4,7 +4,7 @@ Living document for any agent instance working on MotiveRevival. Update it at ev
 
 ## Project Snapshot
 
-Electron + vanilla TypeScript music player ("Moonlit Drift" aesthetic). Movements I–VI signed off (skeleton, data layer, browse carousel, chromatic theming, lyrics/lrclib, pulse previews). Next: **Movement VII — Playlists**. Open riders: BPM tag in metadata, custom frosted folder-picker UI, minor visual tweaks from the VI review.
+Electron + vanilla TypeScript music player ("Moonlit Drift" aesthetic). Movements I–VI signed off (skeleton, data layer, browse carousel, chromatic theming, lyrics/lrclib, pulse previews). Movement VII — Playlists is implemented and undergoing final interaction QA. Normal view is the default playback surface; expanded now-playing is explicitly toggled. Next direction: QOL and cosmic-atmosphere polish. Open riders: BPM tag in metadata, custom frosted folder-picker UI, minor visual tweaks from the VI review.
 
 ## Commands
 
@@ -64,14 +64,16 @@ Launch for verification from an agent shell: `Invoke-CimMethod Win32_Process Cre
 ## Current State / Open Tasks
 
 - [x] Settings facelift: multi-archive libraries (add/remove + drill-down manage view), master+granular motion flags, lyrics save-beside gate, S/M/L lyric scale.
-- [~] **Movement VII — Playlists (IN PROGRESS, boundary-parallel)** — brief below.
+- [~] **Movement VII — Playlists (IMPLEMENTED, AWAITING SIGN-OFF)** — brief below.
   - **Storage**: renderer-owned via existing KV IPC (`storageGet/Set('playlists')`). No main-process changes.
   - **Shapes** (`shared/types.ts`, additive): `PlaylistTrackRef { trackId: string; absPath: string }`; `Playlist { id: string; name: string; createdAt: number; updatedAt: number; tracks: PlaylistTrackRef[] }`.
-  - **New files**: `src/renderer/core/playlistsStore.ts` (CRUD + resolve-vs-libraryStore: id hit → live track; else absPath match; else ghost `{ ref, missing:true }`), `src/renderer/ui/playlistsView.ts` (tab cards incl. "+ New Playlist"; detail slide-in panel `#playlist-layer` mirroring `.detail-layer` styling; mini-cells w/ ▲▼ reorder, per-row ✕, ghost rows dimmed/unplayable w/ ✕; header: rename/delete/play-all).
+  - **New files**: `src/renderer/core/playlistsStore.ts` (CRUD + resolve-vs-libraryStore: id hit → live track; else absPath match; else ghost `{ ref, missing:true }`), `src/renderer/ui/playlistsView.ts` (tab cards incl. "+ New Playlist"; detail slide-in panel `#playlist-layer` mirroring `.detail-layer` styling; draggable mini-cells w/ ▲▼ reorder, per-row ✕, ghost rows dimmed/unplayable w/ ✕; header: shuffle/play/delete icons).
   - **Markup**: `#playlist-layer` appended in `index.html` before `<script>`. **CSS**: append-only block ending `/* PLAYLISTS */` in `shell.css`. **Never touch**: `browser.ts`, `overlay.ts`, `settings.ts`, `carousel.ts`, anything in `main/` or `preload/`.
-  - **Interactions**: hover ⊕ on song cells is OUT of scope for the branch (integrated post-merge by primary). Play-all uses `player.setContext(resolvedTracks, 0)`.
+  - **Interactions**: hover ⊕ on song cells is OUT of scope for the branch (integrated post-merge by primary). Play-all uses `player.setContext(resolvedTracks, 0)`; shuffle uses a session-only randomized context and does not mutate saved order.
   - **Verification**: typecheck + `npm test` + build MUST pass. Do NOT launch electron (single-instance lock is held by the primary session).
 - [ ] Riders: BPM tag display (music-metadata common.bpm), custom frosted folder-picker replacing native dialog, minor VI-review visual tweaks.
+- [ ] **Next polish direction:** QOL and cosmic atmosphere. Priorities are clearer empty/loading/error states, first-run library guidance, playlist duplicate protection, stronger keyboard/focus feedback, layered moving starfields, restrained palette-reactive constellations, mouse-parallax depth, cursor/trail effects gated by motion settings, and more precise transition choreography.
+- [x] Transport polish: minimized and expanded transport alignment, normal-view default playback, Escape/music-note view toggling, and synced lyric preview over the normal scrubber with an enlarged pointer hit area.
 - [ ] Keep `README.md` ledger updated at each sign-off; bump this file's snapshot.
 
 ## Verification Ritual

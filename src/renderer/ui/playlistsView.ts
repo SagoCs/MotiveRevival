@@ -5,8 +5,7 @@ import { applyPalette, fallbackPalette } from '../core/palette';
 import { fmtTotal } from '../core/searchIndex';
 import { fuzzyScore } from '../core/fuzzy';
 import { basenameOf } from '../core/paths';
-import { ICON_SIGIL, ICON_BACK } from './icons';
-import { openNowPlayingFromRect } from './overlay';
+import { ICON_SIGIL, ICON_PLAY, ICON_SHUFFLE, ICON_TRASH } from './icons';
 import { playlistsStore, type ResolvedPlaylistEntry } from '../core/playlistsStore';
 import type { IndexedTrack, Playlist, PlaylistTrackRef } from '../../shared/types';
 
@@ -23,6 +22,7 @@ let layer: HTMLElement | null = null;
 let nameInput: HTMLInputElement | null = null;
 let metaEl: HTMLElement | null = null;
 let playBtn: HTMLButtonElement | null = null;
+let shuffleBtn: HTMLButtonElement | null = null;
 let deleteBtn: HTMLButtonElement | null = null;
 let listEl: HTMLOListElement | null = null;
 let emptyEl: HTMLElement | null = null;
@@ -30,6 +30,7 @@ let openId: string | null = null;
 let confirmArmed = false;
 let confirmTimer = 0;
 let booted = false;
+let dragIndex = -1;
 
 export function initPlaylists(): void {
   if (booted) return;
@@ -66,12 +67,6 @@ function buildLayer(): HTMLElement {
   section.hidden = true;
   section.setAttribute('aria-label', 'Playlist detail');
 
-  const back = el('button', 'icon-btn btn-small playlist-back');
-  back.type = 'button';
-  back.innerHTML = ICON_BACK;
-  back.setAttribute('aria-label', 'Back to library');
-  back.addEventListener('click', () => closePlaylistLayer());
-
   const inner = el('div', 'playlist-inner');
   const head = el('header', 'playlist-head');
 
@@ -97,13 +92,26 @@ function buildLayer(): HTMLElement {
   const actions = el('div', 'playlist-actions');
   playBtn = el('button', 'ghost-btn ghost-mini');
   playBtn.type = 'button';
-  playBtn.textContent = 'Play All';
+  playBtn.classList.add('playlist-icon-action');
+  playBtn.innerHTML = ICON_PLAY;
+  playBtn.setAttribute('aria-label', 'Play all');
+  playBtn.title = 'Play all';
   playBtn.addEventListener('click', () => playAll());
+  shuffleBtn = el('button', 'ghost-btn ghost-mini');
+  shuffleBtn.type = 'button';
+  shuffleBtn.classList.add('playlist-icon-action');
+  shuffleBtn.innerHTML = ICON_SHUFFLE;
+  shuffleBtn.setAttribute('aria-label', 'Shuffle playlist');
+  shuffleBtn.title = 'Shuffle playlist';
+  shuffleBtn.addEventListener('click', () => shuffleAll());
   deleteBtn = el('button', 'ghost-btn ghost-mini playlist-danger');
   deleteBtn.type = 'button';
-  deleteBtn.textContent = 'Delete';
+  deleteBtn.classList.add('playlist-icon-action');
+  deleteBtn.innerHTML = ICON_TRASH;
+  deleteBtn.setAttribute('aria-label', 'Delete playlist');
+  deleteBtn.title = 'Delete playlist';
   deleteBtn.addEventListener('click', () => onDelete());
-  actions.append(playBtn, deleteBtn);
+  actions.append(shuffleBtn, playBtn, deleteBtn);
 
   const headText = el('div', 'playlist-head-text');
   headText.append(nameInput, metaEl);
@@ -116,7 +124,7 @@ function buildLayer(): HTMLElement {
   emptyEl.hidden = true;
 
   inner.append(head, listEl, emptyEl);
-  section.append(back, inner);
+  section.append(inner);
   return section;
 }
 
@@ -306,6 +314,14 @@ function renderPanel(): void {
   }
   if (emptyEl !== null) emptyEl.hidden = resolved.length !== 0;
   if (playBtn !== null) playBtn.disabled = live.length === 0;
+  if (shuffleBtn !== null) shuffleBtn.disabled = live.length === 0;
+}
+
+function resetPlaylistDrag(): void {
+  dragIndex = -1;
+  for (const row of document.querySelectorAll<HTMLElement>('.playlist-row')) {
+    row.classList.remove('playlist-dragging', 'playlist-drop-before');
+  }
 }
 
 function rowNode(
@@ -316,6 +332,37 @@ function rowNode(
 ): HTMLElement {
   const cell = el('li', 'mini-cell playlist-row');
   cell.style.animationDelay = `${Math.min(index * 18, 240)}ms`;
+  cell.draggable = true;
+
+  cell.addEventListener('dragstart', (e) => {
+    dragIndex = index;
+    cell.classList.add('playlist-dragging');
+    if (e.dataTransfer !== null) {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', String(index));
+    }
+  });
+  cell.addEventListener('dragover', (e) => {
+    if (dragIndex < 0 || dragIndex === index) return;
+    e.preventDefault();
+    const before = e.clientY < cell.getBoundingClientRect().top + cell.offsetHeight / 2;
+    cell.classList.toggle('playlist-drop-before', before);
+  });
+  cell.addEventListener('dragleave', () => {
+    cell.classList.remove('playlist-drop-before');
+  });
+  cell.addEventListener('drop', (e) => {
+    e.preventDefault();
+    if (dragIndex >= 0 && dragIndex !== index) {
+      const before = e.clientY < cell.getBoundingClientRect().top + cell.offsetHeight / 2;
+      const insertionIndex = before ? index : index + 1;
+      const destination = insertionIndex > dragIndex ? insertionIndex - 1 : insertionIndex;
+      const delta = destination - dragIndex;
+      if (delta !== 0) void playlistsStore.moveTrack(playlistId, dragIndex, delta);
+    }
+    resetPlaylistDrag();
+  });
+  cell.addEventListener('dragend', () => resetPlaylistDrag());
 
   const n = el('span', 'mono det-index');
   n.textContent = String(index + 1).padStart(2, '0');
@@ -389,8 +436,6 @@ function playRow(track: IndexedTrack, playlistId: string, thumb: HTMLElement): v
   preview.hardStop();
   if (idx >= 0) player.setContext(live, idx);
   else player.setContext([track], 0);
-  const rect = thumb.getBoundingClientRect();
-  openNowPlayingFromRect(rect, track.artFile !== null ? mediaUrl(track.artFile) : null);
 }
 
 function playAll(): void {
@@ -403,12 +448,33 @@ function playAll(): void {
   player.setContext(live, 0);
 }
 
+function shuffleAll(): void {
+  if (openId === null) return;
+  const pl = playlistsStore.get(openId);
+  if (pl === null) return;
+  const live = playlistsStore.liveTracks(pl.tracks);
+  if (live.length === 0) return;
+  const shuffled = [...live];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const current = shuffled[i];
+    const picked = shuffled[j];
+    if (current === undefined || picked === undefined) continue;
+    shuffled[i] = picked;
+    shuffled[j] = current;
+  }
+  preview.hardStop();
+  player.setContext(shuffled, 0);
+}
+
 function onDelete(): void {
   if (deleteBtn === null) return;
   if (!confirmArmed) {
     confirmArmed = true;
     deleteBtn.classList.add('confirm');
-    deleteBtn.textContent = 'Confirm';
+    deleteBtn.innerHTML = ICON_TRASH;
+    deleteBtn.setAttribute('aria-label', 'Confirm delete playlist');
+    deleteBtn.title = 'Confirm delete playlist';
     confirmTimer = window.setTimeout(disarmConfirm, 3000);
     return;
   }
@@ -423,7 +489,9 @@ function disarmConfirm(): void {
   window.clearTimeout(confirmTimer);
   if (deleteBtn !== null) {
     deleteBtn.classList.remove('confirm');
-    deleteBtn.textContent = 'Delete';
+    deleteBtn.innerHTML = ICON_TRASH;
+    deleteBtn.setAttribute('aria-label', 'Delete playlist');
+    deleteBtn.title = 'Delete playlist';
   }
 }
 

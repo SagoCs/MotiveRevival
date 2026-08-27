@@ -12,6 +12,7 @@ export interface LyricsHandle {
 export function createLyrics(
   container: HTMLElement,
   onResolved?: (state: LyricsState) => void,
+  onActiveLine?: (text: string | null, upcoming: boolean) => void,
 ): LyricsHandle {
   container.classList.add('lyrics');
   const status = el('div', 'lyric-status mono dim');
@@ -37,6 +38,7 @@ export function createLyrics(
     strip.replaceChildren();
     strip.style.transform = 'translate3d(0,0,0)';
     setStatus(statusText);
+    onActiveLine?.(null, false);
   }
 
   function renderSynced(data: ParsedLrc): void {
@@ -83,6 +85,8 @@ export function createLyrics(
     const idx = activeLineIndex(parsed.lines, time * 1000);
     if (idx === activeIdx) return;
     activeIdx = idx;
+    const active = parsed.lines[idx >= 0 ? idx : 0];
+    onActiveLine?.(active?.text ?? null, idx < 0);
     for (let i = 0; i < lineEls.length; i++) {
       const node = lineEls[i];
       if (node === undefined) continue;

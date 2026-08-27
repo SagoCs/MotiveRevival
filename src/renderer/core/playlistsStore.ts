@@ -130,11 +130,9 @@ class PlaylistsStore {
     if (index < 0 || index >= pl.tracks.length) return;
     const target = index + delta;
     if (target < 0 || target >= pl.tracks.length) return;
-    const a = pl.tracks[index];
-    const b = pl.tracks[target];
-    if (a === undefined || b === undefined) return;
-    pl.tracks[index] = b;
-    pl.tracks[target] = a;
+    const moved = pl.tracks.splice(index, 1)[0];
+    if (moved === undefined) return;
+    pl.tracks.splice(target, 0, moved);
     await this.touch(playlistId);
   }
 
