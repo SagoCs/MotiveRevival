@@ -43,7 +43,7 @@ export function createTransport(host: HTMLElement): TransportHandle {
   const knob = el('div', 'scrub-knob');
   const lyric = el('div', 'transport-lyric');
   lyric.hidden = true;
-  scrub.append(fill, knob, lyric);
+  scrub.append(fill, knob);
 
   const timeTotal = el('span', 'mono transport-time');
   timeTotal.textContent = '0:00';
@@ -56,6 +56,7 @@ export function createTransport(host: HTMLElement): TransportHandle {
   queueBtn.innerHTML = ICON_QUEUE;
 
   host.append(prevBtn, btn, nextBtn, timeNow, scrub, timeTotal);
+  host.append(lyric);
 
   const bottomBar = host.parentElement;
   if (bottomBar !== null) bottomBar.insertBefore(queueBtn, host);

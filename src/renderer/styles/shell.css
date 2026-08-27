@@ -938,6 +938,7 @@
 }
 
 .transport {
+  position: relative;
   display: grid;
   grid-template-columns: 40px 46px 40px 52px minmax(0, 1fr) 52px;
   align-items: center;
@@ -985,7 +986,7 @@
   top: 50%;
   height: 2px;
   border-radius: 2px;
-  background: rgba(199, 205, 244, 0.14);
+  background: color-mix(in srgb, var(--acc-a) 22%, rgba(199, 205, 244, 0.12));
 }
 
 .scrub-fill {
@@ -996,7 +997,7 @@
   border-radius: 2px;
   width: 0%;
   background: linear-gradient(90deg, var(--acc-a), var(--acc-b));
-  box-shadow: 0 0 12px color-mix(in srgb, var(--acc-glow) 45%, transparent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--acc-glow) 55%, transparent);
 }
 
 .scrub-knob {
@@ -1006,7 +1007,7 @@
   width: 11px;
   height: 11px;
   border-radius: 50%;
-  border: 1px solid var(--moon-bright);
+  border: 1px solid color-mix(in srgb, var(--acc-b) 72%, var(--moon-bright));
   background: var(--void-1);
   transform: translate(-50%, -50%);
   transition: box-shadow 200ms ease;
@@ -1015,21 +1016,21 @@
 .transport-lyric {
   position: absolute;
   left: 50%;
-  bottom: calc(100% + 6px);
+  bottom: calc(100% + 18px);
   z-index: 3;
   overflow: hidden;
   width: max-content;
-  max-width: min(60vw, 420px);
-  padding: 5px 13px;
+  max-width: min(70vw, 600px);
+  padding: 10px 22px;
   border: 1px solid color-mix(in srgb, var(--lyric-glow, var(--acc-glow)) 30%, transparent);
   border-radius: 12px;
   background: color-mix(in srgb, var(--void-2) 88%, transparent);
   color: var(--lyric-line, var(--moon));
   font-family: var(--font-body);
-  font-size: 11px;
+  font-size: 16px;
   font-weight: 300;
   letter-spacing: 0.04em;
-  line-height: 16px;
+  line-height: 22px;
   text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1044,10 +1045,15 @@
   opacity: 0.62;
 }
 
+body:has(#detail-layer.open) .transport-lyric,
+body:has(#playlist-layer.open) .transport-lyric {
+  display: none;
+}
+
 .scrub:hover .scrub-knob {
   box-shadow:
     0 0 10px rgba(238, 240, 255, 0.5),
-    0 0 24px color-mix(in srgb, var(--acc-glow) 40%, transparent);
+    0 0 24px color-mix(in srgb, var(--acc-glow) 52%, transparent);
 }
 
 .icon-btn {
@@ -1092,6 +1098,11 @@
     0 0 18px color-mix(in srgb, var(--acc-glow) 32%, transparent),
     inset 0 0 10px color-mix(in srgb, var(--acc-glow) 14%, transparent);
   color: var(--acc-b);
+}
+
+#bottom-bar #np-open:hover,
+#bottom-bar #np-open.lit {
+  box-shadow: none;
 }
 
 .ghost-btn {
@@ -1194,6 +1205,17 @@
 #overlay-sigil:has(img) {
   animation: none;
   filter: none;
+}
+
+#overlay-sigil.reject-shake {
+  animation: overlay-reject-shake 340ms ease both;
+}
+
+@keyframes overlay-reject-shake {
+  0%, 100% { translate: 0 0; }
+  25% { translate: -8px 0; }
+  50% { translate: 8px 0; }
+  75% { translate: -5px 0; }
 }
 
 #overlay-viz {

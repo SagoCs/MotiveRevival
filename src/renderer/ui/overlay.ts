@@ -50,11 +50,17 @@ export function initOverlay(): void {
   let savedView: 'split' | 'art' = 'art';
 
   const applySavedView = (): void => {
-    overlay.classList.toggle('art-focus', savedView === 'art' && hasLyrics);
+    overlay.classList.toggle('art-focus', savedView === 'art' || !hasLyrics);
   };
 
   const cycleFocus = (): void => {
-    if (!hasLyrics) return;
+    if (!hasLyrics) {
+      artHost.classList.remove('reject-shake');
+      void artHost.offsetWidth;
+      artHost.classList.add('reject-shake');
+      window.setTimeout(() => artHost.classList.remove('reject-shake'), 340);
+      return;
+    }
     const artOnly = overlay.classList.toggle('art-focus');
     savedView = artOnly ? 'art' : 'split';
     void window.mr.updateSettings({ nowPlayingView: savedView });
