@@ -34,14 +34,14 @@ export function initOverlay(): void {
   const vizCanvas = document.querySelector<HTMLCanvasElement>('#overlay-viz');
   if (vizCanvas !== null) new Viz(vizCanvas, overlay);
 
-  const blurArt = document.createElement('div');
-  blurArt.id = 'overlay-blur-art';
-  blurArt.setAttribute('aria-hidden', 'true');
-  document.getElementById('overlay-field')?.insertAdjacentElement('afterend', blurArt);
+  const artVeil = document.createElement('div');
+  artVeil.id = 'overlay-art-veil';
+  artVeil.setAttribute('aria-hidden', 'true');
+  document.getElementById('overlay-field')?.insertAdjacentElement('afterend', artVeil);
 
   for (const side of ['left', 'right'] as const) {
     const zone = document.createElement('div');
-    zone.className = `blur-zone zone-${side}`;
+    zone.className = `lyrics-zone zone-${side}`;
     zone.addEventListener('click', () => {
       if (!hasLyrics) return;
       savedView = side === 'left' ? 'art' : 'split';
@@ -53,12 +53,12 @@ export function initOverlay(): void {
 
   const modeDots = document.createElement('div');
   modeDots.id = 'mode-dots';
-  for (const view of ['art', 'blur', 'split'] as const) {
+  for (const view of ['art', 'split', 'lyrics'] as const) {
     const dot = document.createElement('button');
     dot.type = 'button';
     dot.className = 'mode-dot';
     dot.dataset.view = view;
-    dot.title = view === 'art' ? 'Art view' : view === 'blur' ? 'Immersive view' : 'Split view';
+    dot.title = view === 'art' ? 'Art view' : view === 'split' ? 'Art + lyrics' : 'Lyrics only';
     dot.addEventListener('click', () => {
       if (!hasLyrics) {
         dot.classList.remove('reject-shake');
@@ -98,7 +98,7 @@ export function initOverlay(): void {
   const applySavedView = (): void => {
     const view = hasLyrics ? savedView : 'art';
     overlay.classList.toggle('art-focus', view === 'art');
-    overlay.classList.toggle('blur-mode', view === 'blur');
+    overlay.classList.toggle('lyrics-mode', view === 'lyrics');
     for (const dot of Array.from(modeDots.children)) {
       const d = dot as HTMLElement;
       d.classList.toggle('active', d.dataset.view === view);
@@ -107,7 +107,7 @@ export function initOverlay(): void {
   };
 
   const attachModeHotkeys = (): void => {
-    const keyMap: Record<string, NowPlayingView> = { '1': 'art', '2': 'blur', '3': 'split' };
+    const keyMap: Record<string, NowPlayingView> = { '1': 'art', '2': 'split', '3': 'lyrics' };
     document.addEventListener('keydown', (e) => {
       if (overlay.hidden) return;
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -129,7 +129,7 @@ export function initOverlay(): void {
       window.setTimeout(() => artHost.classList.remove('reject-shake'), 340);
       return;
     }
-    const next: Record<NowPlayingView, NowPlayingView> = { art: 'blur', blur: 'split', split: 'art' };
+    const next: Record<NowPlayingView, NowPlayingView> = { art: 'split', split: 'lyrics', lyrics: 'art' };
     savedView = next[savedView];
     void window.mr.updateSettings({ nowPlayingView: savedView });
     applySavedView();
@@ -145,10 +145,10 @@ export function initOverlay(): void {
       img.alt = '';
       img.src = `media://local/${encodeURIComponent(current.artFile)}`;
       artHost.replaceChildren(img);
-      blurArt.style.backgroundImage = `url("media://local/${encodeURIComponent(current.artFile)}")`;
+      artVeil.style.backgroundImage = `url("media://local/${encodeURIComponent(current.artFile)}")`;
     } else {
       artHost.innerHTML = ICON_SIGIL;
-      blurArt.style.backgroundImage = '';
+      artVeil.style.backgroundImage = '';
     }
     titleEl.textContent = current !== null ? current.title : '';
   };
@@ -164,7 +164,13 @@ export function initOverlay(): void {
   });
 
   void window.mr.getSettings().then((s) => {
-    savedView = s.nowPlayingView === 'split' || s.nowPlayingView === 'blur' ? s.nowPlayingView : 'art';
+    const loaded = s.nowPlayingView as string | undefined;
+    savedView =
+      loaded === 'split' || loaded === 'lyrics'
+        ? (loaded as NowPlayingView)
+        : loaded === 'blur'
+          ? 'lyrics'
+          : 'art';
     applySavedView();
   });
 }
