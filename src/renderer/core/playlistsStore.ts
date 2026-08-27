@@ -136,6 +136,19 @@ class PlaylistsStore {
     await this.touch(playlistId);
   }
 
+  async reorderTrack(playlistId: string, from: number, gap: number): Promise<void> {
+    const pl = this.find(playlistId);
+    if (pl === null) return;
+    if (from < 0 || from >= pl.tracks.length) return;
+    const clamped = Math.max(0, Math.min(pl.tracks.length, gap));
+    const target = clamped > from ? clamped - 1 : clamped;
+    if (target === from) return;
+    const moved = pl.tracks.splice(from, 1)[0];
+    if (moved === undefined) return;
+    pl.tracks.splice(target, 0, moved);
+    await this.touch(playlistId);
+  }
+
   async touch(id: string): Promise<void> {
     const pl = this.find(id);
     if (pl === null) return;

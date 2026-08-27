@@ -31,6 +31,7 @@ let confirmArmed = false;
 let confirmTimer = 0;
 let booted = false;
 let dragIndex = -1;
+let dropGap = -1;
 
 export function initPlaylists(): void {
   if (booted) return;
@@ -309,7 +310,7 @@ function renderPanel(): void {
   if (listEl !== null) {
     listEl.replaceChildren();
     const frag = document.createDocumentFragment();
-    resolved.forEach((entry, i) => frag.append(rowNode(entry, i, resolved.length, pl.id)));
+    resolved.forEach((entry, i) => frag.append(rowNode(entry, i, pl.id)));
     listEl.append(frag);
   }
   if (emptyEl !== null) emptyEl.hidden = resolved.length !== 0;
@@ -319,15 +320,21 @@ function renderPanel(): void {
 
 function resetPlaylistDrag(): void {
   dragIndex = -1;
+  dropGap = -1;
   for (const row of document.querySelectorAll<HTMLElement>('.playlist-row')) {
-    row.classList.remove('playlist-dragging', 'playlist-drop-before');
+    row.classList.remove('playlist-dragging', 'playlist-ins-top', 'playlist-ins-bot');
+  }
+}
+
+function clearPlaylistIndicators(): void {
+  for (const row of document.querySelectorAll<HTMLElement>('.playlist-row')) {
+    row.classList.remove('playlist-ins-top', 'playlist-ins-bot');
   }
 }
 
 function rowNode(
   entry: ResolvedPlaylistEntry,
   index: number,
-  total: number,
   playlistId: string,
 ): HTMLElement {
   const cell = el('li', 'mini-cell playlist-row');
@@ -336,6 +343,7 @@ function rowNode(
 
   cell.addEventListener('dragstart', (e) => {
     dragIndex = index;
+    dropGap = -1;
     cell.classList.add('playlist-dragging');
     if (e.dataTransfer !== null) {
       e.dataTransfer.effectAllowed = 'move';
@@ -343,22 +351,18 @@ function rowNode(
     }
   });
   cell.addEventListener('dragover', (e) => {
-    if (dragIndex < 0 || dragIndex === index) return;
+    if (dragIndex < 0) return;
     e.preventDefault();
-    const before = e.clientY < cell.getBoundingClientRect().top + cell.offsetHeight / 2;
-    cell.classList.toggle('playlist-drop-before', before);
-  });
-  cell.addEventListener('dragleave', () => {
-    cell.classList.remove('playlist-drop-before');
+    if (e.dataTransfer !== null) e.dataTransfer.dropEffect = 'move';
+    const above = e.clientY < cell.getBoundingClientRect().top + cell.offsetHeight / 2;
+    dropGap = above ? index : index + 1;
+    clearPlaylistIndicators();
+    cell.classList.add(above ? 'playlist-ins-top' : 'playlist-ins-bot');
   });
   cell.addEventListener('drop', (e) => {
     e.preventDefault();
-    if (dragIndex >= 0 && dragIndex !== index) {
-      const before = e.clientY < cell.getBoundingClientRect().top + cell.offsetHeight / 2;
-      const insertionIndex = before ? index : index + 1;
-      const destination = insertionIndex > dragIndex ? insertionIndex - 1 : insertionIndex;
-      const delta = destination - dragIndex;
-      if (delta !== 0) void playlistsStore.moveTrack(playlistId, dragIndex, delta);
+    if (dragIndex >= 0 && dropGap >= 0) {
+      void playlistsStore.reorderTrack(playlistId, dragIndex, dropGap);
     }
     resetPlaylistDrag();
   });
@@ -396,24 +400,12 @@ function rowNode(
   text.append(title, sub);
 
   const actions = el('div', 'playlist-row-actions');
-  const up = actButton('\u25B2', 'Move up');
-  up.disabled = index === 0;
-  up.addEventListener('click', (e) => {
-    e.stopPropagation();
-    void playlistsStore.moveTrack(playlistId, index, -1);
-  });
-  const down = actButton('\u25BC', 'Move down');
-  down.disabled = index === total - 1;
-  down.addEventListener('click', (e) => {
-    e.stopPropagation();
-    void playlistsStore.moveTrack(playlistId, index, 1);
-  });
   const rm = actButton('\u2715', 'Remove from playlist');
   rm.addEventListener('click', (e) => {
     e.stopPropagation();
     void playlistsStore.removeTrack(playlistId, index);
   });
-  actions.append(up, down, rm);
+  actions.append(rm);
 
   cell.append(n, thumb, text, dur, actions);
   return cell;

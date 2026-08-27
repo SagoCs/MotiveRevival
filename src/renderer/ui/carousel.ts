@@ -89,8 +89,11 @@ export class Carousel {
     this.moveCb = cb;
   }
 
-  updateWindow(fragment: DocumentFragment): void {
-    this.content.replaceChildren(fragment);
+  windowContent(): HTMLElement {
+    return this.content;
+  }
+
+  refresh(): void {
     this.measure();
     this.paint();
   }

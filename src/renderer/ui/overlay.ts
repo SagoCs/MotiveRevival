@@ -51,6 +51,30 @@ export function initOverlay(): void {
     overlay.append(zone);
   }
 
+  const modeDots = document.createElement('div');
+  modeDots.id = 'mode-dots';
+  for (const view of ['art', 'blur', 'split'] as const) {
+    const dot = document.createElement('button');
+    dot.type = 'button';
+    dot.className = 'mode-dot';
+    dot.dataset.view = view;
+    dot.title = view === 'art' ? 'Art view' : view === 'blur' ? 'Immersive view' : 'Split view';
+    dot.addEventListener('click', () => {
+      if (!hasLyrics) {
+        dot.classList.remove('reject-shake');
+        void dot.offsetWidth;
+        dot.classList.add('reject-shake');
+        window.setTimeout(() => dot.classList.remove('reject-shake'), 340);
+        return;
+      }
+      savedView = view;
+      void window.mr.updateSettings({ nowPlayingView: savedView });
+      applySavedView();
+    });
+    modeDots.append(dot);
+  }
+  overlay.append(modeDots);
+
   const lyricsPane = document.getElementById('overlay-lyrics');
   let overlayLyrics: ReturnType<typeof createLyrics> | null = null;
   if (lyricsPane !== null) {
@@ -75,7 +99,27 @@ export function initOverlay(): void {
     const view = hasLyrics ? savedView : 'art';
     overlay.classList.toggle('art-focus', view === 'art');
     overlay.classList.toggle('blur-mode', view === 'blur');
+    for (const dot of Array.from(modeDots.children)) {
+      const d = dot as HTMLElement;
+      d.classList.toggle('active', d.dataset.view === view);
+      d.classList.toggle('locked', !hasLyrics && d.dataset.view !== 'art');
+    }
   };
+
+  const attachModeHotkeys = (): void => {
+    const keyMap: Record<string, NowPlayingView> = { '1': 'art', '2': 'blur', '3': 'split' };
+    document.addEventListener('keydown', (e) => {
+      if (overlay.hidden) return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      const view = keyMap[e.key];
+      if (view === undefined) return;
+      if (view !== 'art' && !hasLyrics) return;
+      savedView = view;
+      void window.mr.updateSettings({ nowPlayingView: savedView });
+      applySavedView();
+    });
+  };
+  attachModeHotkeys();
 
   const cycleFocus = (): void => {
     if (!hasLyrics) {

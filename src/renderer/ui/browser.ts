@@ -165,7 +165,7 @@ export function initBrowser(onCompactLyric?: (text: string | null, upcoming: boo
   wireGlobalKeys();
 
   carousel = new Carousel(host, content);
-  carousel.onViewportMove(refreshSongWindow);
+  carousel.onViewportMove(queueSongWindowRefresh);
 
   libraryStore.onChange((result) => {
     idx = buildSearchIndexes(result.ok ? result.tracks : []);
@@ -471,11 +471,16 @@ let renderedMode: Mode | null = null;
 let playingId: string | null = null;
 let vlistTop = -1;
 let vlistBottom = -1;
+let windowRefreshQueued = false;
+
+function padRowsFor(hostH: number): number {
+  return Math.ceil((hostH * 1.5 + 240) / SONG_ROW_HEIGHT);
+}
 
 function songWindowBounds(hostH: number, posY: number): { start: number; end: number } {
   const len = lastSongList.length;
   if (len === 0) return { start: 0, end: 0 };
-  const padRows = Math.ceil((hostH * 0.75 + 160) / SONG_ROW_HEIGHT);
+  const padRows = padRowsFor(hostH);
   const start = Math.max(0, Math.floor(posY / SONG_ROW_HEIGHT) - padRows);
   const end = Math.min(len, Math.ceil((posY + hostH) / SONG_ROW_HEIGHT) + padRows);
   return { start, end };
@@ -506,17 +511,72 @@ function mountSongsWindow(frag: DocumentFragment): void {
   frag.append(buildSongsFragment(songWindowBounds(hostH, carousel.getPos())));
 }
 
+function slideSongWindow(newStart: number, newEnd: number): void {
+  const kids = carousel.windowContent().children;
+  const gapTop = kids[0] as HTMLElement | undefined;
+  const gapBottom = kids[kids.length - 1] as HTMLElement | undefined;
+  if (gapTop === undefined || gapBottom === undefined) return;
+
+  if (newStart > vlistTop) {
+    for (let i = 0; i < newStart - vlistTop; i++) {
+      const node = kids[1];
+      if (node === undefined || node === gapBottom) break;
+      node.remove();
+    }
+  } else if (newStart < vlistTop) {
+    const rowsFrag = document.createDocumentFragment();
+    for (let i = newStart; i < vlistTop; i++) {
+      const track = lastSongList[i];
+      if (track === undefined) continue;
+      rowsFrag.append(songRow(track));
+    }
+    gapTop.after(rowsFrag);
+  }
+
+  if (newEnd > vlistBottom) {
+    const rowsFrag = document.createDocumentFragment();
+    for (let i = vlistBottom; i < newEnd; i++) {
+      const track = lastSongList[i];
+      if (track === undefined) continue;
+      rowsFrag.append(songRow(track));
+    }
+    gapBottom.before(rowsFrag);
+  } else if (newEnd < vlistBottom) {
+    for (let i = 0; i < vlistBottom - newEnd; i++) {
+      const node = kids[kids.length - 2];
+      if (node === undefined || node === gapTop) break;
+      node.remove();
+    }
+  }
+
+  gapTop.style.height = `${newStart * SONG_ROW_HEIGHT}px`;
+  gapBottom.style.height = `${(lastSongList.length - newEnd) * SONG_ROW_HEIGHT}px`;
+  vlistTop = newStart;
+  vlistBottom = newEnd;
+}
+
+function queueSongWindowRefresh(): void {
+  if (windowRefreshQueued) return;
+  windowRefreshQueued = true;
+  requestAnimationFrame(() => {
+    windowRefreshQueued = false;
+    refreshSongWindow();
+  });
+}
+
 function refreshSongWindow(): void {
   if (state.mode !== 'songs') return;
   if (vlistTop < 0 || vlistBottom < 0) return;
   const hostH = Math.max(320, carousel.viewHeight());
   const posY = carousel.getPos();
+  const minBuffer = Math.max(1, Math.ceil(padRowsFor(hostH) / 2));
   const firstVisible = Math.floor(posY / SONG_ROW_HEIGHT);
   const lastVisible = Math.ceil((posY + hostH) / SONG_ROW_HEIGHT);
-  const minBuffer = Math.ceil((hostH * 0.4) / SONG_ROW_HEIGHT);
   const drained = firstVisible - vlistTop < minBuffer || vlistBottom - lastVisible < minBuffer;
   if (!drained) return;
-  carousel.updateWindow(buildSongsFragment(songWindowBounds(hostH, posY)));
+  const w = songWindowBounds(hostH, posY);
+  slideSongWindow(w.start, w.end);
+  carousel.refresh();
 }
 
 function retractVisibleRows(): void {
@@ -728,6 +788,9 @@ function songRow(
   if (enterIndex >= 0) row.style.setProperty('--ed', `${Math.min(enterIndex * 12, 420)}ms`);
   if (track.id === playingId) row.classList.add('playing');
 
+  const thumb = el('div', 'song-thumb');
+  artInto(thumb, track.artFile, 'card-img', true);
+
   const meta = el('div', 'song-meta');
   const title = el('div', 'song-title');
   title.textContent = track.title;
@@ -743,7 +806,7 @@ function songRow(
       ? fmtTime(track.durationSec)
       : '--:--';
 
-  row.append(meta, dur);
+  row.append(thumb, meta, dur);
   attachPreview(row, track);
   attachContextMenu(row, track, () => {
     preview.hardStop();

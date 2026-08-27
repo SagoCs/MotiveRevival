@@ -37,6 +37,7 @@ export function createArtImage(url: string, opts: ArtImageOptions = {}): HTMLIma
   img.height = 128;
   img.src = url;
   img.style.opacity = '0';
+  img.style.transition = 'opacity 160ms ease';
   img.addEventListener('load', () => {
     img.style.opacity = '1';
   });
