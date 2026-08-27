@@ -1,5 +1,6 @@
-import { protocol } from 'electron';
-import { createReadStream, promises as fsp } from 'node:fs';
+import { protocol, nativeImage } from 'electron';
+import { createReadStream } from 'node:fs';
+import { existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { Readable } from 'node:stream';
 
@@ -45,19 +46,24 @@ export function attachMediaHandler(getRoots: () => string[]): void {
   protocol.handle(SCHEME, (request) => handleMediaRequest(request));
 }
 
+const THUMB_WIDTH = 128;
+const THUMB_JPEG_QUALITY = 82;
+
 async function handleMediaRequest(request: Request): Promise<Response> {
   try {
     const url = new URL(request.url);
     if (url.host !== 'local') return textResponse(400, 'unrecognized media host');
     const decoded = decodeURIComponent(url.pathname.replace(/^\/+/, ''));
-    if (!decoded.includes(path.sep)) return textResponse(400, 'malformed media path');
+    if (!decoded.includes(path.sep) && !decoded.includes('/')) return textResponse(400, 'malformed media path');
     const resolved = path.resolve(decoded);
     const root = resolveAllowedRoot(resolved);
     if (root === null) return textResponse(403, 'path outside music root');
 
+    healMissingThumbnail(resolved);
+
     let stat;
     try {
-      stat = await fsp.stat(resolved);
+      stat = statSync(resolved);
     } catch {
       return textResponse(404, 'track not found');
     }
@@ -106,6 +112,28 @@ async function handleMediaRequest(request: Request): Promise<Response> {
     });
   } catch (err) {
     return textResponse(500, `media handler error: ${String(err)}`);
+  }
+}
+
+function healMissingThumbnail(resolved: string): void {
+  const segments = resolved.split(path.sep);
+  if (segments.length < 2) return;
+  if (segments[segments.length - 2] !== 'thumbs') return;
+  if (existsSync(resolved)) return;
+  const stem = path.basename(resolved).replace(/\.[^.]+$/, '');
+  const parentDir = path.dirname(path.dirname(resolved));
+  for (const cand of ['.jpg', '.jpeg', '.png', '.webp']) {
+    const original = path.join(parentDir, stem + cand);
+    if (!existsSync(original)) continue;
+    try {
+      const img = nativeImage.createFromPath(original);
+      if (img.isEmpty()) return;
+      mkdirSync(path.dirname(resolved), { recursive: true });
+      writeFileSync(resolved, img.resize({ width: THUMB_WIDTH }).toJPEG(THUMB_JPEG_QUALITY));
+    } catch {
+      return;
+    }
+    return;
   }
 }
 

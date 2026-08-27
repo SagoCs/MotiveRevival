@@ -1,5 +1,5 @@
 import '../styles/queue.css';
-import { el, fmtTime, createArtImage } from '../core/dom';
+import { el, fmtTime, createArtImage, thumbOf, paletteBedOf } from '../core/dom';
 import { mediaUrl, player } from '../core/player';
 import { ICON_CLOSE, ICON_SIGIL } from './icons';
 import type { IndexedTrack } from '../../shared/types';
@@ -63,7 +63,8 @@ export function createQueuePanel(): QueuePanelHandle {
 
     const thumb = el('span', 'queue-thumb');
     if (track.artFile !== null) {
-      thumb.append(createArtImage(mediaUrl(track.artFile)));
+      thumb.style.background = paletteBedOf(track.palette, track.id);
+      thumb.append(createArtImage(mediaUrl(thumbOf(track.artFile)), { fallbackUrl: mediaUrl(track.artFile) }));
     } else {
       const sigil = el('span', 'queue-sigil');
       sigil.innerHTML = ICON_SIGIL;

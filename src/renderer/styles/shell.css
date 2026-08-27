@@ -285,6 +285,7 @@
 
 #browser {
   position: relative;
+  z-index: 0;
   flex: 1;
   min-height: 0;
   overflow: hidden;
@@ -342,7 +343,6 @@
 }
 
 .album-card .card-img,
-.song-thumb .card-img,
 .artist-avatar .card-img {
   translate: 0 calc(var(--py, 0px) * -0.55);
 }
@@ -375,14 +375,6 @@
 }
 
 .card-art,
-.song-thumb {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  background: var(--void-2);
-}
-
 .card-art {
   aspect-ratio: 1 / 1;
   border-radius: 13px;
@@ -474,18 +466,18 @@
 
 .song-row {
   display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 15px;
   width: min(560px, 90%);
   margin: 0 auto 10px;
-  padding: 9px 16px 9px 10px;
+  padding: 9px 16px;
+  height: 96px;
+  overflow: hidden;
   border-radius: 14px;
   border: 1px solid rgba(199, 205, 244, 0.1);
   background: linear-gradient(180deg, rgba(12, 17, 34, 0.5), rgba(7, 11, 23, 0.32));
   cursor: pointer;
-  content-visibility: auto;
-  contain-intrinsic-size: auto 68px;
   transition:
     border-color 160ms ease,
     background-color 160ms ease;
@@ -518,21 +510,6 @@
 .song-row.previewing .song-title,
 .mini-cell.previewing .det-title {
   color: var(--aurora);
-}
-
-.song-thumb {
-  width: 48px;
-  height: 48px;
-  border-radius: 9px;
-}
-
-.song-thumb.noart {
-  color: var(--moon-faint);
-}
-
-.song-thumb.noart svg {
-  width: 60%;
-  height: 60%;
 }
 
 .song-meta {
@@ -2429,4 +2406,43 @@ body:has(#playlist-layer.open) #bottom-bar::before {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+#browse-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 700ms var(--ease-drift);
+}
+
+#browse-backdrop.lit {
+  opacity: 1;
+}
+
+.backdrop-face {
+  position: absolute;
+  inset: -6%;
+  opacity: 0;
+  background-size: cover;
+  background-position: center;
+  filter: blur(52px) saturate(1.18) brightness(0.58);
+  transition: opacity 700ms var(--ease-drift);
+}
+
+.backdrop-face.show {
+  opacity: 1;
+}
+
+#browse-backdrop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--void-1) 42%, transparent),
+    color-mix(in srgb, var(--void-0) 60%, transparent)
+  );
 }

@@ -1,4 +1,4 @@
-import { el, fmtTime, createArtImage } from '../core/dom';
+import { el, fmtTime, createArtImage, thumbOf, paletteBedOf } from '../core/dom';
 import { mediaUrl, player } from '../core/player';
 import { preview } from '../core/preview';
 import { applyPalette, fallbackPalette } from '../core/palette';
@@ -513,7 +513,8 @@ function sumDuration(tracks: readonly IndexedTrack[]): number {
 
 function artInto(host: HTMLElement, track: IndexedTrack | null): void {
   if (track !== null && track.artFile !== null) {
-    const img = createArtImage(mediaUrl(track.artFile));
+    host.style.background = paletteBedOf(track.palette, track.id);
+    const img = createArtImage(mediaUrl(thumbOf(track.artFile)), { fallbackUrl: mediaUrl(track.artFile) });
     img.className = 'card-img';
     host.replaceChildren(img);
     host.classList.remove('noart');

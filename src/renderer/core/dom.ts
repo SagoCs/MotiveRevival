@@ -1,3 +1,5 @@
+import { fallbackPalette } from './palette';
+
 export function fmtTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
   const whole = Math.floor(seconds);
@@ -22,13 +24,48 @@ export function el<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
-export function createArtImage(url: string): HTMLImageElement {
+export interface ArtImageOptions {
+  fallbackUrl?: string;
+}
+
+export function createArtImage(url: string, opts: ArtImageOptions = {}): HTMLImageElement {
   const img = document.createElement('img');
   img.decoding = 'async';
   img.loading = 'lazy';
   img.alt = '';
+  img.width = 128;
+  img.height = 128;
   img.src = url;
+  img.style.opacity = '0';
+  img.addEventListener('load', () => {
+    img.style.opacity = '1';
+  });
+  const fallbackUrl = opts.fallbackUrl;
+  if (fallbackUrl !== undefined) {
+    let swapped = false;
+    img.addEventListener('error', () => {
+      if (swapped || img.src === fallbackUrl) return;
+      swapped = true;
+      img.src = fallbackUrl;
+    });
+  }
   return img;
+}
+
+export function thumbOf(artFile: string): string {
+  const idx = Math.max(artFile.lastIndexOf('/'), artFile.lastIndexOf('\\'));
+  const sep = idx >= 0 ? artFile[idx] : '/';
+  const base = idx >= 0 ? artFile.slice(idx + 1) : artFile;
+  const dot = base.lastIndexOf('.');
+  const stem = dot > 0 ? base.slice(0, dot) : base;
+  return `${idx >= 0 ? artFile.slice(0, idx) : ''}${sep}thumbs${sep}${stem}.jpg`;
+}
+
+export function paletteBedOf(palette: readonly string[] | null, seed: string): string {
+  const tones = palette !== null && palette.length > 0 ? palette : fallbackPalette(seed);
+  const a = tones[0] ?? '#7c74e0';
+  const b = tones[1] ?? a;
+  return `linear-gradient(150deg, ${a}, ${b})`;
 }
 
 export function fatal(message: string): void {

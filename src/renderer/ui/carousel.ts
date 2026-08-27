@@ -8,6 +8,7 @@ const EDGE_RESISTANCE = 0.32;
 const EDGE_PULLBACK = 0.16;
 const CENTER_COMPRESS_MAX = 0.05;
 const SPEED_SQUEEZE_MAX = 0.03;
+const BUSY_VELOCITY = 8;
 
 function clamp(v: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, v));
@@ -33,6 +34,8 @@ export class Carousel {
   private frameFlip = false;
   private centersStartHint = 0;
   private measureQueued = false;
+  private lastEmittedPos = -1;
+  private moveCb: ((pos: number, height: number) => void) | null = null;
 
   private readonly resizeObserver: ResizeObserver;
 
@@ -57,6 +60,7 @@ export class Carousel {
     this.pos = 0;
     this.vel = 0;
     this.centers = [];
+    this.lastEmittedPos = -1;
     this.content.replaceChildren(fragment);
     this.content.style.transform = 'translate3d(0,0,0)';
     requestAnimationFrame(() => {
@@ -67,6 +71,28 @@ export class Carousel {
 
   wasDrag(): boolean {
     return Date.now() < this.suppressClickUntil;
+  }
+
+  busy(): boolean {
+    return this.pointerId !== null || Math.abs(this.vel) > BUSY_VELOCITY;
+  }
+
+  getPos(): number {
+    return this.pos;
+  }
+
+  viewHeight(): number {
+    return this.host.clientHeight;
+  }
+
+  onViewportMove(cb: (pos: number, height: number) => void): void {
+    this.moveCb = cb;
+  }
+
+  updateWindow(fragment: DocumentFragment): void {
+    this.content.replaceChildren(fragment);
+    this.measure();
+    this.paint();
   }
 
   appendNodes(fragment: DocumentFragment): void {
@@ -92,8 +118,8 @@ export class Carousel {
   bandChildren(bandPadRows = 2): HTMLElement[] {
     const h = this.host.clientHeight;
     if (h <= 0) return [];
-    const lo = this.pos - bandPadRows * 68 - 40;
-    const hi = this.pos + h + bandPadRows * 68;
+    const lo = this.pos - bandPadRows * 96 - 40;
+    const hi = this.pos + h + bandPadRows * 96;
     const out: HTMLElement[] = [];
     const kids = this.content.children;
     for (let i = 0; i < kids.length; i++) {
@@ -213,6 +239,11 @@ export class Carousel {
   private paint(): void {
     this.content.style.transform = `translate3d(0, ${-this.pos.toFixed(2)}px, 0)`;
 
+    if (this.moveCb !== null && Math.abs(this.pos - this.lastEmittedPos) > 2) {
+      this.lastEmittedPos = this.pos;
+      this.moveCb(this.pos, this.host.clientHeight);
+    }
+
     if (!fx.motion || !fx.carousel) return;
 
     const hostH = this.host.clientHeight;
@@ -247,14 +278,13 @@ export class Carousel {
       if (entry.center > hiBound) break;
       const dist = entry.center - viewCenter;
       const t = Math.min(Math.abs(dist) / (hostH / 2), 1);
-      const scale = (1 - t * CENTER_COMPRESS_MAX) * squeeze;
-      const cs = scale.toFixed(4);
+      const cs = ((1 - t * CENTER_COMPRESS_MAX) * squeeze).toFixed(2);
       let py = '0px';
       if (moving) {
         const dirFactor = clamp(dist / (hostH / 2), -1.5, 1.5);
         const lag = -velN * 14 * dirFactor;
         const spread = Math.abs(velN) * 26 * dirFactor;
-        py = `${(lag + spread).toFixed(1)}px`;
+        py = `${Math.round(lag + spread)}px`;
       }
       if (cs !== entry.lastCs) {
         entry.lastCs = cs;

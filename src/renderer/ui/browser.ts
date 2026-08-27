@@ -1,4 +1,4 @@
-﻿import { el, fmtTime, createArtImage } from '../core/dom';
+﻿import { el, fmtTime, createArtImage, thumbOf } from '../core/dom';
 import { mediaUrl, player } from '../core/player';
 import { appBus } from '../core/appBus';
 import { libraryStore } from '../core/libraryStore';
@@ -11,7 +11,7 @@ import {
   type SearchIndexes,
 } from '../core/searchIndex';
 import { Carousel } from './carousel';
-import { isOverlayOpen, toggleNowPlaying } from './overlay';
+import { isOverlayOpen, openNowPlaying, toggleNowPlaying } from './overlay';
 import { ICON_SIGIL, ICON_NOTE, ICON_SEARCH } from './icons';
 import { startBands, stopBands } from '../core/audioBands';
 import { fallbackPalette, applyPalette, applyLyricsInk } from '../core/palette';
@@ -87,6 +87,29 @@ export function initBrowser(onCompactLyric?: (text: string | null, upcoming: boo
       throw new Error('missing #detail-layer');
     })();
 
+  const backdrop = document.createElement('div');
+  backdrop.id = 'browse-backdrop';
+  const backdropA = document.createElement('div');
+  backdropA.className = 'backdrop-face show';
+  const backdropB = document.createElement('div');
+  backdropB.className = 'backdrop-face';
+  backdrop.append(backdropA, backdropB);
+  const browserRoot = document.getElementById('browser');
+  if (browserRoot !== null) browserRoot.insertAdjacentElement('afterbegin', backdrop);
+  let backdropFront: HTMLDivElement = backdropA;
+  const setBackdropArt = (track: import('../../shared/types').IndexedTrack | null): void => {
+    if (track === null || track.artFile === null) {
+      backdrop.classList.remove('lit');
+      return;
+    }
+    const hidden = backdropFront === backdropA ? backdropB : backdropA;
+    hidden.style.backgroundImage = `url("media://local/${encodeURIComponent(track.artFile)}")`;
+    hidden.classList.add('show');
+    backdropFront.classList.remove('show');
+    backdropFront = hidden;
+    backdrop.classList.add('lit');
+  };
+
   if (!host || !content) throw new Error('missing carousel nodes');
 
   const oracleIcon = document.querySelector<HTMLSpanElement>('#oracle-icon');
@@ -107,7 +130,11 @@ export function initBrowser(onCompactLyric?: (text: string | null, upcoming: boo
     });
   }
 
-  appBus.on('track-selected', ({ track }) => markPlaying(track.id));
+  appBus.on('track-selected', ({ track }) => {
+    playingId = track.id;
+    setBackdropArt(track);
+    markPlaying(track.id);
+  });
   appBus.on('track-selected', ({ track }) => uiTheme.setBase(track.palette));
 
   window.addEventListener(
@@ -138,6 +165,7 @@ export function initBrowser(onCompactLyric?: (text: string | null, upcoming: boo
   wireGlobalKeys();
 
   carousel = new Carousel(host, content);
+  carousel.onViewportMove(refreshSongWindow);
 
   libraryStore.onChange((result) => {
     idx = buildSearchIndexes(result.ok ? result.tracks : []);
@@ -437,35 +465,58 @@ function syncFilterChip(): void {
   filterChip.hidden = false;
 }
 
-type TrackList = readonly import('../../shared/types').IndexedTrack[];
-
-const STREAM_CHUNK = 200;
-const STREAM_THRESHOLD = 400;
-let streamToken = 0;
+const SONG_ROW_HEIGHT = 96;
 let pendingSwapTimer = 0;
 let renderedMode: Mode | null = null;
+let playingId: string | null = null;
+let vlistTop = -1;
+let vlistBottom = -1;
 
-function scheduleIdle(cb: () => void): void {
-  const host = window as { requestIdleCallback?: (callback: () => void) => number };
-  if (typeof host.requestIdleCallback === 'function') host.requestIdleCallback(cb);
-  else window.setTimeout(cb, 24);
+function songWindowBounds(hostH: number, posY: number): { start: number; end: number } {
+  const len = lastSongList.length;
+  if (len === 0) return { start: 0, end: 0 };
+  const padRows = Math.ceil((hostH * 0.75 + 160) / SONG_ROW_HEIGHT);
+  const start = Math.max(0, Math.floor(posY / SONG_ROW_HEIGHT) - padRows);
+  const end = Math.min(len, Math.ceil((posY + hostH) / SONG_ROW_HEIGHT) + padRows);
+  return { start, end };
 }
 
-function queueSongTail(list: TrackList, start: number): void {
-  const token = ++streamToken;
-  const step = (): void => {
-    if (token !== streamToken || state.mode !== 'songs') return;
-    const stop = Math.min(start + STREAM_CHUNK, list.length);
-    const frag = document.createDocumentFragment();
-    for (let i = start; i < stop; i++) {
-      const track = list[i];
-      if (track !== undefined) frag.append(songRow(track, -1, true));
-    }
-    carousel.appendNodes(frag);
-    start = stop;
-    if (start < list.length) scheduleIdle(step);
-  };
-  scheduleIdle(step);
+function buildSongsFragment(w: { start: number; end: number }): DocumentFragment {
+  vlistTop = w.start;
+  vlistBottom = w.end;
+  const frag = document.createDocumentFragment();
+  const gapTop = el('div', 'vlist-gap');
+  gapTop.style.height = `${w.start * SONG_ROW_HEIGHT}px`;
+  frag.append(gapTop);
+  let stagger = 0;
+  for (let i = w.start; i < w.end; i++) {
+    const track = lastSongList[i];
+    if (track === undefined) continue;
+    frag.append(songRow(track, stagger >= 40 ? -1 : stagger));
+    stagger += 1;
+  }
+  const gapBottom = el('div', 'vlist-gap');
+  gapBottom.style.height = `${(lastSongList.length - w.end) * SONG_ROW_HEIGHT}px`;
+  frag.append(gapBottom);
+  return frag;
+}
+
+function mountSongsWindow(frag: DocumentFragment): void {
+  const hostH = Math.max(320, carousel.viewHeight());
+  frag.append(buildSongsFragment(songWindowBounds(hostH, carousel.getPos())));
+}
+
+function refreshSongWindow(): void {
+  if (state.mode !== 'songs') return;
+  if (vlistTop < 0 || vlistBottom < 0) return;
+  const hostH = Math.max(320, carousel.viewHeight());
+  const posY = carousel.getPos();
+  const firstVisible = Math.floor(posY / SONG_ROW_HEIGHT);
+  const lastVisible = Math.ceil((posY + hostH) / SONG_ROW_HEIGHT);
+  const minBuffer = Math.ceil((hostH * 0.4) / SONG_ROW_HEIGHT);
+  const drained = firstVisible - vlistTop < minBuffer || vlistBottom - lastVisible < minBuffer;
+  if (!drained) return;
+  carousel.updateWindow(buildSongsFragment(songWindowBounds(hostH, posY)));
 }
 
 function retractVisibleRows(): void {
@@ -480,7 +531,6 @@ function retractVisibleRows(): void {
 
 function render(immediate = false): void {
   const runSwap = (): void => {
-    streamToken += 1;
     const frag = document.createDocumentFragment();
     if (state.mode === 'playlists') renderTabCards(frag);
     else renderBrowse(frag);
@@ -525,15 +575,8 @@ function renderBrowse(frag: DocumentFragment): void {
       break;
     }
     case 'songs': {
-      const sorted = sortSongs(idx.songs.map((s) => s.track));
-      lastSongList = sorted;
-      const head = sorted.length > STREAM_THRESHOLD ? sorted.slice(0, STREAM_THRESHOLD) : sorted;
-      for (let i = 0; i < head.length; i++) {
-        const track = head[i];
-        if (track === undefined) continue;
-        frag.append(songRow(track, i, false));
-      }
-      if (head.length < sorted.length) queueSongTail(sorted, head.length);
+      lastSongList = sortSongs(idx.songs.map((s) => s.track));
+      mountSongsWindow(frag);
       break;
     }
     default:
@@ -595,9 +638,10 @@ function compareNullable(a: number | null, b: number | null): number {
   return a - b;
 }
 
-function artInto(host: HTMLElement, artFile: string | null, imgClass: string): void {
+function artInto(host: HTMLElement, artFile: string | null, imgClass: string, preferThumb = false): void {
   if (artFile !== null) {
-    const img = createArtImage(mediaUrl(artFile));
+    const fullUrl = mediaUrl(artFile);
+    const img = createArtImage(preferThumb ? mediaUrl(thumbOf(artFile)) : fullUrl, preferThumb ? { fallbackUrl: fullUrl } : undefined);
     img.className = imgClass;
     host.replaceChildren(img);
   } else {
@@ -649,7 +693,7 @@ function artistCard(artist: ArtistEntry): HTMLElement {
   card.dataset.interactive = '1';
 
   const avatar = el('div', 'artist-avatar');
-  artInto(avatar, artist.artFile, 'card-img');
+  artInto(avatar, artist.artFile, 'card-img', true);
 
   const meta = el('div', 'card-meta');
   const title = el('div', 'card-title');
@@ -677,16 +721,12 @@ const UNKNOWN_ARTIST = 'Unknown Artist';
 function songRow(
   track: import('../../shared/types').IndexedTrack,
   enterIndex = -1,
-  tail = false,
 ): HTMLElement {
   const row = el('div', 'card song-row');
   row.dataset.interactive = '1';
   row.dataset.trackId = track.id;
-  if (tail) row.classList.add('tail');
-  else if (enterIndex >= 0) row.style.setProperty('--ed', `${Math.min(enterIndex * 12, 420)}ms`);
-
-  const thumb = el('div', 'song-thumb');
-  artInto(thumb, track.artFile, 'card-img');
+  if (enterIndex >= 0) row.style.setProperty('--ed', `${Math.min(enterIndex * 12, 420)}ms`);
+  if (track.id === playingId) row.classList.add('playing');
 
   const meta = el('div', 'song-meta');
   const title = el('div', 'song-title');
@@ -703,7 +743,7 @@ function songRow(
       ? fmtTime(track.durationSec)
       : '--:--';
 
-  row.append(thumb, meta, dur);
+  row.append(meta, dur);
   attachPreview(row, track);
   attachContextMenu(row, track, () => {
     preview.hardStop();
@@ -711,6 +751,10 @@ function songRow(
   });
   row.addEventListener('click', () => {
     if (carousel.wasDrag()) return;
+    if (playingId === track.id) {
+      openNowPlaying();
+      return;
+    }
     preview.hardStop();
     playFromList(track, row);
   });
@@ -747,11 +791,11 @@ function markPreview(className: 'preview-pending' | 'previewing', trackId: strin
 function attachPreview(row: HTMLElement, track: import('../../shared/types').IndexedTrack): void {
   row.addEventListener('mouseenter', () => {
     preview.hoverEnter(track);
-    uiTheme.pushPreview(track.palette);
+    if (!carousel.busy()) uiTheme.pushPreview(track.palette);
   });
   row.addEventListener('mouseleave', () => {
     preview.hoverLeave();
-    uiTheme.popPreview();
+    if (!carousel.busy()) uiTheme.popPreview();
   });
 }
 

@@ -7,7 +7,10 @@ import type { IndexedTrack, LibraryResult } from '../shared/types';
 const AUDIO_EXTS = new Set(['.mp3', '.flac', '.ogg', '.oga', '.wav', '.m4a', '.aac', '.opus']);
 const MAX_DEPTH = 12;
 const CONCURRENCY = 8;
-const INDEX_VERSION = 3;
+const INDEX_VERSION = 4;
+
+const THUMB_WIDTH = 128;
+const THUMB_JPEG_QUALITY = 82;
 
 const FALLBACK_ART = [
   'cover.jpg', 'cover.png', 'folder.jpg', 'folder.png',
@@ -279,12 +282,31 @@ function writeAlbumArt(picture: IPicture, key: string, artDir: string): string |
   try {
     const ext = picture.format.toLowerCase().includes('png') ? '.png' : '.jpg';
     const dest = join(artDir, `${fnv1a(key)}${ext}`);
+    let freshlyWritten = false;
     if (!existsSync(dest)) {
       writeFileSync(dest, Buffer.from(picture.data));
+      freshlyWritten = true;
+    }
+    const thumbPath = join(artDir, 'thumbs', `${fnv1a(key)}.jpg`);
+    if (freshlyWritten || !existsSync(thumbPath)) {
+      writeThumb(dest, thumbPath);
     }
     return dest;
   } catch {
     return null;
+  }
+}
+
+function writeThumb(sourcePath: string, thumbPath: string): void {
+  try {
+    const img = nativeImage.createFromPath(sourcePath);
+    if (img.isEmpty()) return;
+    const scaled = img.resize({ width: THUMB_WIDTH });
+    const bytes = scaled.toJPEG(THUMB_JPEG_QUALITY);
+    mkdirSync(dirname(thumbPath), { recursive: true });
+    writeFileSync(thumbPath, bytes);
+  } catch {
+    return;
   }
 }
 
