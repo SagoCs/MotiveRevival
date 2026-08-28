@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, dialog, ipcMain } from 'electron';
+﻿import { app, BrowserWindow, Menu, dialog, ipcMain } from 'electron';
 import { join } from 'node:path';
 import { getSettings, saveSettings } from './settings';
 import { scanLibrary, loadCachedIndex, artCacheDir } from './library';
@@ -24,7 +24,7 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   void app.whenReady().then(() => {
-    attachMediaHandler(() => [getSettings().musicDir, artCacheDir()]);
+    attachMediaHandler(() => [...getSettings().musicDirs, artCacheDir()]);
     createWindow();
     registerIpc();
     scheduleScan();
@@ -79,7 +79,7 @@ function scheduleScan(): void {
   if (!win) return;
   const settings = getSettings();
   void scanLibrary({
-    musicDir: settings.musicDir,
+    roots: settings.musicDirs,
     artDir: artCacheDir(),
     onProgress: (done, total) => {
       if (!win.isDestroyed()) win.webContents.send('library:progress', { done, total });
@@ -92,7 +92,7 @@ function scheduleScan(): void {
       if (!win.isDestroyed()) {
         win.webContents.send('library:indexed', {
           ok: false,
-          root: settings.musicDir,
+          roots: settings.musicDirs,
           error: String(err),
         } satisfies LibraryResult);
       }
@@ -115,24 +115,58 @@ function bindDeveloperShortcuts(win: BrowserWindow): void {
 
 function registerIpc(): void {
   ipcMain.handle('settings:get', () => getSettings());
-  ipcMain.handle('settings:update', (_e, patch: Partial<Settings>): Settings => saveSettings(patch));
-  ipcMain.handle('settings:set-music-dir', async (): Promise<Settings | null> => {
+  ipcMain.handle('settings:update', (_e, patch: Partial<Settings>): Settings => {
+    const allowed: Partial<Settings> = {};
+    const keys: Array<keyof Settings> = [
+      'motionEffects',
+      'motionCarousel',
+      'motionPulse',
+      'motionMorph',
+      'autoFetchLyrics',
+      'lyricsSaveBeside',
+      'lyricSize',
+      'nowPlayingView',
+    ];
+    for (const key of keys) {
+      if (patch[key] !== undefined) (allowed as Record<string, unknown>)[key] = patch[key];
+    }
+    return saveSettings(allowed);
+  });
+  ipcMain.handle('archives:add', async (): Promise<Settings> => {
     const result = await dialog.showOpenDialog({
-      properties: ['openDirectory'],
-      defaultPath: getSettings().musicDir,
+      properties: ['openDirectory', 'multiSelections'],
+      defaultPath: getSettings().musicDirs[0],
     });
-    if (result.canceled || result.filePaths.length === 0) return null;
-    const settings = saveSettings({ musicDir: result.filePaths[0] });
-    scheduleScan();
+    if (!result.canceled && result.filePaths.length > 0) {
+      const current = getSettings().musicDirs;
+      const merged = [...current];
+      for (const dir of result.filePaths) {
+        if (!merged.some((d) => d.toLowerCase() === dir.toLowerCase())) merged.push(dir);
+      }
+      const settings = saveSettings({ musicDirs: merged });
+      scheduleScan();
+      return settings;
+    }
+    return getSettings();
+  });
+  ipcMain.handle('archives:remove', (_e, dir: string): Settings => {
+    const remaining = getSettings().musicDirs.filter((d) => d.toLowerCase() !== dir.toLowerCase());
+    const settings =
+      remaining.length > 0 ? saveSettings({ musicDirs: remaining }) : getSettings();
+    if (remaining.length > 0 || settings.musicDirs.length === 0) scheduleScan();
     return settings;
   });
   ipcMain.handle('library:list', async (): Promise<LibraryResult> => {
-    const root = getSettings().musicDir;
-    return loadCachedIndex(root) ?? { ok: true, root, tracks: [] };
+    const roots = getSettings().musicDirs;
+    return loadCachedIndex(roots) ?? { ok: true, roots, tracks: [] };
   });
   ipcMain.handle('lyrics:get', async (_e, payload: LyricsPayload): Promise<LyricsResult> => {
     const settings = getSettings();
-    return resolveLyrics(payload, settings.autoFetchLyrics !== false);
+    return resolveLyrics(
+      payload,
+      settings.autoFetchLyrics !== false,
+      settings.lyricsSaveBeside !== false,
+    );
   });
   ipcMain.handle('storage:get', (_e, key: string) => kvGet(key));
   ipcMain.handle('storage:set', (_e, key: string, value: unknown) => {

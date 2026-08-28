@@ -1,24 +1,27 @@
-import { player } from '../core/player';
+﻿import { player } from '../core/player';
 import { appBus } from '../core/appBus';
 import { startBands, stopBands } from '../core/audioBands';
 import { fallbackPalette, applyPalette, applyLyricsInk } from '../core/palette';
 import { fx } from '../core/fx';
 import { createTransport } from './transport';
 import { createLyrics, type LyricsState } from './lyrics';
-import type { IndexedTrack } from '../../shared/types';
-import { ICON_CLOSE, ICON_DIAMOND, ICON_SIGIL } from './icons';
+import type { IndexedTrack, NowPlayingView } from '../../shared/types';
+import { ICON_DIAMOND, ICON_NOTE, ICON_SIGIL } from './icons';
 import { Viz } from './viz';
 
 export function initOverlay(): void {
   const overlay = document.querySelector<HTMLDivElement>('#overlay');
-  const closeBtn = document.querySelector<HTMLButtonElement>('#overlay-close');
   const artHost = document.querySelector<HTMLDivElement>('#overlay-sigil');
   const titleEl = document.querySelector<HTMLHeadingElement>('#overlay-title');
   const mark = document.querySelector<HTMLDivElement>('#veil-mark');
+  const toggleBtn = document.querySelector<HTMLButtonElement>('#overlay-toggle');
 
-  if (!overlay || !closeBtn || !artHost || !titleEl) return;
-  closeBtn.innerHTML = ICON_CLOSE;
+  if (!overlay || !artHost || !titleEl) return;
   if (mark) mark.innerHTML = ICON_DIAMOND;
+  if (toggleBtn) {
+    toggleBtn.innerHTML = ICON_NOTE;
+    toggleBtn.addEventListener('click', () => closeNowPlaying());
+  }
 
   artHost.classList.add('clickable');
   artHost.title = 'Cycle focus: split ⇄ art';
@@ -31,30 +34,105 @@ export function initOverlay(): void {
   const vizCanvas = document.querySelector<HTMLCanvasElement>('#overlay-viz');
   if (vizCanvas !== null) new Viz(vizCanvas, overlay);
 
+  const artVeil = document.createElement('div');
+  artVeil.id = 'overlay-art-veil';
+  artVeil.setAttribute('aria-hidden', 'true');
+  document.getElementById('overlay-field')?.insertAdjacentElement('afterend', artVeil);
+
+  for (const side of ['left', 'right'] as const) {
+    const zone = document.createElement('div');
+    zone.className = `lyrics-zone zone-${side}`;
+    zone.addEventListener('click', () => {
+      if (!hasLyrics) return;
+      savedView = side === 'left' ? 'art' : 'split';
+      void window.mr.updateSettings({ nowPlayingView: savedView });
+      applySavedView();
+    });
+    overlay.append(zone);
+  }
+
+  const modeDots = document.createElement('div');
+  modeDots.id = 'mode-dots';
+  for (const view of ['art', 'split', 'lyrics'] as const) {
+    const dot = document.createElement('button');
+    dot.type = 'button';
+    dot.className = 'mode-dot';
+    dot.dataset.view = view;
+    dot.title = view === 'art' ? 'Art view' : view === 'split' ? 'Art + lyrics' : 'Lyrics only';
+    dot.addEventListener('click', () => {
+      if (!hasLyrics) {
+        dot.classList.remove('reject-shake');
+        void dot.offsetWidth;
+        dot.classList.add('reject-shake');
+        window.setTimeout(() => dot.classList.remove('reject-shake'), 340);
+        return;
+      }
+      savedView = view;
+      void window.mr.updateSettings({ nowPlayingView: savedView });
+      applySavedView();
+    });
+    modeDots.append(dot);
+  }
+  overlay.append(modeDots);
+
   const lyricsPane = document.getElementById('overlay-lyrics');
   let overlayLyrics: ReturnType<typeof createLyrics> | null = null;
   if (lyricsPane !== null) {
-    overlayLyrics = createLyrics(lyricsPane, (state: LyricsState) => {
-      hasLyrics = state === 'synced' || state === 'plain';
-      overlay.classList.toggle('with-lyrics', hasLyrics);
-      lyricsPane.hidden = !hasLyrics;
-      applySavedView();
-    });
+    overlayLyrics = createLyrics(
+      lyricsPane,
+      (state: LyricsState) => {
+        hasLyrics = state === 'synced' || state === 'plain';
+        overlay.classList.toggle('with-lyrics', hasLyrics);
+        lyricsPane.hidden = !hasLyrics;
+        applySavedView();
+      },
+      undefined,
+      { pannable: true },
+    );
   }
 
   let current: IndexedTrack | null = null;
   let hasLyrics = false;
-  let savedView: 'split' | 'art' = 'art';
+  let savedView: NowPlayingView = 'art';
 
   const applySavedView = (): void => {
-    overlay.classList.toggle('art-focus', savedView === 'art' && hasLyrics);
+    const view = hasLyrics ? savedView : 'art';
+    overlay.classList.toggle('art-focus', view === 'art');
+    overlay.classList.toggle('lyrics-mode', view === 'lyrics');
+    for (const dot of Array.from(modeDots.children)) {
+      const d = dot as HTMLElement;
+      d.classList.toggle('active', d.dataset.view === view);
+      d.classList.toggle('locked', !hasLyrics && d.dataset.view !== 'art');
+    }
   };
 
+  const attachModeHotkeys = (): void => {
+    const keyMap: Record<string, NowPlayingView> = { '1': 'art', '2': 'split', '3': 'lyrics' };
+    document.addEventListener('keydown', (e) => {
+      if (overlay.hidden) return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      const view = keyMap[e.key];
+      if (view === undefined) return;
+      if (view !== 'art' && !hasLyrics) return;
+      savedView = view;
+      void window.mr.updateSettings({ nowPlayingView: savedView });
+      applySavedView();
+    });
+  };
+  attachModeHotkeys();
+
   const cycleFocus = (): void => {
-    if (!hasLyrics) return;
-    const artOnly = overlay.classList.toggle('art-focus');
-    savedView = artOnly ? 'art' : 'split';
+    if (!hasLyrics) {
+      artHost.classList.remove('reject-shake');
+      void artHost.offsetWidth;
+      artHost.classList.add('reject-shake');
+      window.setTimeout(() => artHost.classList.remove('reject-shake'), 340);
+      return;
+    }
+    const next: Record<NowPlayingView, NowPlayingView> = { art: 'split', split: 'lyrics', lyrics: 'art' };
+    savedView = next[savedView];
     void window.mr.updateSettings({ nowPlayingView: savedView });
+    applySavedView();
   };
 
   artHost.addEventListener('click', cycleFocus);
@@ -67,8 +145,10 @@ export function initOverlay(): void {
       img.alt = '';
       img.src = `media://local/${encodeURIComponent(current.artFile)}`;
       artHost.replaceChildren(img);
+      artVeil.style.backgroundImage = `url("media://local/${encodeURIComponent(current.artFile)}")`;
     } else {
       artHost.innerHTML = ICON_SIGIL;
+      artVeil.style.backgroundImage = '';
     }
     titleEl.textContent = current !== null ? current.title : '';
   };
@@ -83,26 +163,15 @@ export function initOverlay(): void {
     render();
   });
 
-  overlay.addEventListener(
-    'click',
-    (e) => {
-      const target = e.target as HTMLElement | null;
-      if (target !== null && target.closest('#overlay-close') !== null) {
-        console.warn('[overlay] close via capture');
-        closeNowPlaying();
-      }
-    },
-    true,
-  );
-
-  closeBtn.addEventListener('click', () => {
-    console.warn('[overlay] close button clicked');
-    closeNowPlaying();
-  });
-
   void window.mr.getSettings().then((s) => {
-    savedView = (s.nowPlayingView ?? 'art') === 'split' ? 'split' : 'art';
-    if (savedView === 'art') overlay.classList.add('art-focus');
+    const loaded = s.nowPlayingView as string | undefined;
+    savedView =
+      loaded === 'split' || loaded === 'lyrics'
+        ? (loaded as NowPlayingView)
+        : loaded === 'blur'
+          ? 'lyrics'
+          : 'art';
+    applySavedView();
   });
 }
 
@@ -118,7 +187,7 @@ export function openNowPlaying(): void {
 export function openNowPlayingFromRect(from: DOMRect | null, imageUrl: string | null): void {
   const overlay = document.querySelector<HTMLDivElement>('#overlay');
   if (overlay === null) return;
-  const animate = fx.motion && from !== null && from.width > 4 && from.height > 4;
+  const animate = fx.motion && fx.morph && from !== null && from.width > 4 && from.height > 4;
   setOverlay(true);
   if (!animate || from === null) return;
 

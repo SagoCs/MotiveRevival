@@ -1,0 +1,207 @@
+#queue-panel {
+  position: fixed;
+  left: 22px;
+  bottom: calc(var(--bottom-h) + 12px);
+  z-index: 52;
+  width: min(380px, 86vw);
+  max-height: 44vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--acc-b) 32%, rgba(199, 205, 244, 0.14));
+  background:
+    radial-gradient(300px 170px at 18% -50px, color-mix(in srgb, var(--acc-a) 14%, transparent), transparent 70%),
+    linear-gradient(180deg, rgba(11, 16, 30, 0.95), rgba(6, 9, 18, 0.97));
+  backdrop-filter: blur(16px);
+  box-shadow:
+    inset 0 1px 0 rgba(238, 240, 255, 0.05),
+    0 34px 90px rgba(2, 3, 8, 0.7);
+  opacity: 0;
+  visibility: hidden;
+  translate: 0 10px;
+  transition:
+    opacity 260ms var(--ease-drift),
+    translate 260ms var(--ease-drift),
+    visibility 0s linear 260ms;
+}
+
+#queue-panel.open {
+  opacity: 1;
+  visibility: visible;
+  translate: 0 0;
+  transition:
+    opacity 260ms var(--ease-drift),
+    translate 260ms var(--ease-drift),
+    visibility 0s;
+}
+
+.queue-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 14px 12px 20px;
+  border-bottom: 1px solid rgba(199, 205, 244, 0.1);
+}
+
+.queue-title {
+  flex: 1;
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 11.5px;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--acc-b) 54%, var(--moon));
+}
+
+.queue-count {
+  font-variant-numeric: tabular-nums;
+}
+
+.queue-close {
+  width: 28px;
+  height: 28px;
+  color: var(--dim);
+  border-color: transparent;
+  background: none;
+}
+
+.queue-close:hover {
+  color: var(--acc-b);
+  border-color: color-mix(in srgb, var(--acc-b) 55%, transparent);
+}
+
+.queue-list {
+  list-style: none;
+  margin: 0;
+  padding: 8px 10px 12px;
+  overflow-y: auto;
+}
+
+.queue-empty {
+  padding: 26px 10px;
+  text-align: center;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-size: 10.5px;
+  color: var(--dim);
+}
+
+.queue-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 14px 40px minmax(0, 1fr) 46px;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 10px 7px 5px;
+  margin: 0 0 4px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  cursor: grab;
+  transition:
+    border-color 150ms ease,
+    background-color 180ms ease,
+    opacity 180ms ease;
+}
+
+.queue-row:hover {
+  border-color: color-mix(in srgb, var(--acc-b) 58%, rgba(255, 255, 255, 0.18));
+  background: color-mix(in srgb, var(--acc-a) 12%, rgba(12, 17, 34, 0.42));
+}
+
+.queue-row.q-dragging {
+  opacity: 0.38;
+  cursor: grabbing;
+}
+
+.queue-row.q-ins-top::before,
+.queue-row.q-ins-bot::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--acc-b);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--acc-glow) 60%, transparent);
+}
+
+.queue-row.q-ins-top::before {
+  top: -3px;
+}
+
+.queue-row.q-ins-bot::before {
+  bottom: -3px;
+}
+
+.queue-grip {
+  display: inline-flex;
+  justify-content: center;
+  color: color-mix(in srgb, var(--acc-b) 42%, var(--moon-faint));
+  opacity: 0.75;
+}
+
+.queue-thumb {
+  width: 40px;
+  height: 40px;
+  border-radius: 9px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--moon-ghost);
+  border: 1px solid color-mix(in srgb, var(--acc-b) 25%, rgba(199, 205, 244, 0.08));
+}
+
+.queue-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.queue-sigil {
+  width: 26px;
+  height: 26px;
+  color: var(--moon-faint);
+}
+
+.queue-sigil svg {
+  width: 100%;
+  height: 100%;
+}
+
+.queue-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.queue-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+  min-width: 0;
+  font-family: var(--font-body);
+  font-weight: 400;
+  font-size: 13.5px;
+  color: var(--moon-bright);
+}
+
+.queue-artist {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 2;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 300;
+}
+
+.queue-dur {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
+}

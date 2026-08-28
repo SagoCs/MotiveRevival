@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -7,7 +7,6 @@
   <link rel="stylesheet" href="./renderer.css">
 </head>
 <body>
-  <div id="starfield" aria-hidden="true"></div>
   <div id="ambient" aria-hidden="true"></div>
   <div id="grain" aria-hidden="true"></div>
 
@@ -52,7 +51,6 @@
     <div id="carousel"><div id="carousel-content"></div></div>
 
     <section id="detail-layer" aria-label="Album detail" hidden>
-      <button id="detail-back" type="button" class="icon-btn btn-small" aria-label="Back to albums"></button>
       <div id="palette-field" aria-hidden="true"></div>
       <div id="stage">
         <div id="stage-left">
@@ -78,7 +76,6 @@
 
   <div id="overlay" hidden>
     <div id="overlay-field" aria-hidden="true"></div>
-    <button id="overlay-close" type="button" class="icon-btn overlay-close" aria-label="Return to library"></button>
     <div id="overlay-body">
       <div id="overlay-main">
         <div id="overlay-sigil"></div>
@@ -88,26 +85,58 @@
       <aside id="overlay-lyrics" hidden></aside>
     </div>
     <div id="overlay-bottom">
-      <div id="overlay-transport" class="transport transport-inline"></div>
+      <button id="overlay-toggle" type="button" class="icon-btn btn-small" aria-label="Return to library" title="Return to library"></button>
+      <div id="overlay-transport" class="transport transport-flat"></div>
     </div>
   </div>
 
   <div id="settings-modal" class="modal" hidden>
     <div class="modal-card">
-      <button id="settings-close" type="button" class="icon-btn btn-small modal-close" aria-label="Close settings"></button>
-      <h3 class="modal-title">Settings</h3>
-      <div class="setting-row">
-        <span class="setting-label">Music archive</span>
-        <span id="settings-dir" class="mono dim setting-dir">&mdash;</span>
-        <button id="btn-change-dir" type="button" class="ghost-btn">Change&hellip;</button>
+      <header class="modal-head">
+        <h3 class="modal-title">Settings</h3>
+        <button id="settings-close" type="button" class="icon-btn btn-small modal-close" aria-label="Close settings"></button>
+      </header>
+
+      <div id="settings-home">
+        <section class="settings-section">
+          <div class="section-head">
+            <h4 class="section-title">Libraries</h4>
+            <button id="btn-manage-libraries" type="button" class="ghost-btn ghost-mini">Manage</button>
+          </div>
+          <ul id="archive-summary"></ul>
+        </section>
+
+        <section class="settings-section">
+          <div class="section-head"><h4 class="section-title">Motion</h4></div>
+          <div class="setting-row"><span class="setting-label">Master effects switch</span><input id="set-motion-master" type="checkbox" class="toggle"></div>
+          <div class="setting-row"><span class="setting-label">Carousel spacing &amp; parallax</span><input id="set-motion-carousel" type="checkbox" class="toggle"></div>
+          <div class="setting-row"><span class="setting-label">Ambient pulse &amp; color field</span><input id="set-motion-pulse" type="checkbox" class="toggle"></div>
+          <div class="setting-row"><span class="setting-label">Morph transitions</span><input id="set-motion-morph" type="checkbox" class="toggle"></div>
+        </section>
+
+        <section class="settings-section">
+          <div class="section-head"><h4 class="section-title">Lyrics</h4></div>
+          <div class="setting-row"><span class="setting-label">Fetch from lrclib</span><input id="set-autofetch" type="checkbox" class="toggle"></div>
+          <div class="setting-row"><span class="setting-label">Save sheets beside songs</span><input id="set-savebeside" type="checkbox" class="toggle"></div>
+          <div class="setting-row"><span class="setting-label">Text size</span>
+            <div class="seg-mini" id="lyric-size-seg">
+              <button type="button" data-size="s">S</button>
+              <button type="button" data-size="m" class="active">M</button>
+              <button type="button" data-size="l">L</button>
+            </div>
+          </div>
+        </section>
       </div>
-      <div class="setting-row setting-row-second">
-        <span class="setting-label">Motion effects</span>
-        <input id="setting-motion" type="checkbox" class="toggle" aria-label="Toggle motion effects">
-      </div>
-      <div class="setting-row setting-row-second">
-        <span class="setting-label">Fetch lyrics from lrclib</span>
-        <input id="setting-autofetch" type="checkbox" class="toggle" aria-label="Toggle lyric auto-fetch">
+
+      <div id="libraries-view" hidden>
+        <div class="libraries-head">
+          <button id="btn-libraries-back" type="button" class="icon-btn btn-small" aria-label="Back to settings"></button>
+          <h3 class="modal-title">Libraries</h3>
+        </div>
+        <ul id="archive-full-list"></ul>
+        <div class="settings-row-end">
+          <button id="btn-add-archive" type="button" class="ghost-btn">Add archive&hellip;</button>
+        </div>
       </div>
     </div>
   </div>

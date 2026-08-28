@@ -1,4 +1,4 @@
-import { promises as fs } from 'node:fs';
+﻿import { promises as fs } from 'node:fs';
 import { basename, dirname, extname, join } from 'node:path';
 import type { LyricsPayload, LyricsResult } from '../shared/types';
 
@@ -10,7 +10,11 @@ const TIMEOUT_MS = 9000;
 const memory = new Map<string, LyricsResult>();
 const inflight = new Map<string, Promise<LyricsResult>>();
 
-export async function resolveLyrics(payload: LyricsPayload, allowFetch: boolean): Promise<LyricsResult> {
+export async function resolveLyrics(
+  payload: LyricsPayload,
+  allowFetch: boolean,
+  allowWrite: boolean,
+): Promise<LyricsResult> {
   const key = payload.absPath;
   const cached = memory.get(key);
   if (cached !== undefined) return cached;
@@ -18,7 +22,7 @@ export async function resolveLyrics(payload: LyricsPayload, allowFetch: boolean)
   if (running !== undefined) return running;
 
   const task = (async (): Promise<LyricsResult> => {
-    const result = await doResolve(payload, allowFetch);
+    const result = await doResolve(payload, allowFetch, allowWrite);
     if (memory.size > 400) memory.clear();
     memory.set(key, result);
     return result;
@@ -29,7 +33,11 @@ export async function resolveLyrics(payload: LyricsPayload, allowFetch: boolean)
   return task;
 }
 
-async function doResolve(payload: LyricsPayload, allowFetch: boolean): Promise<LyricsResult> {
+async function doResolve(
+  payload: LyricsPayload,
+  allowFetch: boolean,
+  allowWrite: boolean,
+): Promise<LyricsResult> {
   const local = await readLocalSheet(payload.absPath);
   if (local !== null) {
     return { ok: true, synced: true, text: local, source: 'file', written: false };
@@ -45,7 +53,7 @@ async function doResolve(payload: LyricsPayload, allowFetch: boolean): Promise<L
   }
 
   if (fetched.syncedText !== null) {
-    const written = await writeBeside(payload.absPath, fetched.syncedText);
+    const written = allowWrite ? await writeBeside(payload.absPath, fetched.syncedText) : false;
     return { ok: true, synced: true, text: fetched.syncedText, source: 'lrclib', written };
   }
   if (fetched.plainText !== null && fetched.plainText.trim() !== '') {

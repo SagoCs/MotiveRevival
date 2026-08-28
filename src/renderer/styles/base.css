@@ -25,31 +25,6 @@ body {
   user-select: none;
 }
 
-#starfield {
-  position: fixed;
-  inset: -50% 0;
-  z-index: -2;
-  background-image:
-    radial-gradient(1px 1px at 12% 22%, rgba(238, 240, 255, 0.75), transparent),
-    radial-gradient(1px 1px at 38% 8%, rgba(110, 231, 216, 0.55), transparent),
-    radial-gradient(1.5px 1.5px at 64% 30%, rgba(238, 240, 255, 0.5), transparent),
-    radial-gradient(1px 1px at 82% 14%, rgba(238, 240, 255, 0.68), transparent),
-    radial-gradient(1px 1px at 24% 56%, rgba(178, 186, 255, 0.45), transparent),
-    radial-gradient(1.5px 1.5px at 52% 72%, rgba(238, 240, 255, 0.52), transparent),
-    radial-gradient(1px 1px at 76% 60%, rgba(238, 240, 255, 0.38), transparent),
-    radial-gradient(1px 1px at 92% 44%, rgba(110, 231, 216, 0.42), transparent),
-    radial-gradient(1px 1px at 8% 84%, rgba(238, 240, 255, 0.48), transparent),
-    radial-gradient(1.5px 1.5px at 42% 92%, rgba(178, 186, 255, 0.4), transparent),
-    radial-gradient(1px 1px at 68% 86%, rgba(238, 240, 255, 0.44), transparent),
-    radial-gradient(1px 1px at 88% 78%, rgba(238, 240, 255, 0.34), transparent);
-  animation: drift 240s linear infinite alternate;
-}
-
-@keyframes drift {
-  from { transform: translateY(0); }
-  to { transform: translateY(6%); }
-}
-
 #grain {
   position: fixed;
   inset: 0;

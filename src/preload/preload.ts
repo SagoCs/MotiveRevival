@@ -1,10 +1,17 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { LibraryProgress, LibraryResult, LyricsPayload, LyricsResult, MrApi } from '../shared/types';
+import type {
+  LibraryProgress,
+  LibraryResult,
+  LyricsPayload,
+  LyricsResult,
+  MrApi,
+} from '../shared/types';
 
 const api: MrApi = {
   getSettings: () => ipcRenderer.invoke('settings:get'),
   updateSettings: (patch) => ipcRenderer.invoke('settings:update', patch),
-  setMusicDir: () => ipcRenderer.invoke('settings:set-music-dir'),
+  archivesAdd: () => ipcRenderer.invoke('archives:add'),
+  archivesRemove: (dir: string) => ipcRenderer.invoke('archives:remove', dir),
   listTracks: () => ipcRenderer.invoke('library:list'),
   getLyrics: (payload: LyricsPayload) => ipcRenderer.invoke('lyrics:get', payload),
   storageGet: (key: string) => ipcRenderer.invoke('storage:get', key),

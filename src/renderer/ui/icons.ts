@@ -16,7 +16,7 @@ export const ICON_SIGIL = `<svg viewBox="0 0 200 200" fill="none" stroke="curren
 
 export const ICON_DIAMOND = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" width="26" height="26" aria-hidden="true"><path d="M12 3l7 9-7 9-7-9z"/><path d="M12 8l3.5 4-3.5 4-3.5-4z"/></svg>`;
 
-export const ICON_SETTINGS = `<svg ${ATTRS} width="17" height="17" aria-hidden="true"><path d="M4 8h8.6M18.4 8H20M4 16h4.6M14.4 16H20"/><circle cx="15.5" cy="8" r="2.3"/><circle cx="11.5" cy="16" r="2.3"/></svg>`;
+export const ICON_SETTINGS = `<svg ${ATTRS} width="17" height="17" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c0 .66.39 1.26 1 1.51.64.26 1.36.11 1.85-.38l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9"/></svg>`;
 
 export const ICON_SEARCH = `<svg ${ATTRS} width="15" height="15" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M15.6 15.6L20 20"/></svg>`;
 
@@ -35,3 +35,7 @@ export const ICON_MAXIMIZE = `<svg ${ATTRS} width="15" height="15" aria-hidden="
 export const ICON_LYRIC_FOCUS = `<svg ${ATTRS} width="17" height="17" aria-hidden="true"><path d="M5 6.5h14M5 12h9.5M5 17.5h12"/><circle cx="19.2" cy="12" r="1.1" fill="currentColor" stroke="none"/></svg>`;
 
 export const ICON_ART_FOCUS = `<svg ${ATTRS} width="17" height="17" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2"/><circle cx="9.2" cy="9.8" r="1.5"/><path d="M5.5 16.5l4-4 2.8 2.8 3.2-3.2 3 3"/></svg>`;
+
+export const ICON_SHUFFLE = `<svg ${ATTRS} width="17" height="17" aria-hidden="true"><path d="M4.5 7h2.2c2.8 0 3.8 5.8 6.6 5.8h2.2"/><path d="M13.5 4.5h2.8v2.8M13.5 15.5h2.8v-2.8"/><path d="M4.5 15.5h2.2c1 0 1.8-.6 2.4-1.5M11 8.5c.8-1 1.3-1.5 2.3-1.5h2.2"/></svg>`;
+
+export const ICON_TRASH = `<svg ${ATTRS} width="17" height="17" aria-hidden="true"><path d="M5 7.5v10.2c0 .7.6 1.3 1.3 1.3h11.4c.7 0 1.3-.6 1.3-1.3V7.5M3.5 5h16M9 5V3.5h5V5M9 9.5v6M14 9.5v6"/></svg>`;

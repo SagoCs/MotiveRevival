@@ -47,12 +47,36 @@
   initial-value: #8f97e8;
 }
 
+@property --hz-a {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #1f2547;
+}
+
+@property --hz-b {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #14343b;
+}
+
+@property --hz-glow {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #39406e;
+}
+
 :root {
   --acc-a: #8f97e8;
   --acc-b: #6ee7d8;
   --acc-glow: #8f97e8;
+  --hz-a: #1f2547;
+  --hz-b: #14343b;
+  --hz-glow: #39406e;
   transition:
     --acc-a 700ms ease,
     --acc-b 700ms ease,
-    --acc-glow 700ms ease;
+    --acc-glow 700ms ease,
+    --hz-a 700ms ease,
+    --hz-b 700ms ease,
+    --hz-glow 700ms ease;
 }

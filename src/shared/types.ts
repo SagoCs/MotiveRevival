@@ -18,12 +18,18 @@ export interface IndexedTrack {
   palette: string[] | null;
 }
 
-export type NowPlayingView = 'split' | 'art';
+export type NowPlayingView = 'split' | 'art' | 'lyrics';
+export type LyricSize = 's' | 'm' | 'l';
 
 export interface Settings {
-  musicDir: string;
+  musicDirs: string[];
   motionEffects?: boolean;
+  motionCarousel?: boolean;
+  motionPulse?: boolean;
+  motionMorph?: boolean;
   autoFetchLyrics?: boolean;
+  lyricsSaveBeside?: boolean;
+  lyricSize?: LyricSize;
   nowPlayingView?: NowPlayingView;
 }
 
@@ -40,8 +46,8 @@ export type LyricsResult =
   | { ok: false; error: string };
 
 export type LibraryResult =
-  | { ok: true; root: string; tracks: IndexedTrack[] }
-  | { ok: false; root: string; error: string };
+  | { ok: true; roots: string[]; tracks: IndexedTrack[] }
+  | { ok: false; roots: string[]; error: string };
 
 export interface LibraryProgress {
   done: number;
@@ -54,10 +60,14 @@ export interface WindowControls {
   close(): void;
 }
 
+export interface PlaylistTrackRef { trackId: string; absPath: string }
+export interface Playlist { id: string; name: string; createdAt: number; updatedAt: number; tracks: PlaylistTrackRef[] }
+
 export interface MrApi {
   getSettings(): Promise<Settings>;
   updateSettings(patch: Partial<Settings>): Promise<Settings>;
-  setMusicDir(): Promise<Settings | null>;
+  archivesAdd(): Promise<Settings>;
+  archivesRemove(dir: string): Promise<Settings>;
   listTracks(): Promise<LibraryResult>;
   getLyrics(payload: LyricsPayload): Promise<LyricsResult>;
   storageGet(key: string): Promise<unknown>;

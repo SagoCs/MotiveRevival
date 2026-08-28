@@ -9,6 +9,7 @@ export type PlayerEventMap = {
   ended: Record<string, never>;
   error: { message: string };
   queue: { canPrev: boolean; canNext: boolean };
+  queueMutated: Record<string, never>;
   trackChanged: { track: IndexedTrack };
 };
 
@@ -117,6 +118,7 @@ export class PlayerService {
     void this.play();
     appBus.emit('track-selected', { track });
     this.emitQueueState();
+    this.bus.emit('queueMutated', {});
     this.bus.emit('trackChanged', { track });
   }
 
@@ -131,6 +133,40 @@ export class PlayerService {
     }
     if (this.queueIndex > 0) this.playFrom(this.queueIndex - 1);
     else this.seek(0);
+  }
+
+  getUpcoming(): IndexedTrack[] {
+    return this.queue.slice(this.queueIndex + 1);
+  }
+
+  removeUpcoming(offset: number): void {
+    if (!Number.isInteger(offset) || offset < 0) return;
+    const index = this.queueIndex + 1 + offset;
+    if (index >= this.queue.length) return;
+    this.queue.splice(index, 1);
+    this.emitQueueState();
+    this.bus.emit('queueMutated', {});
+  }
+
+  moveUpcoming(fromOffset: number, toOffset: number): void {
+    const base = this.queueIndex + 1;
+    if (
+      !Number.isInteger(fromOffset) ||
+      !Number.isInteger(toOffset) ||
+      fromOffset < 0 ||
+      base >= this.queue.length
+    ) {
+      return;
+    }
+    const from = clamp(base + fromOffset, base, this.queue.length - 1);
+    const target = clamp(base + toOffset, base, this.queue.length);
+    if (target === from || target === from + 1) return;
+    const removed = this.queue.splice(from, 1)[0];
+    if (removed === undefined) return;
+    const insertAt = clamp(target > from ? target - 1 : target, base, this.queue.length);
+    this.queue.splice(insertAt, 0, removed);
+    this.emitQueueState();
+    this.bus.emit('queueMutated', {});
   }
 
   load(mediaUrl: string): void {
@@ -191,6 +227,13 @@ export class PlayerService {
       mid: midSum / (75 * 255),
       treble: trebleSum / (255 * 255),
     };
+  }
+
+  spectrum(): Uint8Array | null {
+    const analyser = this.ensureGraph();
+    if (analyser === null || this.freqData === null) return null;
+    analyser.getByteFrequencyData(this.freqData as Uint8Array<ArrayBuffer>);
+    return this.freqData;
   }
 
   waveform(): Uint8Array | null {

@@ -7,7 +7,10 @@ import type { IndexedTrack, LibraryResult } from '../shared/types';
 const AUDIO_EXTS = new Set(['.mp3', '.flac', '.ogg', '.oga', '.wav', '.m4a', '.aac', '.opus']);
 const MAX_DEPTH = 12;
 const CONCURRENCY = 8;
-const INDEX_VERSION = 2;
+const INDEX_VERSION = 4;
+
+const THUMB_WIDTH = 128;
+const THUMB_JPEG_QUALITY = 82;
 
 const FALLBACK_ART = [
   'cover.jpg', 'cover.png', 'folder.jpg', 'folder.png',
@@ -15,14 +18,14 @@ const FALLBACK_ART = [
 ];
 
 export interface ScanContext {
-  musicDir: string;
+  roots: string[];
   artDir: string;
   onProgress?: (done: number, total: number) => void;
 }
 
 interface CachedIndex {
   version: number;
-  root: string;
+  roots: string[];
   scannedAt: string;
   tracks: IndexedTrack[];
 }
@@ -35,12 +38,15 @@ export function artCacheDir(): string {
   return join(app.getPath('userData'), 'art');
 }
 
-export function loadCachedIndex(root: string): LibraryResult | null {
+export function loadCachedIndex(roots: string[]): LibraryResult | null {
   try {
     if (!existsSync(indexPath())) return null;
     const parsed = JSON.parse(readFileSync(indexPath(), 'utf8')) as CachedIndex;
-    if (parsed.version !== INDEX_VERSION || parsed.root !== root) return null;
-    return { ok: true, root: parsed.root, tracks: parsed.tracks };
+    if (parsed.version !== INDEX_VERSION) return null;
+    if (parsed.roots.length !== roots.length) return null;
+    const same = parsed.roots.every((r, i) => r.toLowerCase() === (roots[i]?.toLowerCase() ?? ''));
+    if (!same) return null;
+    return { ok: true, roots: parsed.roots, tracks: parsed.tracks };
   } catch {
     return null;
   }
@@ -55,28 +61,32 @@ function saveIndex(index: CachedIndex): void {
 }
 
 export async function scanLibrary(ctx: ScanContext): Promise<LibraryResult> {
-  try {
-    await fs.access(ctx.musicDir);
-  } catch (err) {
-    return { ok: false, root: ctx.musicDir, error: String(err) };
+  for (const root of ctx.roots) {
+    try {
+      await fs.access(root);
+    } catch (err) {
+      return { ok: false, roots: ctx.roots, error: String(err) };
+    }
   }
 
   mkdirSync(ctx.artDir, { recursive: true });
 
-  const files: string[] = [];
-  await collectAudioFiles(ctx.musicDir, 0, files);
+  const files: Array<{ path: string; root: string }> = [];
+  for (const root of ctx.roots) {
+    await collectAudioFiles(root, root, 0, files);
+  }
 
   const tracks: IndexedTrack[] = [];
   const fallbackCache = new Map<string, string | null>();
+  const seen = new Set<string>();
   let cursor = 0;
   const total = files.length;
 
   const report = (): void => ctx.onProgress?.(tracks.length, total);
   if (total === 0) {
     report();
-    const empty: LibraryResult = { ok: true, root: ctx.musicDir, tracks };
-    saveIndex({ version: INDEX_VERSION, root: ctx.musicDir, scannedAt: new Date().toISOString(), tracks });
-    return empty;
+    saveIndex({ version: INDEX_VERSION, roots: ctx.roots, scannedAt: new Date().toISOString(), tracks });
+    return { ok: true, roots: ctx.roots, tracks };
   }
 
   const worker = async (): Promise<void> => {
@@ -84,7 +94,11 @@ export async function scanLibrary(ctx: ScanContext): Promise<LibraryResult> {
       const file = files[cursor];
       cursor += 1;
       if (file === undefined) break;
-      tracks.push(await indexFile(file, ctx, fallbackCache));
+      const track = await indexFile(file.path, file.root, ctx, fallbackCache);
+      const dedupeKey = `${track.relPath.toLowerCase()}|${track.sizeBytes}`;
+      if (seen.has(dedupeKey)) continue;
+      seen.add(dedupeKey);
+      tracks.push(track);
       if (tracks.length % 25 === 0 || tracks.length === total) report();
     }
   };
@@ -94,14 +108,19 @@ export async function scanLibrary(ctx: ScanContext): Promise<LibraryResult> {
   tracks.sort((a, b) => a.relPath.localeCompare(b.relPath));
   saveIndex({
     version: INDEX_VERSION,
-    root: ctx.musicDir,
+    roots: ctx.roots,
     scannedAt: new Date().toISOString(),
     tracks,
   });
-  return { ok: true, root: ctx.musicDir, tracks };
+  return { ok: true, roots: ctx.roots, tracks };
 }
 
-async function collectAudioFiles(dir: string, depth: number, out: string[]): Promise<void> {
+async function collectAudioFiles(
+  dir: string,
+  root: string,
+  depth: number,
+  out: Array<{ path: string; root: string }>,
+): Promise<void> {
   if (depth > MAX_DEPTH || out.length >= 20000) return;
   let entries;
   try {
@@ -112,21 +131,22 @@ async function collectAudioFiles(dir: string, depth: number, out: string[]): Pro
   for (const entry of entries) {
     const full = join(dir, entry.name);
     if (entry.isDirectory()) {
-      if (!entry.name.startsWith('.')) await collectAudioFiles(full, depth + 1, out);
+      if (!entry.name.startsWith('.')) await collectAudioFiles(full, root, depth + 1, out);
       continue;
     }
     if (!entry.isFile()) continue;
     if (!AUDIO_EXTS.has(extname(entry.name).toLowerCase())) continue;
-    out.push(full);
+    out.push({ path: full, root });
   }
 }
 
 async function indexFile(
   fullPath: string,
+  root: string,
   ctx: ScanContext,
   fallbackCache: Map<string, string | null>,
 ): Promise<IndexedTrack> {
-  const base = await baseFields(fullPath, ctx.musicDir);
+  const base = await baseFields(fullPath, root);
   try {
     const meta = await parseFile(fullPath, { duration: true });
     const common: ICommonTagsResult = meta.common;
@@ -262,12 +282,31 @@ function writeAlbumArt(picture: IPicture, key: string, artDir: string): string |
   try {
     const ext = picture.format.toLowerCase().includes('png') ? '.png' : '.jpg';
     const dest = join(artDir, `${fnv1a(key)}${ext}`);
+    let freshlyWritten = false;
     if (!existsSync(dest)) {
       writeFileSync(dest, Buffer.from(picture.data));
+      freshlyWritten = true;
+    }
+    const thumbPath = join(artDir, 'thumbs', `${fnv1a(key)}.jpg`);
+    if (freshlyWritten || !existsSync(thumbPath)) {
+      writeThumb(dest, thumbPath);
     }
     return dest;
   } catch {
     return null;
+  }
+}
+
+function writeThumb(sourcePath: string, thumbPath: string): void {
+  try {
+    const img = nativeImage.createFromPath(sourcePath);
+    if (img.isEmpty()) return;
+    const scaled = img.resize({ width: THUMB_WIDTH });
+    const bytes = scaled.toJPEG(THUMB_JPEG_QUALITY);
+    mkdirSync(dirname(thumbPath), { recursive: true });
+    writeFileSync(thumbPath, bytes);
+  } catch {
+    return;
   }
 }
 
