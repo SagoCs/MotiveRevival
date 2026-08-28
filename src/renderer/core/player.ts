@@ -229,6 +229,13 @@ export class PlayerService {
     };
   }
 
+  spectrum(): Uint8Array | null {
+    const analyser = this.ensureGraph();
+    if (analyser === null || this.freqData === null) return null;
+    analyser.getByteFrequencyData(this.freqData as Uint8Array<ArrayBuffer>);
+    return this.freqData;
+  }
+
   waveform(): Uint8Array | null {
     const analyser = this.ensureGraph();
     if (analyser === null || this.freqData === null) return null;

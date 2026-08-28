@@ -193,7 +193,10 @@ export function initSettingsPanel(onLibraryChanged: () => void): void {
     });
   });
 
-  function bindToggle(input: HTMLInputElement, key: 'motionEffects' | 'motionCarousel' | 'motionPulse' | 'motionMorph' | 'autoFetchLyrics' | 'lyricsSaveBeside'): void {
+  function bindToggle(
+    input: HTMLInputElement,
+    key: 'motionEffects' | 'motionCarousel' | 'motionPulse' | 'motionMorph' | 'autoFetchLyrics' | 'lyricsSaveBeside',
+  ): void {
     input.addEventListener('change', () => {
       const patch = { [key]: input.checked } as Partial<import('../../shared/types').Settings>;
       if (key === 'motionEffects') fx.motion = input.checked;

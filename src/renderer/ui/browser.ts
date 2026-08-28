@@ -87,31 +87,7 @@ export function initBrowser(onCompactLyric?: (text: string | null, upcoming: boo
       throw new Error('missing #detail-layer');
     })();
 
-  const backdrop = document.createElement('div');
-  backdrop.id = 'browse-backdrop';
-  const backdropA = document.createElement('div');
-  backdropA.className = 'backdrop-face show';
-  const backdropB = document.createElement('div');
-  backdropB.className = 'backdrop-face';
-  backdrop.append(backdropA, backdropB);
-  const browserRoot = document.getElementById('browser');
-  if (browserRoot !== null) browserRoot.insertAdjacentElement('afterbegin', backdrop);
-  let backdropFront: HTMLDivElement = backdropA;
-  const setBackdropArt = (track: import('../../shared/types').IndexedTrack | null): void => {
-    if (track === null || track.artFile === null) {
-      backdrop.classList.remove('lit');
-      return;
-    }
-    const hidden = backdropFront === backdropA ? backdropB : backdropA;
-    hidden.style.backgroundImage = `url("media://local/${encodeURIComponent(track.artFile)}")`;
-    hidden.classList.add('show');
-    backdropFront.classList.remove('show');
-    backdropFront = hidden;
-    backdrop.classList.add('lit');
-  };
-
   if (!host || !content) throw new Error('missing carousel nodes');
-
   const oracleIcon = document.querySelector<HTMLSpanElement>('#oracle-icon');
   if (oracleIcon) oracleIcon.innerHTML = ICON_SEARCH;
 
@@ -132,7 +108,6 @@ export function initBrowser(onCompactLyric?: (text: string | null, upcoming: boo
 
   appBus.on('track-selected', ({ track }) => {
     playingId = track.id;
-    setBackdropArt(track);
     markPlaying(track.id);
   });
   appBus.on('track-selected', ({ track }) => uiTheme.setBase(track.palette));

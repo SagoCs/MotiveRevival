@@ -294,6 +294,8 @@
 }
 
 #carousel {
+  position: relative;
+  z-index: 1;
   height: 100%;
   overflow: hidden;
   cursor: grab;
@@ -1685,6 +1687,12 @@ body:has(#playlist-layer.open) #bottom-bar::before {
 .oracle-row:hover {
   border-color: color-mix(in srgb, var(--acc-b) 50%, rgba(255, 255, 255, 0.2));
 }
+
+.oracle-row .song-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 9px;
+}
 #overlay-title,
 #overlay-lyrics {
   transition:
@@ -1840,6 +1848,14 @@ body:has(#playlist-layer.open) #bottom-bar::before {
 
 .no-pulse #overlay-field,
 .no-pulse #palette-field {
+  animation: none;
+}
+
+.no-pulse #overlay-sigil {
+  animation: none;
+}
+
+.no-motion .mini-cell {
   animation: none;
 }
 
@@ -2483,43 +2499,4 @@ body:has(#playlist-layer.open) #bottom-bar::before {
     opacity: 1;
     transform: translateY(0);
   }
-}
-
-#browse-backdrop {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  overflow: hidden;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 700ms var(--ease-drift);
-}
-
-#browse-backdrop.lit {
-  opacity: 1;
-}
-
-.backdrop-face {
-  position: absolute;
-  inset: -6%;
-  opacity: 0;
-  background-size: cover;
-  background-position: center;
-  filter: blur(52px) saturate(1.18) brightness(0.58);
-  transition: opacity 700ms var(--ease-drift);
-}
-
-.backdrop-face.show {
-  opacity: 1;
-}
-
-#browse-backdrop::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    to bottom,
-    color-mix(in srgb, var(--void-1) 42%, transparent),
-    color-mix(in srgb, var(--void-0) 60%, transparent)
-  );
 }

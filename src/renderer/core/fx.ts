@@ -25,6 +25,7 @@ export function applyMotionFlags(settings: {
   fx.morph = fx.motion && settings.motionMorph !== false;
 
   const root = document.documentElement.classList;
+  root.toggle('no-motion', !fx.motion);
   root.toggle('no-pulse', !fx.pulse);
 }
 

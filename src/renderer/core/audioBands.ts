@@ -1,4 +1,5 @@
 import { player } from './player';
+import { fx } from './fx';
 
 type VizDrawFn = (wave: Uint8Array | null) => void;
 
@@ -40,6 +41,14 @@ function resetVars(): void {
 
 function loop(): void {
   if (!running) return;
+
+  if (!fx.pulse) {
+    resetVars();
+    for (const fn of drawTargets) fn(null);
+    rafHandle = requestAnimationFrame(loop);
+    return;
+  }
+
   const b = player.bands();
   smoothed.bass += (b.bass - smoothed.bass) * 0.28;
   smoothed.mid += (b.mid - smoothed.mid) * 0.22;
