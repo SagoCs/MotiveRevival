@@ -25,6 +25,19 @@ export function kvGet(key: string): unknown {
   return load()[key];
 }
 
+export function flushKv(): void {
+  if (data === null) return;
+  if (flushTimer !== null) {
+    clearTimeout(flushTimer);
+    flushTimer = null;
+  }
+  try {
+    writeFileSync(kvPath(), JSON.stringify(data));
+  } catch {
+    return;
+  }
+}
+
 export function kvSet(key: string, value: unknown): void {
   const store = load();
   store[key] = value;

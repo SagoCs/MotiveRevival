@@ -28,6 +28,8 @@ export const ICON_PREV = `<svg ${ATTRS} width="16" height="16" aria-hidden="true
 
 export const ICON_NEXT = `<svg ${ATTRS} width="16" height="16" aria-hidden="true"><path d="M7.5 5.5L15 12l-7.5 6.5"/><path d="M17 5.5v13"/></svg>`;
 
+export const ICON_VOLUME = `<svg ${ATTRS} width="16" height="16" aria-hidden="true"><path d="M11 5.5L7 9H4v6h3l4 3.5z" fill="currentColor" stroke="none"/><path d="M15 9.3a4 4 0 0 1 0 5.4"/><path d="M17.6 7a7.6 7.6 0 0 1 0 10"/></svg>`;
+export const ICON_VOLUME_MUTE = `<svg ${ATTRS} width="16" height="16" aria-hidden="true"><path d="M11 5.5L7 9H4v6h3l4 3.5z" fill="currentColor" stroke="none"/><path d="M15.5 9.5l5 5M20.5 9.5l-5 5"/></svg>`;
 export const ICON_MINIMIZE = `<svg ${ATTRS} width="15" height="15" aria-hidden="true"><path d="M5.5 12h13"/></svg>`;
 
 export const ICON_MAXIMIZE = `<svg ${ATTRS} width="15" height="15" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1.5"/></svg>`;

@@ -21,6 +21,17 @@ const api: MrApi = {
     maximize: () => ipcRenderer.send('window:maximize'),
     close: () => ipcRenderer.send('window:close'),
   },
+  taskbar: {
+    icons: (icons) => ipcRenderer.send('taskbar:icons', icons),
+    progress: (fraction) => ipcRenderer.send('taskbar:progress', fraction),
+    playing: (playing) => ipcRenderer.send('taskbar:playing', playing),
+    trackChanged: () => ipcRenderer.send('taskbar:track-changed'),
+  },
+  onTaskbarCommand: (cb) => {
+    const listener = (_e: unknown, command: 'prev' | 'toggle' | 'next'): void => cb(command);
+    ipcRenderer.on('taskbar:command', listener);
+    return () => ipcRenderer.removeListener('taskbar:command', listener);
+  },
   onLibraryProgress: (cb: (p: LibraryProgress) => void) => {
     const listener = (_e: unknown, p: LibraryProgress): void => cb(p);
     ipcRenderer.on('library:progress', listener);

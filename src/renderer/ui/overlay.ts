@@ -13,6 +13,8 @@ export function initOverlay(): void {
   const overlay = document.querySelector<HTMLDivElement>('#overlay');
   const artHost = document.querySelector<HTMLDivElement>('#overlay-sigil');
   const titleEl = document.querySelector<HTMLHeadingElement>('#overlay-title');
+  const metaEl = document.querySelector<HTMLDivElement>('#overlay-meta');
+  const artistEl = document.querySelector<HTMLDivElement>('#overlay-artist');
   const mark = document.querySelector<HTMLDivElement>('#veil-mark');
   const toggleBtn = document.querySelector<HTMLButtonElement>('#overlay-toggle');
 
@@ -151,6 +153,17 @@ export function initOverlay(): void {
       artVeil.style.backgroundImage = '';
     }
     titleEl.textContent = current !== null ? current.title : '';
+    if (artistEl !== null) {
+      artistEl.textContent = current !== null ? current.artist ?? '' : '';
+      artistEl.hidden = current === null || current.artist === null;
+    }
+    if (metaEl !== null) {
+      const parts: string[] = [];
+      if (current !== null && current.album !== null) parts.push(current.album);
+      if (current !== null && current.year !== null) parts.push(String(current.year));
+      if (current !== null && current.bpm !== null) parts.push(`${current.bpm} BPM`);
+      metaEl.textContent = parts.join(' · ');
+    }
   };
 
   appBus.on('track-selected', ({ track }) => {

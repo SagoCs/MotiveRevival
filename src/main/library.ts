@@ -7,7 +7,7 @@ import type { IndexedTrack, LibraryResult } from '../shared/types';
 const AUDIO_EXTS = new Set(['.mp3', '.flac', '.ogg', '.oga', '.wav', '.m4a', '.aac', '.opus']);
 const MAX_DEPTH = 12;
 const CONCURRENCY = 8;
-const INDEX_VERSION = 4;
+const INDEX_VERSION = 5;
 
 const THUMB_WIDTH = 128;
 const THUMB_JPEG_QUALITY = 82;
@@ -171,6 +171,7 @@ async function indexFile(
       trackNo: common.track?.no ?? null,
       discNo: common.disk?.no ?? null,
       year: common.year ?? null,
+      bpm: typeof common.bpm === 'number' && Number.isFinite(common.bpm) ? Math.round(common.bpm) : null,
       durationSec: duration !== undefined && Number.isFinite(duration) ? duration : null,
       artFile,
       palette,
@@ -185,6 +186,7 @@ async function indexFile(
       trackNo: null,
       discNo: null,
       year: null,
+      bpm: null,
       durationSec: null,
       artFile: folderFallbackArt(dirname(fullPath), fallbackCache),
       palette: null,

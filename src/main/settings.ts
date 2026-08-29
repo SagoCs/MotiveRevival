@@ -60,7 +60,6 @@ export function getSettings(): Settings {
     motionCarousel: loaded.motionCarousel ?? true,
     motionPulse: loaded.motionPulse ?? true,
     motionMorph: loaded.motionMorph ?? true,
-    motionLantern: loaded.motionLantern ?? true,
     autoFetchLyrics: loaded.autoFetchLyrics ?? true,
     lyricsSaveBeside: loaded.lyricsSaveBeside ?? true,
     lyricSize: loaded.lyricSize ?? 'm',

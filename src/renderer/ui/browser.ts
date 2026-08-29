@@ -43,6 +43,7 @@ interface BrowserState {
 const state: BrowserState = { mode: 'albums', sort: 'alpha', artistFilter: null };
 
 let idx: SearchIndexes = { songs: [], albums: [], artists: [] };
+let libraryOk = false;
 
 let carousel: Carousel;
 let oracleInput: HTMLInputElement;
@@ -143,10 +144,12 @@ export function initBrowser(onCompactLyric?: (text: string | null, upcoming: boo
   carousel.onViewportMove(queueSongWindowRefresh);
 
   libraryStore.onChange((result) => {
+    libraryOk = result.ok;
     idx = buildSearchIndexes(result.ok ? result.tracks : []);
     render();
   });
   const initial = libraryStore.result;
+  libraryOk = initial !== null && initial.ok;
   idx = buildSearchIndexes(initial !== null && initial.ok ? initial.tracks : []);
   render();
 }
@@ -567,6 +570,13 @@ function retractVisibleRows(): void {
 function render(immediate = false): void {
   const runSwap = (): void => {
     const frag = document.createDocumentFragment();
+    if ((!libraryOk || idx.songs.length === 0) && state.mode !== 'playlists') {
+      renderEmptyLibrary(frag);
+      carousel.setContent(frag);
+      syncFilterChip();
+      renderedMode = state.mode;
+      return;
+    }
     if (state.mode === 'playlists') renderTabCards(frag);
     else renderBrowse(frag);
     carousel.setContent(frag);
@@ -585,6 +595,24 @@ function render(immediate = false): void {
     return;
   }
   runSwap();
+}
+
+function renderEmptyLibrary(frag: DocumentFragment): void {
+  const wrap = el('div', 'empty-library');
+  const title = el('div', 'empty-title');
+  title.textContent = libraryOk ? 'The archive is empty' : 'The archive is unreachable';
+  const sub = el('div', 'empty-sub dim');
+  sub.textContent = libraryOk
+    ? 'Point MotiveRevival at a music folder and the sky will fill.'
+    : 'Your music folders could not be read. Check them in settings.';
+  const btn = el('button', 'ghost-btn');
+  btn.type = 'button';
+  btn.textContent = 'Open settings';
+  btn.addEventListener('click', () => {
+    document.getElementById('btn-settings')?.click();
+  });
+  wrap.append(title, sub, btn);
+  frag.append(wrap);
 }
 
 function renderBrowse(frag: DocumentFragment): void {

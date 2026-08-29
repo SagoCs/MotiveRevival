@@ -6,6 +6,7 @@ import { fmtTotal } from '../core/searchIndex';
 import { fuzzyScore } from '../core/fuzzy';
 import { basenameOf } from '../core/paths';
 import { ICON_SIGIL, ICON_PLAY, ICON_SHUFFLE, ICON_TRASH } from './icons';
+import { toast, toastSong } from '../core/toast';
 import { playlistsStore, type ResolvedPlaylistEntry } from '../core/playlistsStore';
 import type { IndexedTrack, Playlist, PlaylistTrackRef } from '../../shared/types';
 
@@ -403,7 +404,11 @@ function rowNode(
   const rm = actButton('\u2715', 'Remove from playlist');
   rm.addEventListener('click', (e) => {
     e.stopPropagation();
-    void playlistsStore.removeTrack(playlistId, index);
+    const rowTitle = 'track' in entry ? entry.track.title : basenameOf(entry.ref.absPath);
+    const playlistName = playlistsStore.list().find((p) => p.id === playlistId)?.name ?? 'playlist';
+    void playlistsStore.removeTrack(playlistId, index).then(() => {
+      toastSong('Removed', rowTitle, `from ${playlistName}`);
+    });
   });
   actions.append(rm);
 
@@ -632,7 +637,10 @@ function openContextMenu(
       void playlistsStore
         .create(name)
         .then((pl) => playlistsStore.addTrack(pl.id, refOf(track)))
-        .then(finish);
+        .then(() => {
+          finish();
+          toastSong('Added', track.title, `to ${name}`);
+        });
     });
     view.append(newInput);
 
@@ -644,12 +652,20 @@ function openContextMenu(
       const name = el('span', 'ctx-item-label');
       name.textContent = pl.name;
       const count = el('span', 'mono dim ctx-item-count');
-      count.textContent = String(pl.tracks.length);
+      const already = pl.tracks.some((t) => t.trackId === track.id);
+      count.textContent = already ? 'added' : String(pl.tracks.length);
       item.append(name, count);
-      item.addEventListener('click', (e) => {
-        e.stopPropagation();
-        void playlistsStore.addTrack(pl.id, refOf(track)).then(finish);
-      });
+      if (!already) {
+        item.addEventListener('click', (e) => {
+          e.stopPropagation();
+          void playlistsStore.addTrack(pl.id, refOf(track)).then(() => {
+          finish();
+          toastSong('Added', track.title, `to ${pl.name}`);
+        });
+        });
+      } else {
+        item.disabled = true;
+      }
       view.append(item);
     }
     if (!listed) {

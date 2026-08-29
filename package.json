@@ -8,6 +8,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "start": "npm run build && electron .",
+    "start:fresh": "npm run build && node scripts/start-fresh.mjs",
     "typecheck": "tsc --noEmit",
     "test": "node scripts/test.mjs"
   },

@@ -1,16 +1,22 @@
-﻿import { app, BrowserWindow, Menu, dialog, ipcMain } from 'electron';
+﻿import { app, BrowserWindow, Menu, dialog, ipcMain, nativeImage } from 'electron';
 import { join } from 'node:path';
 import { getSettings, saveSettings } from './settings';
 import { scanLibrary, loadCachedIndex, artCacheDir } from './library';
 import { resolveLyrics } from './lyrics';
-import { kvGet, kvSet } from './storage';
+import { kvGet, kvSet, flushKv } from './storage';
 import { registerMediaScheme, attachMediaHandler } from './media';
 import type { LibraryResult, LyricsPayload, LyricsResult, Settings } from '../shared/types';
 
 registerMediaScheme();
 Menu.setApplicationMenu(null);
+app.on('before-quit', () => flushKv());
 
 let mainWindow: BrowserWindow | null = null;
+
+const userDirArg = process.argv.find((a) => a.startsWith('--user-data-dir='));
+if (userDirArg !== undefined) {
+  app.setPath('userData', userDirArg.slice('--user-data-dir='.length));
+}
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -72,6 +78,55 @@ function bindWindowControls(): void {
   ipcMain.on('window:close', (e) => {
     BrowserWindow.fromWebContents(e.sender)?.close();
   });
+  ipcMain.on('taskbar:icons', (e, icons: { prev: string; play: string; pause: string; next: string }) => {
+    const win = BrowserWindow.fromWebContents(e.sender);
+    if (win === null) return;
+    thumbar.prev = nativeImage.createFromDataURL(icons.prev);
+    thumbar.play = nativeImage.createFromDataURL(icons.play);
+    thumbar.pause = nativeImage.createFromDataURL(icons.pause);
+    thumbar.next = nativeImage.createFromDataURL(icons.next);
+    thumbar.have = true;
+    applyThumbar(win);
+  });
+  ipcMain.on('taskbar:progress', (e, fraction: number) => {
+    BrowserWindow.fromWebContents(e.sender)?.setProgressBar(typeof fraction === 'number' && fraction >= 0 ? fraction : -1);
+  });
+  ipcMain.on('taskbar:playing', (e, playing: boolean) => {
+    const win = BrowserWindow.fromWebContents(e.sender);
+    if (win === null) return;
+    thumbar.playing = playing !== false;
+    applyThumbar(win);
+  });
+  ipcMain.on('taskbar:track-changed', (e) => {
+    BrowserWindow.fromWebContents(e.sender)?.flashFrame(true);
+  });
+}
+
+interface ThumbarState {
+  prev: Electron.NativeImage;
+  play: Electron.NativeImage;
+  pause: Electron.NativeImage;
+  next: Electron.NativeImage;
+  have: boolean;
+  playing: boolean;
+}
+
+const thumbar: ThumbarState = {
+  prev: null as unknown as Electron.NativeImage,
+  play: null as unknown as Electron.NativeImage,
+  pause: null as unknown as Electron.NativeImage,
+  next: null as unknown as Electron.NativeImage,
+  have: false,
+  playing: false,
+};
+
+function applyThumbar(win: BrowserWindow): void {
+  if (!thumbar.have) return;
+  win.setThumbarButtons([
+    { icon: thumbar.prev, click: () => win.webContents.send('taskbar:command', 'prev') },
+    { icon: thumbar.playing ? thumbar.pause : thumbar.play, click: () => win.webContents.send('taskbar:command', 'toggle') },
+    { icon: thumbar.next, click: () => win.webContents.send('taskbar:command', 'next') },
+  ]);
 }
 
 function scheduleScan(): void {

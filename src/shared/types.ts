@@ -13,6 +13,7 @@ export interface IndexedTrack {
   trackNo: number | null;
   discNo: number | null;
   year: number | null;
+  bpm: number | null;
   durationSec: number | null;
   artFile: string | null;
   palette: string[] | null;
@@ -27,11 +28,11 @@ export interface Settings {
   motionCarousel?: boolean;
   motionPulse?: boolean;
   motionMorph?: boolean;
-  motionLantern?: boolean;
   autoFetchLyrics?: boolean;
   lyricsSaveBeside?: boolean;
   lyricSize?: LyricSize;
   nowPlayingView?: NowPlayingView;
+  volume?: number;
 }
 
 export interface LyricsPayload {
@@ -74,6 +75,13 @@ export interface MrApi {
   storageGet(key: string): Promise<unknown>;
   storageSet(key: string, value: unknown): Promise<void>;
   window: WindowControls;
+  taskbar: {
+    icons(icons: { prev: string; play: string; pause: string; next: string }): void;
+    progress(fraction: number): void;
+    playing(playing: boolean): void;
+    trackChanged(): void;
+  };
+  onTaskbarCommand(cb: (command: 'prev' | 'toggle' | 'next') => void): () => void;
   onLibraryProgress(cb: (p: LibraryProgress) => void): () => void;
   onLibraryIndexed(cb: (r: LibraryResult) => void): () => void;
 }

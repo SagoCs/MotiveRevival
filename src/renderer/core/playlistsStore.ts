@@ -113,6 +113,7 @@ class PlaylistsStore {
   async addTrack(playlistId: string, ref: PlaylistTrackRef): Promise<void> {
     const pl = this.find(playlistId);
     if (pl === null) return;
+    if (pl.tracks.some((t) => t.trackId === ref.trackId)) return;
     pl.tracks.push({ trackId: ref.trackId, absPath: ref.absPath });
     await this.touch(playlistId);
   }

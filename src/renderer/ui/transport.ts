@@ -2,7 +2,7 @@ import { el } from '../core/dom';
 import { fmtTime } from '../core/dom';
 import { player } from '../core/player';
 import { createQueuePanel } from './queuePanel';
-import { ICON_PAUSE, ICON_PLAY, ICON_PREV, ICON_NEXT } from './icons';
+import { ICON_PAUSE, ICON_PLAY, ICON_PREV, ICON_NEXT, ICON_VOLUME, ICON_VOLUME_MUTE } from './icons';
 
 const ICON_QUEUE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" width="17" height="17" aria-hidden="true"><path d="M9.5 6.5h10M9.5 12h10M9.5 17.5h10"/><circle cx="5.4" cy="6.5" r="1.15" fill="currentColor" stroke="none"/><circle cx="5.4" cy="12" r="1.15" fill="currentColor" stroke="none"/><circle cx="5.4" cy="17.5" r="1.15" fill="currentColor" stroke="none"/></svg>`;
 
@@ -48,6 +48,56 @@ export function createTransport(host: HTMLElement): TransportHandle {
   const timeTotal = el('span', 'mono transport-time');
   timeTotal.textContent = '0:00';
 
+  const volBtn = el('button', 'icon-btn btn-small vol-toggle');
+  volBtn.type = 'button';
+  volBtn.setAttribute('aria-label', 'Mute or restore volume');
+  volBtn.innerHTML = ICON_VOLUME;
+  const volRail = el('div', 'vol-rail');
+  const volFill = el('div', 'vol-fill');
+  const volKnob = el('div', 'vol-knob');
+  volRail.append(volFill, volKnob);
+  let lastNonZero = player.volume > 0 ? player.volume : 1;
+  const applyVolumeUi = (v: number): void => {
+    const pct = Math.round(v * 100);
+    volFill.style.width = `${pct}%`;
+    volKnob.style.left = `${pct}%`;
+    volBtn.innerHTML = v > 0 ? ICON_VOLUME : ICON_VOLUME_MUTE;
+  };
+  applyVolumeUi(player.volume);
+  player.bus.on('volume', ({ volume }) => applyVolumeUi(volume));
+  const persistVolume = (): void => {
+    void window.mr.updateSettings({ volume: player.volume });
+  };
+  volBtn.addEventListener('click', () => {
+    const next = player.volume > 0 ? 0 : lastNonZero;
+    if (next > 0) lastNonZero = next;
+    player.setVolume(next);
+    persistVolume();
+  });
+  let volDragging = false;
+  const setFromPointer = (e: PointerEvent): void => {
+    const rect = volRail.getBoundingClientRect();
+    const frac = rect.width > 0 ? Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width)) : 0;
+    if (frac > 0) lastNonZero = frac;
+    player.setVolume(frac);
+    applyVolumeUi(frac);
+  };
+  volRail.addEventListener('pointerdown', (e) => {
+    volDragging = true;
+    volRail.setPointerCapture(e.pointerId);
+    setFromPointer(e);
+  });
+  volRail.addEventListener('pointermove', (e) => {
+    if (volDragging) setFromPointer(e);
+  });
+  volRail.addEventListener('pointerup', () => {
+    volDragging = false;
+    persistVolume();
+  });
+  volRail.addEventListener('pointercancel', () => {
+    volDragging = false;
+  });
+
   const queueBtn = el('button', 'icon-btn btn-small');
   queueBtn.classList.add('queue-toggle');
   queueBtn.type = 'button';
@@ -55,7 +105,7 @@ export function createTransport(host: HTMLElement): TransportHandle {
   queueBtn.setAttribute('aria-pressed', 'false');
   queueBtn.innerHTML = ICON_QUEUE;
 
-  host.append(prevBtn, btn, nextBtn, timeNow, scrub, timeTotal);
+  host.append(prevBtn, btn, nextBtn, timeNow, scrub, timeTotal, volBtn, volRail);
   host.append(lyric);
 
   const bottomBar = host.parentElement;
@@ -73,6 +123,7 @@ export function createTransport(host: HTMLElement): TransportHandle {
   });
 
   let dragging = false;
+  let lastProgressSent = 0;
 
   const paintFromClock = (time: number, duration: number): void => {
     if (!dragging) {
@@ -84,10 +135,16 @@ export function createTransport(host: HTMLElement): TransportHandle {
     timeTotal.textContent = fmtTime(duration);
     scrub.setAttribute('aria-valuemax', String(Math.floor(duration)));
     if (!dragging) scrub.setAttribute('aria-valuenow', String(Math.floor(time)));
+    const now = performance.now();
+    if (now - lastProgressSent > 300) {
+      lastProgressSent = now;
+      window.mr.taskbar.progress(duration > 0 ? Math.min(1, Math.max(0, time / duration)) : -1);
+    }
   };
 
   const renderState = (): void => {
     btn.innerHTML = player.playing ? ICON_PAUSE : ICON_PLAY;
+    window.mr.taskbar.playing(player.playing);
     prevBtn.disabled = !player.hasPrev() && !player.playing;
     nextBtn.disabled = !player.hasNext();
   };

@@ -11,6 +11,7 @@ export type PlayerEventMap = {
   queue: { canPrev: boolean; canNext: boolean };
   queueMutated: Record<string, never>;
   trackChanged: { track: IndexedTrack };
+  volume: { volume: number };
 };
 
 const MEDIA_ERROR_MESSAGES: Record<number, string> = {
@@ -97,6 +98,14 @@ export class PlayerService {
     return this.queue[this.queueIndex] ?? null;
   }
 
+  get queueTracks(): readonly IndexedTrack[] {
+    return this.queue;
+  }
+
+  get queueIndexAt(): number {
+    return this.queueIndex;
+  }
+
   hasNext(): boolean {
     return this.queueIndex >= 0 && this.queueIndex < this.queue.length - 1;
   }
@@ -108,6 +117,29 @@ export class PlayerService {
   setContext(tracks: readonly IndexedTrack[], startIndex: number): void {
     this.queue = [...tracks];
     this.playFrom(startIndex);
+  }
+
+  restoreContext(tracks: readonly IndexedTrack[], index: number, position: number): void {
+    const track = tracks[index];
+    if (track === undefined) return;
+    this.queue = [...tracks];
+    this.queueIndex = index;
+    this.load(mediaUrlOf(track));
+    if (position > 0) {
+      const onMeta = (): void => {
+        this.audio.removeEventListener('loadedmetadata', onMeta);
+        this.seek(position);
+      };
+      this.audio.addEventListener('loadedmetadata', onMeta);
+    }
+    appBus.emit('track-selected', { track });
+    this.emitQueueState();
+    this.bus.emit('trackChanged', { track });
+  }
+
+  setVolume(value: number): void {
+    this.volume = clamp(value, 0, 1);
+    this.bus.emit('volume', { volume: this.volume });
   }
 
   playFrom(index: number): void {
