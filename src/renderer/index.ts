@@ -6,6 +6,7 @@ import '@fontsource/ibm-plex-mono/400.css';
 import './styles/tokens.css';
 import './styles/base.css';
 import './styles/shell.css';
+import './styles/lantern.css';
 
 import { player } from './core/player';
 import { libraryStore } from './core/libraryStore';
@@ -17,6 +18,7 @@ import { initOverlay } from './ui/overlay';
 import { initSettingsPanel } from './ui/settings';
 import { createTransport } from './ui/transport';
 import { initWindowControls } from './ui/windowControls';
+import { initLantern } from './ui/lantern';
 
 window.addEventListener('error', (e) => {
   fatal(`Uncaught: ${e.message}`);
@@ -36,6 +38,7 @@ function boot(): void {
   initOverlay();
   initSettingsPanel(() => {});
   initWindowControls();
+  initLantern();
 
   const transportHost = document.getElementById('transport-host');
   const transport = transportHost !== null ? createTransport(transportHost) : null;

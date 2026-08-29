@@ -24,6 +24,7 @@ export function initSettingsPanel(onLibraryChanged: () => void): void {
   const carouselToggle = must<HTMLInputElement>('#set-motion-carousel');
   const pulseToggle = must<HTMLInputElement>('#set-motion-pulse');
   const morphToggle = must<HTMLInputElement>('#set-motion-morph');
+  const lanternToggle = must<HTMLInputElement>('#set-motion-lantern');
   const autofetchToggle = must<HTMLInputElement>('#set-autofetch');
   const savebesideToggle = must<HTMLInputElement>('#set-savebeside');
   const sizeSeg = must<HTMLElement>('#lyric-size-seg');
@@ -133,6 +134,7 @@ export function initSettingsPanel(onLibraryChanged: () => void): void {
     carouselToggle.checked = settings.motionCarousel !== false;
     pulseToggle.checked = settings.motionPulse !== false;
     morphToggle.checked = settings.motionMorph !== false;
+    lanternToggle.checked = settings.motionLantern !== false;
     autofetchToggle.checked = settings.autoFetchLyrics !== false;
     savebesideToggle.checked = settings.lyricsSaveBeside !== false;
 
@@ -195,7 +197,7 @@ export function initSettingsPanel(onLibraryChanged: () => void): void {
 
   function bindToggle(
     input: HTMLInputElement,
-    key: 'motionEffects' | 'motionCarousel' | 'motionPulse' | 'motionMorph' | 'autoFetchLyrics' | 'lyricsSaveBeside',
+    key: 'motionEffects' | 'motionCarousel' | 'motionPulse' | 'motionMorph' | 'motionLantern' | 'autoFetchLyrics' | 'lyricsSaveBeside',
   ): void {
     input.addEventListener('change', () => {
       const patch = { [key]: input.checked } as Partial<import('../../shared/types').Settings>;
@@ -208,6 +210,7 @@ export function initSettingsPanel(onLibraryChanged: () => void): void {
   bindToggle(carouselToggle, 'motionCarousel');
   bindToggle(pulseToggle, 'motionPulse');
   bindToggle(morphToggle, 'motionMorph');
+  bindToggle(lanternToggle, 'motionLantern');
   bindToggle(autofetchToggle, 'autoFetchLyrics');
   bindToggle(savebesideToggle, 'lyricsSaveBeside');
 

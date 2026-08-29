@@ -1,0 +1,40 @@
+html:not(.no-lantern) body,
+html:not(.no-lantern) body *:not(input):not(textarea) {
+  cursor: var(--lc-default, none);
+}
+
+html.lantern-settle:not(.no-lantern) body,
+html.lantern-settle:not(.no-lantern) body *:not(input):not(textarea) {
+  cursor: var(--lc-settle, none);
+}
+
+html.lantern-edge-left:not(.no-lantern) body,
+html.lantern-edge-left:not(.no-lantern) body *:not(input):not(textarea) {
+  cursor: var(--lc-edgeLeft, none);
+}
+
+html.lantern-edge-right:not(.no-lantern) body,
+html.lantern-edge-right:not(.no-lantern) body *:not(input):not(textarea) {
+  cursor: var(--lc-edgeRight, none);
+}
+
+html.lantern-interactive:not(.no-lantern) body,
+html.lantern-interactive:not(.no-lantern) body *:not(input):not(textarea) {
+  cursor: var(--lc-interactive, none);
+}
+
+html.lantern-drag:not(.no-lantern) body,
+html.lantern-drag:not(.no-lantern) body *:not(input):not(textarea) {
+  cursor: var(--lc-drag, none);
+}
+
+#lantern-motes {
+  position: fixed;
+  inset: 0;
+  z-index: 199;
+  pointer-events: none;
+}
+
+html.no-lantern #lantern-motes {
+  display: none;
+}

@@ -27,6 +27,7 @@ export interface Settings {
   motionCarousel?: boolean;
   motionPulse?: boolean;
   motionMorph?: boolean;
+  motionLantern?: boolean;
   autoFetchLyrics?: boolean;
   lyricsSaveBeside?: boolean;
   lyricSize?: LyricSize;
