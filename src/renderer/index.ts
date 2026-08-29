@@ -40,6 +40,9 @@ function boot(): void {
   initOverlay();
   initSettingsPanel(() => {});
   initWindowControls();
+  window.mr.onWindowState(({ maximizedOrFullscreen }) => {
+    document.getElementById('topbar')?.classList.toggle('window-drag', !maximizedOrFullscreen);
+  });
   initParticleTest();
 
   const transportHost = document.getElementById('transport-host');

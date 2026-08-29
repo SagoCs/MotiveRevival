@@ -45,7 +45,7 @@ export function createTransport(host: HTMLElement): TransportHandle {
   lyric.hidden = true;
   scrub.append(fill, knob);
 
-  const timeTotal = el('span', 'mono transport-time');
+  const timeTotal = el('span', 'mono transport-time transport-time-total');
   timeTotal.textContent = '0:00';
 
   const volBtn = el('button', 'icon-btn btn-small vol-toggle');

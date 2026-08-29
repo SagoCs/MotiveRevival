@@ -985,7 +985,7 @@
   flex: 1;
   height: 100%;
   border-top: none;
-  grid-template-columns: 38px 44px 38px 44px minmax(0, 1fr) 44px 30px 64px;
+  grid-template-columns: 38px 44px 38px 44px minmax(0, 1fr) 44px 46px 64px;
   gap: 10px;
   padding: 0;
 }
@@ -993,7 +993,7 @@
 .transport {
   position: relative;
   display: grid;
-  grid-template-columns: 40px 46px 40px 48px minmax(0, 1fr) 48px 34px 72px;
+  grid-template-columns: 40px 46px 40px 48px minmax(0, 1fr) 48px 46px 72px;
   align-items: center;
   gap: 12px;
   height: 62px;
@@ -2545,6 +2545,10 @@ body:has(#playlist-layer.open) #bottom-bar::before {
     opacity: 1;
     transform: scale(calc(var(--cs, 1) * var(--hs, 1))) translateY(0);
   }
+}
+
+.transport-time-total {
+  text-align: right;
 }
 
 .vol-rail {

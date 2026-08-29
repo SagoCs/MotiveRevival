@@ -27,6 +27,11 @@ const api: MrApi = {
     playing: (playing) => ipcRenderer.send('taskbar:playing', playing),
     trackChanged: () => ipcRenderer.send('taskbar:track-changed'),
   },
+  onWindowState: (cb) => {
+    const listener = (_e: unknown, maximizedOrFullscreen: boolean): void => cb({ maximizedOrFullscreen });
+    ipcRenderer.on('window:state', listener);
+    return () => ipcRenderer.removeListener('window:state', listener);
+  },
   onTaskbarCommand: (cb) => {
     const listener = (_e: unknown, command: 'prev' | 'toggle' | 'next'): void => cb(command);
     ipcRenderer.on('taskbar:command', listener);

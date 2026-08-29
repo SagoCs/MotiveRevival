@@ -82,6 +82,7 @@ export interface MrApi {
     trackChanged(): void;
   };
   onTaskbarCommand(cb: (command: 'prev' | 'toggle' | 'next') => void): () => void;
+  onWindowState(cb: (state: { maximizedOrFullscreen: boolean }) => void): () => void;
   onLibraryProgress(cb: (p: LibraryProgress) => void): () => void;
   onLibraryIndexed(cb: (r: LibraryResult) => void): () => void;
 }

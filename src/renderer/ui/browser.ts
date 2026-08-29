@@ -135,6 +135,7 @@ export function initBrowser(onCompactLyric?: (text: string | null, upcoming: boo
     appBus.on('track-selected', ({ track }) => stageLyrics?.setTrack(track));
   }
 
+  preview.enabled = state.mode === 'songs';
   wireTabs();
   wireSortChips();
   wireSearch();
@@ -160,6 +161,7 @@ function wireTabs(): void {
       const mode = tab.dataset.mode as Mode | undefined;
       if (!mode) return;
       state.mode = mode;
+      preview.enabled = mode === 'songs';
       if (mode !== 'albums') setArtistFilter(null);
       syncTabs();
       syncChips();
@@ -568,6 +570,8 @@ function retractVisibleRows(): void {
 }
 
 function render(immediate = false): void {
+  preview.cancel();
+  uiTheme.popPreview();
   const runSwap = (): void => {
     const frag = document.createDocumentFragment();
     if ((!libraryOk || idx.songs.length === 0) && state.mode !== 'playlists') {

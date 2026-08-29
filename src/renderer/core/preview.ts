@@ -12,6 +12,7 @@ const DWELL_MS = 1400;
 
 class PreviewService {
   readonly bus = new Bus<PreviewEventMap>();
+  enabled = false;
 
   private readonly audio = new Audio();
   private dwellTimer = 0;
@@ -27,7 +28,7 @@ class PreviewService {
   }
 
   hoverEnter(track: IndexedTrack): void {
-    if (this.activeId === track.id) return;
+    if (!this.enabled || this.activeId === track.id) return;
     this.cancelDwell();
     this.pendingId = track.id;
     this.bus.emit('pending', { trackId: track.id });
@@ -40,6 +41,11 @@ class PreviewService {
   hoverLeave(): void {
     this.cancelDwell();
     if (this.activeId !== null) this.stop();
+  }
+
+  cancel(): void {
+    this.cancelDwell();
+    this.stop();
   }
 
   hardStop(): void {

@@ -1,4 +1,4 @@
-﻿import { app, BrowserWindow, Menu, dialog, ipcMain, nativeImage } from 'electron';
+﻿import { app, BrowserWindow, Menu, dialog, ipcMain, nativeImage, screen } from 'electron';
 import { join } from 'node:path';
 import { getSettings, saveSettings } from './settings';
 import { scanLibrary, loadCachedIndex, artCacheDir } from './library';
@@ -41,10 +41,37 @@ app.on('window-all-closed', () => {
   app.quit();
 });
 
+interface SavedWindowState {
+  bounds?: { x: number; y: number; width: number; height: number };
+  maximized?: boolean;
+}
+
+function loadWindowState(): SavedWindowState | null {
+  try {
+    const raw = kvGet('windowState:v1') as SavedWindowState | null;
+    if (raw === null || typeof raw !== 'object' || raw.bounds === undefined) return null;
+    const b = raw.bounds;
+    if (![b.x, b.y, b.width, b.height].every((n) => Number.isFinite(n))) return null;
+    const display = screen.getDisplayMatching(b);
+    const intersects =
+      b.x < display.bounds.x + display.bounds.width &&
+      b.x + b.width > display.bounds.x &&
+      b.y < display.bounds.y + display.bounds.height &&
+      b.y + b.height > display.bounds.y;
+    if (!intersects) return null;
+    return { bounds: { x: b.x, y: b.y, width: b.width, height: b.height }, maximized: raw.maximized === true };
+  } catch {
+    return null;
+  }
+}
+
 function createWindow(): void {
+  const saved = loadWindowState();
   const win = new BrowserWindow({
-    width: 1280,
-    height: 800,
+    width: saved?.bounds?.width ?? 1280,
+    height: saved?.bounds?.height ?? 800,
+    x: saved?.bounds?.x,
+    y: saved?.bounds?.y,
     minWidth: 960,
     minHeight: 620,
     backgroundColor: '#05070f',
@@ -58,10 +85,24 @@ function createWindow(): void {
     },
   });
   mainWindow = win;
-  win.once('ready-to-show', () => win.show());
+  if (saved?.maximized === true) win.maximize();
+  win.on('close', () => {
+    kvSet('windowState:v1', { bounds: win.getNormalBounds(), maximized: win.isMaximized() });
+  });
+  win.once('ready-to-show', () => {
+    win.show();
+    announceWindowState();
+  });
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   bindDeveloperShortcuts(win);
   bindWindowControls();
+  const announceWindowState = (): void => {
+    win.webContents.send('window:state', win.isMaximized() || win.isFullScreen());
+  };
+  win.on('maximize', announceWindowState);
+  win.on('unmaximize', announceWindowState);
+  win.on('enter-full-screen', announceWindowState);
+  win.on('leave-full-screen', announceWindowState);
   void win.loadFile(join(__dirname, 'index.html'));
 }
 
