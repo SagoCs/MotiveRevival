@@ -20,6 +20,7 @@ import { initOverlay } from './ui/overlay';
 import { initSettingsPanel } from './ui/settings';
 import { createTransport } from './ui/transport';
 import { initWindowControls } from './ui/windowControls';
+import { initParticleTest } from './ui/particle-test';
 
 window.addEventListener('error', (e) => {
   fatal(`Uncaught: ${e.message}`);
@@ -39,6 +40,7 @@ function boot(): void {
   initOverlay();
   initSettingsPanel(() => {});
   initWindowControls();
+  initParticleTest();
 
   const transportHost = document.getElementById('transport-host');
   const transport = transportHost !== null ? createTransport(transportHost) : null;

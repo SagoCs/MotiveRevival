@@ -21,6 +21,12 @@
   background: linear-gradient(180deg, color-mix(in srgb, var(--hz-glow) 8%, transparent), transparent 85%);
 }
 
+.gear-island {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
 .topbar-right {
   display: flex;
   align-items: center;

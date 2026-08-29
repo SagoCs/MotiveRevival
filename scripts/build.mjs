@@ -12,7 +12,7 @@ await Promise.all([
     platform: 'node',
     target: 'node20',
     format: 'cjs',
-    external: ['electron'],
+    external: ['electron', 'koffi'],
     outfile: 'dist/main.js',
   }),
   esbuild.build({
