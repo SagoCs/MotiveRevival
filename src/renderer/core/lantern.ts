@@ -35,6 +35,9 @@ let state: LanternStateId = 'default';
 let accent = '';
 let dpr = 0;
 let chaseUntil = 0;
+let blittedKey = '';
+let paintedFade = '0';
+let paintedPlace = '';
 const sprites = new Map<string, HTMLCanvasElement>();
 const pending = new Set<string>();
 
@@ -112,6 +115,7 @@ function loadSprite(id: LanternStateId, spec: LanternSpriteSpec, tone: string, r
 function rebuildSprites(): void {
   sprites.clear();
   pending.clear();
+  blittedKey = '';
   for (const id of Object.keys(STATE_SPECS) as LanternStateId[]) {
     loadSprite(id, STATE_SPECS[id], accent, dpr);
   }
@@ -135,9 +139,23 @@ function reevaluate(under: Element | null): void {
   rearm();
 }
 
+function syncSprite(): void {
+  if (canvas === null || ctx === null) return;
+  const sprite = currentSprite();
+  if (sprite === null) return;
+  const key = `${state}|${accent}|${dpr}`;
+  if (key === blittedKey) return;
+  blittedKey = key;
+  canvas.width = sprite.width;
+  canvas.height = sprite.height;
+  canvas.style.width = `${sprite.width / dpr}px`;
+  canvas.style.height = `${sprite.height / dpr}px`;
+  ctx.drawImage(sprite, 0, 0);
+}
+
 function frame(): void {
   raf = 0;
-  if (!active || ctx === null || canvas === null) return;
+  if (!active || canvas === null) return;
   if (performance.now() < chaseUntil) {
     const next = readAccent();
     if (next !== accent) {
@@ -149,13 +167,18 @@ function frame(): void {
   const target = inside && !inDrag ? 1 : 0;
   alpha += (target - alpha) * EASE;
   if (Math.abs(target - alpha) < CONVERGED) alpha = target;
-  const sprite = currentSprite();
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  if (sprite !== null && alpha > VISIBLE_FLOOR) {
-    const spec = STATE_SPECS[state];
-    ctx.globalAlpha = alpha;
-    ctx.drawImage(sprite, x - spec.hotspot.x, y - spec.hotspot.y, sprite.width / dpr, sprite.height / dpr);
-    ctx.globalAlpha = 1;
+  syncSprite();
+  const shown = alpha > VISIBLE_FLOOR ? alpha : 0;
+  const fade = String(Math.round(shown * 100) / 100);
+  if (fade !== paintedFade) {
+    paintedFade = fade;
+    canvas.style.opacity = fade;
+  }
+  const spec = STATE_SPECS[state];
+  const place = `translate3d(${(x - spec.hotspot.x).toFixed(1)}px, ${(y - spec.hotspot.y).toFixed(1)}px, 0)`;
+  if (place !== paintedPlace) {
+    paintedPlace = place;
+    canvas.style.transform = place;
   }
   if (alpha !== target) rearm();
 }
@@ -166,24 +189,15 @@ function applyActive(): void {
   active = on;
   document.documentElement.classList.toggle('particle-cursor', on);
   if (canvas !== null) canvas.style.display = on ? 'block' : 'none';
-  if (!on && canvas !== null && ctx !== null) {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (!on) {
     alpha = 0;
+    paintedFade = '0';
+    if (canvas !== null) canvas.style.opacity = '0';
   }
   if (on) {
     chaseUntil = performance.now() + 100;
     rearm();
   }
-}
-
-function measure(): void {
-  if (canvas === null || ctx === null) return;
-  dpr = window.devicePixelRatio || 1;
-  canvas.width = Math.ceil(window.innerWidth * dpr);
-  canvas.height = Math.ceil(window.innerHeight * dpr);
-  canvas.style.width = `${window.innerWidth}px`;
-  canvas.style.height = `${window.innerHeight}px`;
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 
 export const lantern = {
@@ -192,7 +206,7 @@ export const lantern = {
     canvas = document.createElement('canvas');
     canvas.id = 'lantern-canvas';
     ctx = canvas.getContext('2d');
-    measure();
+    dpr = window.devicePixelRatio || 1;
     document.body.append(canvas);
     accent = readAccent();
     rebuildSprites();
@@ -200,7 +214,7 @@ export const lantern = {
     const style = document.createElement('style');
     style.textContent =
       'html.particle-cursor, html.particle-cursor body, html.particle-cursor body *:not(input):not(textarea) { cursor: none !important; }' +
-      `#lantern-canvas { position: fixed; inset: 0; z-index: ${CANVAS_Z}; pointer-events: none; }`;
+      `#lantern-canvas { position: fixed; left: 0; top: 0; z-index: ${CANVAS_Z}; pointer-events: none; will-change: transform, opacity; }`;
     document.head.append(style);
 
     window.addEventListener('pointermove', (e) => {
@@ -224,7 +238,7 @@ export const lantern = {
 
     window.addEventListener('resize', () => {
       const prev = dpr;
-      measure();
+      dpr = window.devicePixelRatio || 1;
       if (dpr !== prev) {
         accent = readAccent();
         rebuildSprites();

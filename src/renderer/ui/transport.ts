@@ -124,17 +124,45 @@ export function createTransport(host: HTMLElement): TransportHandle {
 
   let dragging = false;
   let lastProgressSent = 0;
+  let paintedLabel = '';
+  let paintedTotal = '';
+  let paintedStep = -1;
+  let paintedMax = '';
+  let paintedNow = '';
 
   const paintFromClock = (time: number, duration: number): void => {
     if (!dragging) {
-      timeNow.textContent = fmtTime(time);
+      const label = fmtTime(time);
+      if (label !== paintedLabel) {
+        paintedLabel = label;
+        timeNow.textContent = label;
+      }
       const pct = duration > 0 ? Math.min(100, (time / duration) * 100) : 0;
-      fill.style.width = `${pct}%`;
-      knob.style.left = `${pct}%`;
+      const step = Math.round(pct * 10) / 10;
+      if (step !== paintedStep) {
+        paintedStep = step;
+        const value = `${step}%`;
+        fill.style.width = value;
+        knob.style.left = value;
+      }
     }
-    timeTotal.textContent = fmtTime(duration);
-    scrub.setAttribute('aria-valuemax', String(Math.floor(duration)));
-    if (!dragging) scrub.setAttribute('aria-valuenow', String(Math.floor(time)));
+    const total = fmtTime(duration);
+    if (total !== paintedTotal) {
+      paintedTotal = total;
+      timeTotal.textContent = total;
+    }
+    const maxLabel = String(Math.floor(duration));
+    if (maxLabel !== paintedMax) {
+      paintedMax = maxLabel;
+      scrub.setAttribute('aria-valuemax', maxLabel);
+    }
+    if (!dragging) {
+      const nowLabel = String(Math.floor(time));
+      if (nowLabel !== paintedNow) {
+        paintedNow = nowLabel;
+        scrub.setAttribute('aria-valuenow', nowLabel);
+      }
+    }
     const now = performance.now();
     if (now - lastProgressSent > 300) {
       lastProgressSent = now;

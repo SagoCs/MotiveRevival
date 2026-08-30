@@ -641,7 +641,7 @@
 
 #palette-field {
   position: absolute;
-  inset: -8%;
+  inset: -30%;
   z-index: 0;
   background: linear-gradient(
     118deg,
@@ -650,16 +650,17 @@
     var(--p3, #6ee7d8) 100%
   );
   background-size: 230% 230%;
-  opacity: calc(0.14 + var(--mid) * 0.6);
-  filter: blur(70px) saturate(calc(1.1 + var(--bass) * 0.9));
-  transform: scale(calc(1.02 + var(--bass) * 0.05));
-  animation: palette-pan 26s ease-in-out infinite alternate;
+  background-position: 50% 50%;
+  opacity: calc(0.14 + var(--mid) * 0.45);
+  filter: blur(70px) saturate(1.2);
+  scale: calc(1.02 + var(--bass) * 0.05);
+  animation: field-drift 26s ease-in-out infinite alternate;
   pointer-events: none;
 }
 
-@keyframes palette-pan {
-  from { background-position: 0% 30%; }
-  to { background-position: 100% 70%; }
+@keyframes field-drift {
+  from { translate: -7% 4%; }
+  to { translate: 7% -4%; }
 }
 
 #stage {
@@ -1242,7 +1243,7 @@ body:has(#playlist-layer.open) #bottom-bar::before {
 
 #overlay-field {
   position: absolute;
-  inset: -8%;
+  inset: -30%;
   background: linear-gradient(
     118deg,
     var(--p1, #7c74e0) 0%,
@@ -1250,10 +1251,11 @@ body:has(#playlist-layer.open) #bottom-bar::before {
     var(--p3, #6ee7d8) 100%
   );
   background-size: 230% 230%;
-  opacity: calc(0.1 + var(--mid) * 0.55);
-  filter: blur(80px) saturate(calc(1.15 + var(--bass)));
-  transform: scale(calc(1.03 + var(--bass) * 0.06));
-  animation: palette-pan 32s ease-in-out infinite alternate reverse;
+  background-position: 50% 50%;
+  opacity: calc(0.1 + var(--mid) * 0.45);
+  filter: blur(80px) saturate(1.25);
+  scale: calc(1.03 + var(--bass) * 0.06);
+  animation: field-drift 32s ease-in-out infinite alternate reverse;
   pointer-events: none;
 }
 
@@ -1261,7 +1263,7 @@ body:has(#playlist-layer.open) #bottom-bar::before {
   width: min(46vh, 420px);
   height: min(46vh, 420px);
   color: var(--moon);
-  filter: drop-shadow(0 0 calc(30px + var(--mid) * 50px) rgba(167, 177, 255, 0.3));
+  filter: drop-shadow(0 0 55px rgba(167, 177, 255, 0.3));
   animation: sigil-spin 120s linear infinite reverse;
   scale: calc(1 + var(--bass) * 0.05);
   display: flex;
