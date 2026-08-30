@@ -300,7 +300,7 @@ function spawnMote(px: number, py: number, vx: number, vy: number, ttl: number, 
 }
 
 function spawnTrailMote(dx: number, dy: number): void {
-  if (inDrag || trailCanvas === null) return;
+  if (inDrag || !fx.lantern || trailCanvas === null) return;
   const star = Math.random() < 0.5;
   const size = star
     ? STAR_SIZE_MIN + Math.random() * (STAR_SIZE_MAX - STAR_SIZE_MIN)
@@ -338,7 +338,7 @@ function spawnTrailMote(dx: number, dy: number): void {
 }
 
 function spawnBurst(): void {
-  if (inDrag || trailCanvas === null) return;
+  if (inDrag || !fx.lantern || trailCanvas === null) return;
   const count = BURST_MIN + Math.floor(Math.random() * BURST_SPREAD);
   for (let i = 0; i < count; i++) {
     const angle = Math.random() * Math.PI * 2;
@@ -360,6 +360,7 @@ function spawnBurst(): void {
 }
 
 function ribbonSample(px: number, py: number): void {
+  if (!fx.lantern) return;
   const slot = ribbon[ribbonWrite % RIBBON_POINTS];
   if (slot === undefined) return;
   slot.x = px;
@@ -528,7 +529,7 @@ function frame(ts: number): void {
 }
 
 function applyActive(): void {
-  const on = enabled && fx.lantern;
+  const on = enabled;
   if (on === active) return;
   active = on;
   document.documentElement.classList.toggle('particle-cursor', on);
@@ -575,7 +576,8 @@ export const lantern = {
 
     const style = document.createElement('style');
     style.textContent =
-      'html.particle-cursor, html.particle-cursor body, html.particle-cursor body *:not(input):not(textarea) { cursor: none !important; }' +
+      'html.particle-cursor, html.particle-cursor body, html.particle-cursor body * { cursor: none !important; }' +
+      "html.particle-cursor body input[type='text'], html.particle-cursor body input[type='search'], html.particle-cursor body input[type='email'], html.particle-cursor body input[type='url'], html.particle-cursor body input[type='password'], html.particle-cursor body input[type='number'], html.particle-cursor body textarea { cursor: text !important; }" +
       `#lantern-canvas { position: fixed; left: 0; top: 0; z-index: ${CANVAS_Z}; pointer-events: none; will-change: transform, opacity; }` +
       `#lantern-trail { position: fixed; inset: 0; z-index: ${TRAIL_Z}; pointer-events: none; }`;
     document.head.append(style);

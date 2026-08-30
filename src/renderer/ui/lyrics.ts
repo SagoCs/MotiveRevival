@@ -102,7 +102,7 @@ export function createLyrics(
     const first = lineEls[0];
     const last = lineEls[lineEls.length - 1];
     if (first === undefined || last === undefined || vpH === 0) return { min: 0, max: 0 };
-    const min = Math.max(0, first.offsetTop - vpH * 0.15);
+    const min = Math.max(0, first.offsetTop - vpH * anchorRatio + first.offsetHeight / 2);
     const max = Math.max(min, last.offsetTop + last.offsetHeight + vpH * 0.35 - vpH);
     return { min, max };
   }
