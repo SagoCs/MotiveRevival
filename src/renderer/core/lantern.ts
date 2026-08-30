@@ -19,6 +19,7 @@ const CANVAS_Z = 999999;
 const EASE = 0.3;
 const CONVERGED = 0.01;
 const VISIBLE_FLOOR = 0.02;
+const ACCENT_CHASE_MS = 850;
 
 let canvas: HTMLCanvasElement | null = null;
 let ctx: CanvasRenderingContext2D | null = null;
@@ -29,9 +30,11 @@ let x = -1000;
 let y = -1000;
 let alpha = 0;
 let inside = false;
+let inDrag = false;
 let state: LanternStateId = 'default';
 let accent = '';
 let dpr = 0;
+let chaseUntil = 0;
 const sprites = new Map<string, HTMLCanvasElement>();
 const pending = new Set<string>();
 
@@ -122,14 +125,27 @@ function rearm(): void {
   if (raf === 0) raf = requestAnimationFrame(frame);
 }
 
-function frame(): void {
-  raf = 0;
-  if (!active || ctx === null || canvas === null) return;
-  const under = document.elementFromPoint(x, y);
-  const inDrag =
+function reevaluate(under: Element | null): void {
+  const now =
     under !== null &&
     under.closest('.window-drag') !== null &&
     under.closest('.no-drag') === null;
+  if (now === inDrag) return;
+  inDrag = now;
+  rearm();
+}
+
+function frame(): void {
+  raf = 0;
+  if (!active || ctx === null || canvas === null) return;
+  if (performance.now() < chaseUntil) {
+    const next = readAccent();
+    if (next !== accent) {
+      accent = next;
+      rebuildSprites();
+    }
+    rearm();
+  }
   const target = inside && !inDrag ? 1 : 0;
   alpha += (target - alpha) * EASE;
   if (Math.abs(target - alpha) < CONVERGED) alpha = target;
@@ -154,7 +170,10 @@ function applyActive(): void {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     alpha = 0;
   }
-  if (on) rearm();
+  if (on) {
+    chaseUntil = performance.now() + 100;
+    rearm();
+  }
 }
 
 function measure(): void {
@@ -188,6 +207,7 @@ export const lantern = {
       x = e.clientX;
       y = e.clientY;
       inside = true;
+      reevaluate(e.target instanceof Element ? e.target : null);
       rearm();
     }, { passive: true });
 
@@ -209,16 +229,21 @@ export const lantern = {
         accent = readAccent();
         rebuildSprites();
       }
+      reevaluate(document.elementFromPoint(x, y));
       rearm();
     });
 
     new MutationObserver(() => {
-      const next = readAccent();
-      if (next === accent) return;
-      accent = next;
-      rebuildSprites();
+      chaseUntil = performance.now() + ACCENT_CHASE_MS;
       rearm();
     }).observe(document.documentElement, { attributes: true, attributeFilter: ['style'] });
+
+    const topbar = document.getElementById('topbar');
+    if (topbar !== null) {
+      new MutationObserver(() => {
+        reevaluate(document.elementFromPoint(x, y));
+      }).observe(topbar, { attributes: true, attributeFilter: ['class'] });
+    }
 
     window.addEventListener('keydown', (e) => {
       if (e.key === 'F8') {
