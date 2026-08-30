@@ -20,7 +20,7 @@ const EASE = 0.3;
 const CONVERGED = 0.01;
 const VISIBLE_FLOOR = 0.02;
 const ACCENT_CHASE_MS = 850;
-const MOTE_CAP = 28;
+const MOTE_CAP = 40;
 const MOTE_FLANKED = true;
 const MOTE_TRAVEL_MIN = 14;
 const MOTE_TRAVEL_MAX = 24;
@@ -67,6 +67,7 @@ interface Mote {
   y: number;
   vx: number;
   vy: number;
+  damp: number;
   life: number;
   ttl: number;
   size: number;
@@ -116,6 +117,14 @@ function buildGlow(size: number, tone: string, ratio: number): HTMLCanvasElement
   g.fillRect(0, 0, s.width, s.height);
   g.globalAlpha = 1;
   g.globalCompositeOperation = 'source-over';
+  const bloom = g.createRadialGradient(r, r, 0, r, r, r * 0.8);
+  bloom.addColorStop(0, 'rgba(255,255,255,0.3)');
+  bloom.addColorStop(0.55, 'rgba(255,255,255,0.12)');
+  bloom.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = bloom;
+  g.beginPath();
+  g.arc(r, r, r * 0.8, 0, Math.PI * 2);
+  g.fill();
   const core = g.createRadialGradient(r, r, 0, r, r, r * 0.55);
   core.addColorStop(0, 'rgba(255,255,255,0.95)');
   core.addColorStop(0.5, 'rgba(255,255,255,0.55)');
@@ -176,7 +185,7 @@ function currentSprite(): HTMLCanvasElement | null {
   return sprites.get(`${state}|${accent}|${dpr}`) ?? null;
 }
 
-function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
+export function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
   const rn = r / 255;
   const gn = g / 255;
   const bn = b / 255;
@@ -193,7 +202,7 @@ function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
   return [h, s, l];
 }
 
-function hslToRgb(h: number, s: number, l: number): [number, number, number] {
+export function hslToRgb(h: number, s: number, l: number): [number, number, number] {
   const a = s * Math.min(l, 1 - l);
   const f = (n: number): number => {
     const k = (n + h / 30) % 12;
@@ -217,6 +226,11 @@ function accentRgb(): [number, number, number] {
   return [d[0] ?? 0, d[1] ?? 0, d[2] ?? 0];
 }
 
+export function songAccentHsl(): [number, number, number] {
+  const [r, g, b] = accentRgb();
+  return rgbToHsl(r, g, b);
+}
+
 function starPath(c: CanvasRenderingContext2D, r: number): void {
   const w = r * 0.2;
   c.moveTo(0, -r);
@@ -228,36 +242,50 @@ function starPath(c: CanvasRenderingContext2D, r: number): void {
 
 function makeRoundSprite(r: number, g: number, b: number): HTMLCanvasElement {
   const s = document.createElement('canvas');
-  s.width = 40;
-  s.height = 40;
+  s.width = 48;
+  s.height = 48;
   const c = s.getContext('2d');
   if (c === null) return s;
-  const grad = c.createRadialGradient(20, 20, 0, 20, 20, 20);
+  const grad = c.createRadialGradient(24, 24, 0, 24, 24, 24);
   grad.addColorStop(0, `rgba(${r}, ${g}, ${b}, 1)`);
-  grad.addColorStop(0.5, `rgba(${r}, ${g}, ${b}, 0.85)`);
+  grad.addColorStop(0.4, `rgba(${r}, ${g}, ${b}, 0.92)`);
+  grad.addColorStop(0.75, `rgba(${r}, ${g}, ${b}, 0.38)`);
   grad.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
   c.fillStyle = grad;
   c.beginPath();
-  c.arc(20, 20, 20, 0, Math.PI * 2);
+  c.arc(24, 24, 24, 0, Math.PI * 2);
   c.fill();
   return s;
 }
 
 function makeStarSprite(r: number, g: number, b: number): HTMLCanvasElement {
   const s = document.createElement('canvas');
-  s.width = 40;
-  s.height = 40;
+  s.width = 48;
+  s.height = 48;
   const c = s.getContext('2d');
   if (c === null) return s;
-  c.translate(20, 20);
-  c.fillStyle = `rgba(${r}, ${g}, ${b}, 0.9)`;
+  c.translate(24, 24);
+  c.filter = 'blur(4px)';
+  c.fillStyle = `rgba(${r}, ${g}, ${b}, 0.6)`;
   c.beginPath();
   starPath(c, 17);
   c.closePath();
   c.fill();
-  c.fillStyle = 'rgba(255, 255, 255, 0.28)';
+  c.filter = 'blur(1.5px)';
+  c.fillStyle = `rgba(${r}, ${g}, ${b}, 0.85)`;
   c.beginPath();
-  starPath(c, 7);
+  starPath(c, 19);
+  c.closePath();
+  c.fill();
+  c.filter = 'none';
+  c.fillStyle = `rgba(${r}, ${g}, ${b}, 0.95)`;
+  c.beginPath();
+  starPath(c, 19);
+  c.closePath();
+  c.fill();
+  c.fillStyle = 'rgba(255, 255, 255, 0.32)';
+  c.beginPath();
+  starPath(c, 8);
   c.closePath();
   c.fill();
   return s;
@@ -279,7 +307,7 @@ function buildMoteSprites(): void {
   }
 }
 
-function spawnMote(px: number, py: number, vx: number, vy: number, ttl: number, size: number, star: boolean): void {
+function spawnMote(px: number, py: number, vx: number, vy: number, ttl: number, size: number, star: boolean, damp: number): void {
   const pool = star ? starVariants : roundVariants;
   if (pool.length === 0) return;
   const m = motes[moteIndex % MOTE_CAP];
@@ -291,6 +319,7 @@ function spawnMote(px: number, py: number, vx: number, vy: number, ttl: number, 
   m.y = py;
   m.vx = vx;
   m.vy = vy;
+  m.damp = damp;
   m.life = 0;
   m.ttl = ttl;
   m.size = size;
@@ -323,6 +352,7 @@ function spawnTrailMote(dx: number, dy: number): void {
       MOTE_TTL_MIN + Math.random() * (MOTE_TTL_MAX - MOTE_TTL_MIN),
       size,
       star,
+      MOTE_DAMP,
     );
   } else {
     spawnMote(
@@ -333,6 +363,7 @@ function spawnTrailMote(dx: number, dy: number): void {
       MOTE_TTL_MIN + Math.random() * (MOTE_TTL_MAX - MOTE_TTL_MIN),
       size,
       star,
+      MOTE_DAMP,
     );
   }
 }
@@ -355,6 +386,7 @@ function spawnBurst(): void {
       BURST_TTL_MIN + Math.random() * (BURST_TTL_MAX - BURST_TTL_MIN),
       size,
       star,
+      MOTE_DAMP,
     );
   }
 }
@@ -377,7 +409,6 @@ function drawTrail(dt: number): boolean {
   let y0 = Infinity;
   let x1 = -Infinity;
   let y1 = -Infinity;
-  const damp = Math.exp(-MOTE_DAMP * dt);
   for (const m of motes) {
     if (m.ttl <= 0 || m.sprite === null) continue;
     m.life += dt;
@@ -388,6 +419,7 @@ function drawTrail(dt: number): boolean {
     alive = true;
     m.x += m.vx * dt;
     m.y += m.vy * dt;
+    const damp = Math.exp(-m.damp * dt);
     m.vx *= damp;
     m.vy *= damp;
     m.rot += m.spin * dt;
@@ -566,7 +598,7 @@ export const lantern = {
     if (trailCtx !== null) trailCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
     document.body.append(trailCanvas);
     for (let i = 0; i < MOTE_CAP; i++) {
-      motes.push({ x: 0, y: 0, vx: 0, vy: 0, life: 0, ttl: 0, size: 0, rot: 0, spin: 0, sprite: null });
+      motes.push({ x: 0, y: 0, vx: 0, vy: 0, damp: MOTE_DAMP, life: 0, ttl: 0, size: 0, rot: 0, spin: 0, sprite: null });
     }
     for (let i = 0; i < RIBBON_POINTS; i++) {
       ribbon.push({ x: 0, y: 0, born: -1 });
@@ -669,6 +701,38 @@ export const lantern = {
     if (STATE_SPECS[id] === undefined || id === state) return;
     state = id;
     rearm();
+  },
+
+  streamMote(px: number, py: number, side: number): void {
+    if (trailCanvas === null || !fx.lantern) return;
+    const speed = 70 + Math.random() * 100;
+    spawnMote(
+      px + (Math.random() - 0.5) * 6,
+      py + (Math.random() - 0.5 + Math.random() - 0.5) * 32,
+      side * speed,
+      (Math.random() - 0.5) * 30,
+      2.8 + Math.random() * 1.2,
+      4.5 + Math.random() * 4,
+      Math.random() < 0.5,
+      1.1 + Math.random() * 0.3,
+    );
+  },
+
+  burstMotes(px: number, py: number, side: number, strength: number): void {
+    if (trailCanvas === null || !fx.lantern) return;
+    const count = 2 + (strength > 0.6 ? 1 : 0);
+    for (let i = 0; i < count; i++) {
+      spawnMote(
+        px + (Math.random() - 0.5) * 14,
+        py + (Math.random() - 0.5) * 30,
+        side * ((40 + Math.random() * 30) * (0.7 + strength * 0.5)),
+        (Math.random() - 0.5) * 24,
+        1.8 + Math.random() * 0.7,
+        5 + Math.random() * 4.5,
+        Math.random() < 0.5,
+        MOTE_DAMP,
+      );
+    }
   },
 
   sync(): void {

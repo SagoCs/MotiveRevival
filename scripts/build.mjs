@@ -32,8 +32,8 @@ await Promise.all([
     target: 'chrome126',
     format: 'iife',
     outfile: 'dist/renderer.js',
-    loader: { '.woff': 'file', '.woff2': 'file' },
-    assetNames: 'fonts/[name]',
+    loader: { '.woff': 'file', '.woff2': 'file', '.svg': 'file', '.png': 'file' },
+    assetNames: 'assets/[name]-[hash]',
   }),
 ]);
 

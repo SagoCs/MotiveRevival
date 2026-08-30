@@ -12,6 +12,7 @@ import { appBus } from './core/appBus';
 import type { IndexedTrack } from '../shared/types';
 import { libraryStore } from './core/libraryStore';
 import { applyMotionFlags, applyLyricSize, applyTimelineLyricSize } from './core/fx';
+import { onMoment } from './core/moments';
 import { enqueueIdle } from './core/peakAnalyzer';
 import { lantern } from './core/lantern';
 import { fatal } from './core/dom';
@@ -21,6 +22,7 @@ import { initOverlay } from './ui/overlay';
 import { initSettingsPanel, applyLyricsLayout } from './ui/settings';
 import { createTransport } from './ui/transport';
 import { initWindowControls } from './ui/windowControls';
+import { initArrowMarkers } from './ui/arrowMarkers';
 
 window.addEventListener('error', (e) => {
   fatal(`Uncaught: ${e.message}`);
@@ -44,6 +46,31 @@ function boot(): void {
     document.getElementById('topbar')?.classList.toggle('window-drag', !maximizedOrFullscreen);
   });
   lantern.init();
+  initArrowMarkers();
+
+  const arrowAnchor = (side: number): { x: number; y: number } | null => {
+    const row = document.querySelector<HTMLElement>('.song-row.playing');
+    if (row === null) return null;
+    const rect = row.getBoundingClientRect();
+    if (rect.bottom < 0 || rect.top > window.innerHeight) return null;
+    return { x: side < 0 ? rect.left - 54 : rect.right + 54, y: rect.top + rect.height / 2 };
+  };
+
+  window.setInterval(() => {
+    if (!player.playing) return;
+    for (const side of [-1, 1]) {
+      const a = arrowAnchor(side);
+      if (a !== null) lantern.streamMote(a.x, a.y, side);
+    }
+  }, 330);
+
+  onMoment((strength) => {
+    for (const side of [-1, 1]) {
+      const a = arrowAnchor(side);
+      if (a === null) continue;
+      lantern.burstMotes(a.x, a.y, side, strength);
+    }
+  });
 
   const transportHost = document.getElementById('transport-host');
   const transport = transportHost !== null ? createTransport(transportHost) : null;

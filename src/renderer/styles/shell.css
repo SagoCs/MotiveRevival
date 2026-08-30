@@ -512,7 +512,7 @@
   margin: 0 auto 10px;
   padding: 9px 16px;
   height: 96px;
-  overflow: hidden;
+  overflow: visible;
   will-change: transform;
   border-radius: 14px;
   border: 1px solid rgba(199, 205, 244, 0.1);
@@ -531,6 +531,33 @@
 
 .song-row.playing {  border-color: color-mix(in srgb, var(--acc-b) 55%, transparent);
   background: color-mix(in srgb, var(--acc-a) 10%, rgba(12, 17, 34, 0.5));
+}
+
+.song-row {
+  position: relative;
+}
+
+.song-row.playing::before,
+.song-row.playing::after {
+  content: '';
+  position: absolute;
+  top: calc(50% - 32px);
+  width: calc(64px * var(--arrow-aspect, 0.6));
+  height: 64px;
+  background: var(--arrow-marker, none) center / contain no-repeat;
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--acc-glow) 70%, transparent))
+    drop-shadow(0 0 14px color-mix(in srgb, var(--acc-glow) 45%, transparent));
+  pointer-events: none;
+  opacity: 0.9;
+}
+
+.song-row.playing::before {
+  right: calc(100% + 26px);
+}
+
+.song-row.playing::after {
+  left: calc(100% + 26px);
+  scale: -1 1;
 }
 
 .song-row.preview-pending,

@@ -863,11 +863,9 @@ function markPreview(className: 'preview-pending' | 'previewing', trackId: strin
 function attachPreview(row: HTMLElement, track: import('../../shared/types').IndexedTrack): void {
   row.addEventListener('mouseenter', () => {
     preview.hoverEnter(track);
-    if (!carousel.busy()) uiTheme.pushPreview(track.palette);
   });
   row.addEventListener('mouseleave', () => {
     preview.hoverLeave();
-    if (!carousel.busy()) uiTheme.popPreview();
   });
 }
 
