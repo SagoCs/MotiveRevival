@@ -37,3 +37,7 @@ export function applyMotionFlags(settings: {
 export function applyLyricSize(size: LyricSize | undefined): void {
   document.documentElement.style.setProperty('--lyric-scale', LYRIC_SCALE[size ?? 'm']);
 }
+
+export function applyTimelineLyricSize(size: LyricSize | undefined): void {
+  document.documentElement.style.setProperty('--timeline-lyric-scale', LYRIC_SCALE[size ?? 'm']);
+}

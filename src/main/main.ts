@@ -221,6 +221,9 @@ function registerIpc(): void {
       'autoFetchLyrics',
       'lyricsSaveBeside',
       'lyricSize',
+      'timelineLyricSize',
+      'lyricAlign',
+      'lyricPane',
       'nowPlayingView',
     ];
     for (const key of keys) {

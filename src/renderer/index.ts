@@ -11,14 +11,14 @@ import { player } from './core/player';
 import { appBus } from './core/appBus';
 import type { IndexedTrack } from '../shared/types';
 import { libraryStore } from './core/libraryStore';
-import { applyMotionFlags, applyLyricSize } from './core/fx';
+import { applyMotionFlags, applyLyricSize, applyTimelineLyricSize } from './core/fx';
 import { enqueueIdle } from './core/peakAnalyzer';
 import { lantern } from './core/lantern';
 import { fatal } from './core/dom';
 import { ICON_PAUSE, ICON_NEXT, ICON_PLAY, ICON_PREV } from './ui/icons';
 import { initBrowser } from './ui/browser';
 import { initOverlay } from './ui/overlay';
-import { initSettingsPanel } from './ui/settings';
+import { initSettingsPanel, applyLyricsLayout } from './ui/settings';
 import { createTransport } from './ui/transport';
 import { initWindowControls } from './ui/windowControls';
 
@@ -54,6 +54,8 @@ function boot(): void {
   void window.mr.getSettings().then((s) => {
     applyMotionFlags(s);
     applyLyricSize(s.lyricSize);
+    applyTimelineLyricSize(s.timelineLyricSize);
+    applyLyricsLayout(s.lyricAlign, s.lyricPane);
     player.setVolume(typeof s.volume === 'number' ? Math.min(1, Math.max(0, s.volume)) : 1);
   });
 

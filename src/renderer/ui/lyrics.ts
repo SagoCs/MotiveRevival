@@ -35,6 +35,7 @@ export function createLyrics(
   container.append(status, viewport);
 
   let trackKey: string | null = null;
+  let resolved: LyricsState = 'idle';
   let parsed: ParsedLrc | null = null;
   let lineEls: HTMLElement[] = [];
   let activeIdx = -2;
@@ -101,7 +102,7 @@ export function createLyrics(
     const first = lineEls[0];
     const last = lineEls[lineEls.length - 1];
     if (first === undefined || last === undefined || vpH === 0) return { min: 0, max: 0 };
-    const min = Math.max(0, first.offsetTop - vpH * 0.35);
+    const min = Math.max(0, first.offsetTop - vpH * 0.15);
     const max = Math.max(min, last.offsetTop + last.offsetHeight + vpH * 0.35 - vpH);
     return { min, max };
   }
@@ -120,7 +121,7 @@ export function createLyrics(
 
   function centerOn(index: number): void {
     if (index < 0 || index >= lineEls.length) {
-      applyY(0);
+      applyY(bounds().min);
       return;
     }
     const target = lineEls[index];
@@ -183,18 +184,26 @@ export function createLyrics(
     if (!parked) centerOn(idx);
   });
 
+  function emitResolved(state: LyricsState): void {
+    resolved = state;
+    onResolved?.(state);
+  }
+
   async function setTrack(track: IndexedTrack | null): Promise<void> {
     if (track === null) {
       trackKey = null;
       reset('—');
-      onResolved?.('idle');
+      emitResolved('idle');
       return;
     }
     const key = track.id;
-    if (key === trackKey) return;
+    if (key === trackKey) {
+      onResolved?.(resolved);
+      return;
+    }
     trackKey = key;
     reset('Consulting the archives…');
-    onResolved?.('loading');
+    emitResolved('loading');
 
     let result;
     try {
@@ -208,7 +217,7 @@ export function createLyrics(
     } catch {
       if (trackKey !== key) return;
       reset('The archives are silent.');
-      onResolved?.('none');
+      emitResolved('none');
       return;
     }
 
@@ -216,20 +225,20 @@ export function createLyrics(
 
     if (!result.ok) {
       reset('No lyrics found.');
-      onResolved?.('none');
+      emitResolved('none');
       return;
     }
 
     if (!result.synced) {
       renderPlain(result.text);
       setStatus('');
-      onResolved?.('plain');
+      emitResolved('plain');
       return;
     }
 
     renderSynced(parseLrc(result.text));
     setStatus('');
-    onResolved?.('synced');
+    emitResolved('synced');
   }
 
   return { setTrack };

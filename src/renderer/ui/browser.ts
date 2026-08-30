@@ -744,9 +744,11 @@ function albumCard(album: AlbumEntry): HTMLElement {
   meta.append(title, sub);
 
   card.append(art, meta);
+  // Owner toggle: false returns single-song albums to direct-play without opening the stage.
+  const openSingleStage = true;
   card.addEventListener('click', () => {
     if (carousel.wasDrag()) return;
-    if (album.tracks.length === 1) {
+    if (!openSingleStage && album.tracks.length === 1) {
       player.setContext(album.tracks, 0);
       return;
     }

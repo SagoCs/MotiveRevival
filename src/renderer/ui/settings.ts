@@ -1,5 +1,14 @@
 ﻿import { ICON_BACK, ICON_CLOSE, ICON_SETTINGS } from './icons';
-import { fx, applyMotionFlags, applyLyricSize } from '../core/fx';
+import { fx, applyMotionFlags, applyLyricSize, applyTimelineLyricSize } from '../core/fx';
+
+export function applyLyricsLayout(align?: 'left' | 'middle' | 'right', pane?: 'left' | 'right'): void {
+  const overlay = document.getElementById('overlay');
+  if (overlay === null) return;
+  overlay.classList.toggle('align-left', align === 'left');
+  overlay.classList.toggle('align-middle', align === 'middle');
+  overlay.classList.toggle('align-right', align === 'right');
+  overlay.classList.toggle('pane-left', pane === 'left');
+}
 
 export function initSettingsPanel(onLibraryChanged: () => void): void {
   const must = <T extends Element>(sel: string): T => {
@@ -27,6 +36,9 @@ export function initSettingsPanel(onLibraryChanged: () => void): void {
   const autofetchToggle = must<HTMLInputElement>('#set-autofetch');
   const savebesideToggle = must<HTMLInputElement>('#set-savebeside');
   const sizeSeg = must<HTMLElement>('#lyric-size-seg');
+  const alignSeg = must<HTMLElement>('#lyric-align-seg');
+  const paneSeg = must<HTMLElement>('#lyric-pane-seg');
+  const timelineSizeSeg = must<HTMLElement>('#timeline-size-seg');
 
   if (
     modal === null ||
@@ -139,6 +151,16 @@ export function initSettingsPanel(onLibraryChanged: () => void): void {
     for (const btn of sizeSeg.querySelectorAll<HTMLButtonElement>('button')) {
       btn.classList.toggle('active', btn.dataset['size'] === (settings.lyricSize ?? 'm'));
     }
+    for (const btn of alignSeg.querySelectorAll<HTMLButtonElement>('button')) {
+      btn.classList.toggle('active', btn.dataset['align'] === (settings.lyricAlign ?? 'left'));
+    }
+    for (const btn of paneSeg.querySelectorAll<HTMLButtonElement>('button')) {
+      btn.classList.toggle('active', btn.dataset['pane'] === (settings.lyricPane ?? 'right'));
+    }
+    for (const btn of timelineSizeSeg.querySelectorAll<HTMLButtonElement>('button')) {
+      btn.classList.toggle('active', btn.dataset['tsize'] === (settings.timelineLyricSize ?? 'm'));
+    }
+    applyLyricsLayout(settings.lyricAlign, settings.lyricPane);
   }
 
   function showView(libraries: boolean): void {
@@ -219,6 +241,42 @@ export function initSettingsPanel(onLibraryChanged: () => void): void {
       applyLyricSize(s.lyricSize);
       for (const b of sizeSeg.querySelectorAll<HTMLButtonElement>('button')) {
         b.classList.toggle('active', b.dataset['size'] === (s.lyricSize ?? 'm'));
+      }
+    });
+  });
+
+  alignSeg.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement | null)?.closest<HTMLButtonElement>('button[data-align]') ?? null;
+    if (btn === null) return;
+    const align = btn.dataset['align'] as 'left' | 'middle' | 'right';
+    void window.mr.updateSettings({ lyricAlign: align }).then((s) => {
+      applyLyricsLayout(s.lyricAlign, s.lyricPane);
+      for (const b of alignSeg.querySelectorAll<HTMLButtonElement>('button')) {
+        b.classList.toggle('active', b.dataset['align'] === (s.lyricAlign ?? 'left'));
+      }
+    });
+  });
+
+  paneSeg.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement | null)?.closest<HTMLButtonElement>('button[data-pane]') ?? null;
+    if (btn === null) return;
+    const pane = btn.dataset['pane'] as 'left' | 'right';
+    void window.mr.updateSettings({ lyricPane: pane }).then((s) => {
+      applyLyricsLayout(s.lyricAlign, s.lyricPane);
+      for (const b of paneSeg.querySelectorAll<HTMLButtonElement>('button')) {
+        b.classList.toggle('active', b.dataset['pane'] === (s.lyricPane ?? 'right'));
+      }
+    });
+  });
+
+  timelineSizeSeg.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement | null)?.closest<HTMLButtonElement>('button[data-tsize]') ?? null;
+    if (btn === null) return;
+    const size = btn.dataset['tsize'] as 's' | 'm' | 'l';
+    void window.mr.updateSettings({ timelineLyricSize: size }).then((s) => {
+      applyTimelineLyricSize(s.timelineLyricSize);
+      for (const b of timelineSizeSeg.querySelectorAll<HTMLButtonElement>('button')) {
+        b.classList.toggle('active', b.dataset['tsize'] === (s.timelineLyricSize ?? 'm'));
       }
     });
   });

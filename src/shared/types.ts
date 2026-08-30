@@ -32,6 +32,9 @@ export interface Settings {
   autoFetchLyrics?: boolean;
   lyricsSaveBeside?: boolean;
   lyricSize?: LyricSize;
+  timelineLyricSize?: LyricSize;
+  lyricAlign?: 'left' | 'middle' | 'right';
+  lyricPane?: 'left' | 'right';
   nowPlayingView?: NowPlayingView;
   volume?: number;
 }

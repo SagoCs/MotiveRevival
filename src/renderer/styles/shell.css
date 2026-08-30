@@ -1084,7 +1084,7 @@
   background: color-mix(in srgb, var(--void-2) 88%, transparent);
   color: var(--lyric-line, var(--moon));
   font-family: var(--font-body);
-  font-size: 16px;
+  font-size: calc(16px * var(--timeline-lyric-scale, 1));
   font-weight: 300;
   letter-spacing: 0.04em;
   line-height: 22px;
@@ -1732,9 +1732,10 @@ body:has(#playlist-layer.open) #bottom-bar::before {
 }
 #overlay-meta {
   margin-top: 8px;
-  font-size: 11px;
+  font-size: 13px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
+  color: var(--moon-bright);
 }
 
 #overlay.lyrics-mode #overlay-meta {
@@ -2451,18 +2452,47 @@ body:has(#playlist-layer.open) #bottom-bar::before {
   justify-items: center;
 }
 
+#overlay.lyrics-mode {
+  --lyric-col-w: min(1080px, 92vw);
+}
+
 #overlay.lyrics-mode #overlay-lyrics {
-  width: min(760px, 86vw);
+  width: var(--lyric-col-w, min(760px, 86vw));
   max-width: none;
   border-left: none;
   padding: 8px 12px;
+}
+
+#overlay.align-middle .lyric-line {
+  text-align: center;
+}
+
+#overlay.align-right .lyric-line {
+  text-align: right;
+}
+
+#overlay.pane-left.with-lyrics:not(.lyrics-mode) #overlay-body {
+  grid-template-columns: minmax(300px, 40%) minmax(0, 1.2fr);
+}
+
+#overlay.pane-left.with-lyrics:not(.lyrics-mode) #overlay-main {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+#overlay.pane-left.with-lyrics:not(.lyrics-mode) #overlay-lyrics {
+  grid-column: 1;
+  grid-row: 1;
+  border-left: none;
+  border-right: 1px solid rgba(199, 205, 244, 0.1);
+  padding: 8px 22px 8px 6px;
 }
 
 .lyrics-zone {
   position: absolute;
   top: 0;
   bottom: var(--bottom-h);
-  width: calc((100% - min(760px, 86vw)) / 2);
+  width: calc((100% - var(--lyric-col-w, min(760px, 86vw))) / 2);
   display: none;
   z-index: 2;
 }
