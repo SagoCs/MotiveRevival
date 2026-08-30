@@ -549,15 +549,35 @@
     drop-shadow(0 0 14px color-mix(in srgb, var(--acc-glow) 45%, transparent));
   pointer-events: none;
   opacity: 0.9;
+  animation: song-marker-in 450ms var(--ease-drift) 250ms both;
 }
 
 .song-row.playing::before {
   right: calc(100% + 26px);
+  translate: 10px 0;
 }
 
 .song-row.playing::after {
   left: calc(100% + 26px);
+  translate: -10px 0;
   scale: -1 1;
+}
+
+@keyframes song-marker-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 0.9;
+    translate: 0 0;
+  }
+}
+
+.no-motion .song-row.playing::before,
+.no-motion .song-row.playing::after {
+  animation: none;
+  opacity: 0.9;
+  translate: 0 0;
 }
 
 .song-row.preview-pending,

@@ -7,7 +7,7 @@ let quietTimer = 0;
 
 function scheduleRetint(): void {
   window.clearTimeout(quietTimer);
-  quietTimer = window.setTimeout(retint, 750);
+  quietTimer = window.setTimeout(retint, 250);
 }
 
 function buildCrop(): void {
