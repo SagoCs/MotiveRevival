@@ -13,6 +13,7 @@ import type { IndexedTrack } from '../shared/types';
 import { libraryStore } from './core/libraryStore';
 import { applyMotionFlags, applyLyricSize } from './core/fx';
 import { enqueueIdle } from './core/peakAnalyzer';
+import { lantern } from './core/lantern';
 import { fatal } from './core/dom';
 import { ICON_PAUSE, ICON_NEXT, ICON_PLAY, ICON_PREV } from './ui/icons';
 import { initBrowser } from './ui/browser';
@@ -20,7 +21,6 @@ import { initOverlay } from './ui/overlay';
 import { initSettingsPanel } from './ui/settings';
 import { createTransport } from './ui/transport';
 import { initWindowControls } from './ui/windowControls';
-import { initParticleTest } from './ui/particle-test';
 
 window.addEventListener('error', (e) => {
   fatal(`Uncaught: ${e.message}`);
@@ -43,7 +43,7 @@ function boot(): void {
   window.mr.onWindowState(({ maximizedOrFullscreen }) => {
     document.getElementById('topbar')?.classList.toggle('window-drag', !maximizedOrFullscreen);
   });
-  initParticleTest();
+  lantern.init();
 
   const transportHost = document.getElementById('transport-host');
   const transport = transportHost !== null ? createTransport(transportHost) : null;
