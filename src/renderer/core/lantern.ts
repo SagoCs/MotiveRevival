@@ -1,7 +1,7 @@
 import { fx } from './fx';
 import { appBus } from './appBus';
 
-type LanternStateId = 'default';
+type LanternStateId = 'default' | 'converge';
 
 interface LanternSpriteSpec {
   svg: string | null;
@@ -10,8 +10,12 @@ interface LanternSpriteSpec {
 }
 
 const STATE_SPECS: Record<LanternStateId, LanternSpriteSpec> = {
-  default: { svg: null, size: 48, hotspot: { x: 24, y: 24 } },
+  default: { svg: null, size: 34, hotspot: { x: 17, y: 17 } },
+  converge: { svg: null, size: 16, hotspot: { x: 8, y: 8 } },
 };
+
+const CONVERGE_ON_CONTROLS = false;
+const INTERACTIVE_SELECTOR = 'button, a, input, textarea, select, [role="slider"], .ctx-item';
 
 const FALLBACK_ACCENT = '#8f97e8';
 const HALO_STRENGTH = 0.7;
@@ -519,6 +523,11 @@ function rearm(): void {
 }
 
 function reevaluate(under: Element | null): void {
+  if (CONVERGE_ON_CONTROLS) {
+    const next: LanternStateId =
+      !inDrag && under !== null && under.closest(INTERACTIVE_SELECTOR) !== null ? 'converge' : 'default';
+    if (next !== state) state = next;
+  }
   const now =
     under !== null &&
     under.closest('.window-drag') !== null &&
@@ -555,7 +564,7 @@ function frame(ts: number): void {
     }
     rearm();
   }
-  const target = inside && !inDrag ? 1 : 0;
+  const target = inside && !inDrag ? 0.78 : 0;
   alpha += (target - alpha) * EASE;
   if (Math.abs(target - alpha) < CONVERGED) alpha = target;
   syncSprite();
@@ -654,7 +663,7 @@ export const lantern = {
         while (travelled >= nextStep) {
           travelled -= nextStep;
           nextStep = MOTE_TRAVEL_MIN + Math.random() * (MOTE_TRAVEL_MAX - MOTE_TRAVEL_MIN);
-          spawnTrailMote(x - px, y - py);
+          if (state !== 'converge') spawnTrailMote(x - px, y - py);
           if (!inDrag) ribbonSample(x, y);
         }
       } else {

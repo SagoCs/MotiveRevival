@@ -973,9 +973,6 @@ html.song-marker-surface .song-row.playing::after {
 .transport-time {
   color: color-mix(in srgb, var(--moon-bright) 88%, transparent);
   font-variant-numeric: tabular-nums;
-  text-shadow:
-    0 0 6px color-mix(in srgb, var(--void-0) 90%, transparent),
-    0 1px 12px color-mix(in srgb, var(--void-0) 72%, transparent);
 }
 
 .scrub {
@@ -992,6 +989,7 @@ html.song-marker-surface .song-row.playing::after {
   right: 0;
   top: 50%;
   height: 2px;
+  transform: translateY(-50%);
   border-radius: 2px;
   background: color-mix(in srgb, var(--acc-a) 22%, rgba(199, 205, 244, 0.12));
 }
@@ -1001,6 +999,7 @@ html.song-marker-surface .song-row.playing::after {
   left: 0;
   top: 50%;
   height: 2px;
+  transform: translateY(-50%);
   border-radius: 2px;
   width: 0%;
   background: linear-gradient(90deg, var(--acc-a), var(--acc-b));
@@ -2949,4 +2948,47 @@ body:has(#playlist-layer.open) #bottom-bar::before {
   #root-info {
     max-width: 150px;
   }
+}
+
+#bottom-bar .icon-btn,
+#overlay-bottom .icon-btn,
+.transport .icon-btn {
+  border: none;
+  background: none;
+  border-radius: 0;
+  color: var(--moon);
+  transition:
+    color 160ms ease,
+    filter 200ms ease,
+    transform 160ms var(--ease-drift);
+}
+
+#bottom-bar .icon-btn:hover,
+#overlay-bottom .icon-btn:hover,
+.transport .icon-btn:hover {
+  background: none;
+  box-shadow: none;
+  color: var(--moon-bright);
+  filter: drop-shadow(0 0 7px color-mix(in srgb, var(--acc-glow) 60%, transparent));
+}
+
+#bottom-bar .icon-btn.lit,
+#overlay-bottom .icon-btn.lit,
+.transport .icon-btn.lit,
+.transport .queue-toggle.lit {
+  border: none;
+  background: none;
+  box-shadow: none;
+  color: var(--acc-b);
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--acc-glow) 60%, transparent));
+}
+
+.transport .icon-btn.transport-toggle svg {
+  width: 24px;
+  height: 24px;
+}
+
+.transport .icon-btn.transport-toggle.is-playing {
+  color: var(--moon-bright);
+  filter: drop-shadow(0 0 9px color-mix(in srgb, var(--acc-glow) 50%, transparent));
 }

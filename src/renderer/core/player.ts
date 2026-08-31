@@ -180,6 +180,12 @@ export class PlayerService {
     this.bus.emit('queueMutated', {});
   }
 
+  playUpcoming(offset: number): void {
+    if (!Number.isInteger(offset) || offset < 0) return;
+    const index = this.queueIndex + 1 + offset;
+    if (index < this.queue.length) this.playFrom(index);
+  }
+
   moveUpcoming(fromOffset: number, toOffset: number): void {
     const base = this.queueIndex + 1;
     if (

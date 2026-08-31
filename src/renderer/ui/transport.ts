@@ -172,6 +172,7 @@ export function createTransport(host: HTMLElement): TransportHandle {
 
   const renderState = (): void => {
     btn.innerHTML = player.playing ? ICON_PAUSE : ICON_PLAY;
+    btn.classList.toggle('is-playing', player.playing);
     window.mr.taskbar.playing(player.playing);
     prevBtn.disabled = !player.hasPrev() && !player.playing;
     nextBtn.disabled = !player.hasNext();

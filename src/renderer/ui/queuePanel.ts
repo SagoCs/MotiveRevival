@@ -1,7 +1,8 @@
 import '../styles/queue.css';
 import { el, fmtTime, createArtImage, thumbOf, paletteBedOf } from '../core/dom';
 import { mediaUrl, player } from '../core/player';
-import { ICON_CLOSE, ICON_SIGIL } from './icons';
+import { ICON_CLOSE, ICON_SIGIL, ICON_STAR4 } from './icons';
+import { attachContextMenu } from './playlistsView';
 import type { IndexedTrack } from '../../shared/types';
 
 const ICON_GRIP = `<svg viewBox="0 0 8 16" width="8" height="16" fill="currentColor" aria-hidden="true"><circle cx="2" cy="3" r="1"/><circle cx="6" cy="3" r="1"/><circle cx="2" cy="8" r="1"/><circle cx="6" cy="8" r="1"/><circle cx="2" cy="13" r="1"/><circle cx="6" cy="13" r="1"/></svg>`;
@@ -20,10 +21,11 @@ export function createQueuePanel(): QueuePanelHandle {
 
   const panel = el('aside');
   panel.id = 'queue-panel';
+  panel.classList.add('plate');
 
   const head = el('header', 'queue-head');
   const title = el('h3', 'queue-title');
-  title.textContent = 'Up Next';
+  title.innerHTML = `${ICON_STAR4}<span>Up Next</span>`;
   const count = el('span', 'mono dim queue-count');
   count.textContent = '0';
   const closeBtn = el('button', 'icon-btn btn-small queue-close');
@@ -39,6 +41,7 @@ export function createQueuePanel(): QueuePanelHandle {
   let open = false;
   let dragFrom = -1;
   let dropGap = -1;
+  let suppressClickUntil = 0;
   const stateListeners = new Set<(value: boolean) => void>();
 
   const rows = (): HTMLElement[] => Array.from(list.querySelectorAll<HTMLElement>('.queue-row'));
@@ -55,9 +58,13 @@ export function createQueuePanel(): QueuePanelHandle {
 
   const buildRow = (track: IndexedTrack, offset: number): HTMLLIElement => {
     const row = el('li', 'queue-row');
-    row.draggable = true;
     row.dataset.offset = String(offset);
 
+    const swipe = el('span', 'q-swipe');
+    const hint = el('span', 'q-swipe-hint');
+    hint.textContent = 'Remove from queue';
+
+    const body = el('span', 'q-body');
     const grip = el('span', 'queue-grip');
     grip.innerHTML = ICON_GRIP;
 
@@ -81,40 +88,97 @@ export function createQueuePanel(): QueuePanelHandle {
     const dur = el('span', 'mono dim queue-dur');
     dur.textContent = fmtTime(track.durationSec ?? 0);
 
-    row.append(grip, thumb, meta, dur);
+    body.append(grip, thumb, meta, dur);
+    swipe.append(hint, body);
+    row.append(swipe);
 
-    row.addEventListener('dragstart', (e) => {
-      dragFrom = offset;
-      dropGap = -1;
-      row.classList.add('q-dragging');
-      if (e.dataTransfer !== null) {
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', String(offset));
+    row.addEventListener('click', () => {
+      if (Date.now() < suppressClickUntil) return;
+      player.playUpcoming(offset);
+    });
+
+    attachContextMenu(row, track, undefined, undefined, [
+      { label: 'Remove from queue', action: () => player.removeUpcoming(offset) },
+    ]);
+
+    row.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      const startX = e.clientX;
+      const startY = e.clientY;
+      let axis: 'x' | 'y' | null = null;
+      let dx = 0;
+      const rowWidth = Math.max(140, row.offsetWidth);
+      try {
+        row.setPointerCapture(e.pointerId);
+      } catch {
+        return;
       }
-    });
-
-    row.addEventListener('dragover', (e) => {
-      if (dragFrom < 0) return;
-      e.preventDefault();
-      if (e.dataTransfer !== null) e.dataTransfer.dropEffect = 'move';
-      const rect = row.getBoundingClientRect();
-      const above = e.clientY < rect.top + rect.height / 2;
-      dropGap = above ? offset : offset + 1;
-      clearIndicators();
-      row.classList.add(above ? 'q-ins-top' : 'q-ins-bot');
-    });
-
-    row.addEventListener('drop', (e) => {
-      e.preventDefault();
-      if (dragFrom >= 0 && dropGap >= 0) player.moveUpcoming(dragFrom, dropGap);
-      resetDrag();
-    });
-
-    row.addEventListener('dragend', () => resetDrag());
-
-    row.addEventListener('contextmenu', (e) => {
-      e.preventDefault();
-      player.removeUpcoming(offset);
+      function onMove(ev: PointerEvent): void {
+        const mx = ev.clientX - startX;
+        const my = ev.clientY - startY;
+        if (axis === null) {
+          if (Math.abs(mx) < 8 && Math.abs(my) < 8) return;
+          axis = Math.abs(mx) > Math.abs(my) ? 'x' : 'y';
+          if (axis === 'y') {
+            dragFrom = offset;
+            row.classList.add('q-dragging');
+          }
+        }
+        if (axis === 'x') {
+          dx = mx;
+          body.style.translate = `${dx}px 0`;
+          body.style.opacity = String(Math.max(0.12, 1 - Math.abs(dx) / 110));
+          hint.style.opacity = String(Math.min(1, Math.abs(dx) / 90));
+          return;
+        }
+        const target = document.elementFromPoint(ev.clientX, ev.clientY)?.closest<HTMLElement>('.queue-row') ?? null;
+        clearIndicators();
+        if (target === null || target === row) {
+          dropGap = -1;
+          return;
+        }
+        const idx = rows().indexOf(target);
+        if (idx < 0) {
+          dropGap = -1;
+          return;
+        }
+        const rect = target.getBoundingClientRect();
+        const above = ev.clientY < rect.top + rect.height / 2;
+        dropGap = above ? idx : idx + 1;
+        target.classList.add(above ? 'q-ins-top' : 'q-ins-bot');
+      }
+      function finish(commit: boolean): void {
+        row.removeEventListener('pointermove', onMove);
+        row.removeEventListener('pointerup', onUp);
+        row.removeEventListener('pointercancel', onCancel);
+        if (axis !== null) suppressClickUntil = Date.now() + 350;
+        if (axis === 'x') {
+          if (commit && Math.abs(dx) > rowWidth * 0.33) {
+            row.classList.add('q-swipe-out');
+            body.style.translate = `${dx > 0 ? 130 : -130}% 0`;
+            body.style.opacity = '0';
+            window.setTimeout(() => player.removeUpcoming(offset), 170);
+          } else {
+            row.classList.add('q-spring');
+            body.style.translate = '0 0';
+            body.style.opacity = '1';
+            hint.style.opacity = '0';
+            window.setTimeout(() => row.classList.remove('q-spring'), 260);
+          }
+        } else if (axis === 'y' && commit && dragFrom >= 0 && dropGap >= 0) {
+          player.moveUpcoming(dragFrom, dropGap);
+        }
+        resetDrag();
+      }
+      function onUp(): void {
+        finish(true);
+      }
+      function onCancel(): void {
+        finish(false);
+      }
+      row.addEventListener('pointermove', onMove);
+      row.addEventListener('pointerup', onUp);
+      row.addEventListener('pointercancel', onCancel);
     });
 
     return row;
@@ -140,18 +204,6 @@ export function createQueuePanel(): QueuePanelHandle {
     else render();
     for (const listener of stateListeners) listener(open);
   };
-
-  const onListDrop = (e: DragEvent): void => {
-    if (dragFrom < 0) return;
-    e.preventDefault();
-    player.moveUpcoming(dragFrom, player.getUpcoming().length);
-    resetDrag();
-  };
-  list.addEventListener('dragover', (e) => {
-    if (dragFrom < 0) return;
-    e.preventDefault();
-  });
-  list.addEventListener('drop', onListDrop);
 
   document.addEventListener('keydown', (e) => {
     if (open && e.key === 'Escape') setOpen(false);

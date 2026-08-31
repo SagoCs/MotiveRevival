@@ -537,17 +537,23 @@ function attachTap(node: HTMLElement, action: () => void): void {
 let menu: HTMLElement | null = null;
 let outsideBound = false;
 
+export interface ContextExtraItem {
+  label: string;
+  action: () => void;
+}
+
 export function attachContextMenu(
   row: HTMLElement,
   track: IndexedTrack,
   onPlay?: () => void,
   onGoToAlbum?: () => void,
+  extraItems?: ContextExtraItem[],
 ): void {
   initPlaylists();
   row.addEventListener('contextmenu', (e) => {
     e.preventDefault();
     e.stopPropagation();
-    openContextMenu(row, track, onPlay, onGoToAlbum, e.clientY);
+    openContextMenu(row, track, onPlay, onGoToAlbum, e.clientY, extraItems);
   });
 }
 
@@ -557,6 +563,7 @@ function openContextMenu(
   onPlay: (() => void) | undefined,
   onGoToAlbum: (() => void) | undefined,
   cursorY: number,
+  extraItems?: ContextExtraItem[],
 ): void {
   closeMenu(true);
   ensureOutsideBound();
@@ -598,7 +605,17 @@ function openContextMenu(
       }
     });
 
-    view.append(addItem, playItem, albumItem);
+    const extraNodes = (extraItems ?? []).map((extra) => {
+      const item = menuItem(extra.label, null);
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeMenu(true);
+        extra.action();
+      });
+      return item;
+    });
+
+    view.append(addItem, playItem, albumItem, ...extraNodes);
     card.replaceChildren(view);
     if (menuPosition === null) menuPosition = place(card, rowRect, cursorY);
     else placeAt(card, menuPosition);

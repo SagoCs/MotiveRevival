@@ -41,3 +41,5 @@ export const ICON_ART_FOCUS = `<svg ${ATTRS} width="17" height="17" aria-hidden=
 export const ICON_SHUFFLE = `<svg ${ATTRS} width="17" height="17" aria-hidden="true"><path d="M4.5 7h2.2c2.8 0 3.8 5.8 6.6 5.8h2.2"/><path d="M13.5 4.5h2.8v2.8M13.5 15.5h2.8v-2.8"/><path d="M4.5 15.5h2.2c1 0 1.8-.6 2.4-1.5M11 8.5c.8-1 1.3-1.5 2.3-1.5h2.2"/></svg>`;
 
 export const ICON_TRASH = `<svg ${ATTRS} width="17" height="17" aria-hidden="true"><path d="M5 7.5v10.2c0 .7.6 1.3 1.3 1.3h11.4c.7 0 1.3-.6 1.3-1.3V7.5M3.5 5h16M9 5V3.5h5V5M9 9.5v6M14 9.5v6"/></svg>`;
+
+export const ICON_STAR4 = `<svg ${ATTRS} width="12" height="12" aria-hidden="true"><path d="M12 3.2l2.1 6.7 6.7 2.1-6.7 2.1L12 20.8l-2.1-6.7-6.7-2.1 6.7-2.1z"/></svg>`;
