@@ -82,6 +82,7 @@ function createWindow(): void {
       preload: join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      backgroundThrottling: false,
     },
   });
   mainWindow = win;

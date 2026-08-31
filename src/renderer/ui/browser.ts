@@ -48,8 +48,10 @@ let libraryOk = false;
 let carousel: Carousel;
 let oracleInput: HTMLInputElement;
 let oracleResults: HTMLElement;
-let oracleCount: HTMLSpanElement;
 let filterChip: HTMLButtonElement;
+let modeTabs: HTMLElement;
+let sortPopover: HTMLElement;
+let summonZone: HTMLElement;
 let detailLayer: HTMLElement;
 let detailOpen = false;
 let activeDetailKey: string | null = null;
@@ -72,15 +74,25 @@ export function initBrowser(onCompactLyric?: (text: string | null, upcoming: boo
     (() => {
       throw new Error('missing #oracle-results');
     })();
-  oracleCount =
-    document.querySelector<HTMLSpanElement>('#oracle-count') ??
-    (() => {
-      throw new Error('missing #oracle-count');
-    })();
   filterChip =
     document.querySelector<HTMLButtonElement>('#filter-chip') ??
     (() => {
       throw new Error('missing #filter-chip');
+    })();
+  modeTabs =
+    document.querySelector<HTMLElement>('#mode-tabs') ??
+    (() => {
+      throw new Error('missing #mode-tabs');
+    })();
+  sortPopover =
+    document.querySelector<HTMLElement>('#sort-popover') ??
+    (() => {
+      throw new Error('missing #sort-popover');
+    })();
+  summonZone =
+    document.querySelector<HTMLElement>('#summon-zone') ??
+    (() => {
+      throw new Error('missing #summon-zone');
     })();
   detailLayer =
     document.querySelector<HTMLElement>('#detail-layer') ??
@@ -139,6 +151,7 @@ export function initBrowser(onCompactLyric?: (text: string | null, upcoming: boo
   wireTabs();
   wireSortChips();
   wireSearch();
+  wireBezel();
   wireGlobalKeys();
 
   carousel = new Carousel(host, content);
@@ -160,9 +173,14 @@ function wireTabs(): void {
     tab.addEventListener('click', () => {
       const mode = tab.dataset.mode as Mode | undefined;
       if (!mode) return;
+      if (state.mode === mode) {
+        if (mode !== 'playlists') toggleSortPopover();
+        return;
+      }
       state.mode = mode;
       preview.enabled = mode === 'songs';
       if (mode !== 'albums') setArtistFilter(null);
+      closeSortPopover();
       syncTabs();
       syncChips();
       render();
@@ -176,6 +194,7 @@ function wireSortChips(): void {
       const sort = chip.dataset.sort as SortKey | undefined;
       if (!sort) return;
       state.sort = sort;
+      closeSortPopover();
       syncChips();
       render();
     });
@@ -192,6 +211,7 @@ function openOracle(): void {
   if (panel === null) return;
   panel.hidden = false;
   requestAnimationFrame(() => panel.classList.add('open'));
+  summonZone.classList.add('active');
   oracleInput.focus();
 }
 
@@ -200,9 +220,59 @@ function closeOracle(): void {
   if (panel === null) return;
   panel.classList.remove('open');
   panel.hidden = true;
+  summonZone.classList.remove('active');
   oracleInput.value = '';
   oracleInput.blur();
   oracleSongs = [];
+}
+
+function isSortPopoverOpen(): boolean {
+  return !sortPopover.hidden;
+}
+
+function openSortPopover(): void {
+  const active = modeTabs.querySelector<HTMLButtonElement>('button.active');
+  if (active === null) return;
+  sortPopover.hidden = false;
+  const max = modeTabs.clientWidth - sortPopover.offsetWidth - 4;
+  const x = Math.max(4, Math.min(active.offsetLeft, max));
+  sortPopover.style.setProperty('--anchor-x', `${x}px`);
+  requestAnimationFrame(() => sortPopover.classList.add('open'));
+}
+
+function closeSortPopover(): void {
+  if (sortPopover.hidden) return;
+  sortPopover.classList.remove('open');
+  sortPopover.hidden = true;
+}
+
+function toggleSortPopover(): void {
+  if (isSortPopoverOpen()) closeSortPopover();
+  else openSortPopover();
+}
+
+function wireBezel(): void {
+  const summonBtn = document.querySelector<HTMLButtonElement>('#search-summon');
+  summonBtn?.addEventListener('click', () => {
+    openOracle();
+    renderOracleResults();
+  });
+  modeTabs.addEventListener(
+    'click',
+    (e) => {
+      const marker = (e.target as HTMLElement | null)?.closest('.tab-marker') ?? null;
+      if (marker !== null && marker.closest('button.active') !== null) {
+        e.stopPropagation();
+        toggleSortPopover();
+      }
+    },
+    true,
+  );
+  document.addEventListener('pointerdown', (e) => {
+    if (!isSortPopoverOpen()) return;
+    if ((e.target as HTMLElement | null)?.closest('#mode-tabs') !== null) return;
+    closeSortPopover();
+  });
 }
 
 function wireSearch(): void {
@@ -221,6 +291,7 @@ function wireSearch(): void {
 
   filterChip.addEventListener('click', () => {
     setArtistFilter(null);
+    closeSortPopover();
     render();
   });
 }
@@ -236,6 +307,11 @@ function wireGlobalKeys(): void {
       if (settingsOpen) return;
       if (isOracleOpen()) {
         closeOracle();
+        e.preventDefault();
+        return;
+      }
+      if (isSortPopoverOpen()) {
+        closeSortPopover();
         e.preventDefault();
         return;
       }
@@ -300,7 +376,6 @@ function renderOracleResults(): void {
 
   if (query === '') {
     oracleSongs = [];
-    oracleCount.textContent = '';
     oracleResults.replaceChildren(hintNode('Type to summon the archive…'));
     return;
   }
@@ -347,7 +422,6 @@ function renderOracleResults(): void {
     frag.append(hintNode('No echoes found.'));
   }
 
-  oracleCount.textContent = `${total} found`;
   oracleResults.replaceChildren(frag);
 }
 

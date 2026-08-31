@@ -18,9 +18,46 @@
   <div id="fatal-banner" class="mono" hidden></div>
 
   <header id="topbar" class="window-drag">
-    <div class="wordmark">Motive<span class="wordmark-sep" aria-hidden="true"></span>Revival</div>
+    <div class="starfield" aria-hidden="true">
+      <i style="--x: 6%; --y: 38%; --tw: 0.45; --d: -2s"></i>
+      <i style="--x: 13%; --y: 68%; --tw: 0.3; --d: -6s"></i>
+      <i class="star" style="--x: 21%; --y: 30%; --tw: 0.55; --d: -4s"></i>
+      <i style="--x: 31%; --y: 62%; --tw: 0.35; --d: -1s"></i>
+      <i style="--x: 41%; --y: 26%; --tw: 0.5; --d: -7s"></i>
+      <i style="--x: 52%; --y: 70%; --tw: 0.28; --d: -5s"></i>
+      <i class="star" style="--x: 63%; --y: 34%; --tw: 0.5; --d: -3s"></i>
+      <i style="--x: 72%; --y: 58%; --tw: 0.4; --d: -8s"></i>
+      <i style="--x: 82%; --y: 30%; --tw: 0.55; --d: -2.5s"></i>
+      <i style="--x: 91%; --y: 64%; --tw: 0.3; --d: -6.5s"></i>
+      <i class="travel" style="--y: 34%; --t: 110s"></i>
+      <i class="travel" style="--y: 62%; --t: 150s; --d: -75s"></i>
+    </div>
+    <nav id="mode-tabs" class="no-drag" aria-label="Browse mode">
+      <button type="button" data-mode="albums" class="active">Albums</button>
+      <button type="button" data-mode="artists">Artists</button>
+      <button type="button" data-mode="songs">Songs</button>
+      <button type="button" data-mode="playlists">Playlists</button>
+      <div id="sort-popover" class="plate" hidden>
+        <button id="filter-chip" type="button" hidden></button>
+        <nav id="sort-chips" aria-label="Sort order">
+          <button type="button" data-sort="alpha" class="active">A&ndash;Z</button>
+          <button type="button" data-sort="duration">Longest</button>
+          <button type="button" data-sort="artist">Artist</button>
+        </nav>
+      </div>
+    </nav>
+    <div id="summon-zone">
+      <button id="search-summon" class="no-drag" type="button" aria-label="Summon the archive">
+        <svg class="summon-glyph crescent" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+        <span class="summon-hint">Summon</span>
+        <svg class="summon-glyph sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.6v3M12 18.4v3M2.6 12h3M18.4 12h3M5.3 5.3l2.2 2.2M16.5 16.5l2.2 2.2M18.7 5.3l-2.2 2.2M7.5 16.5l-2.2 2.2"/></svg>
+      </button>
+      <div id="summon-field" class="no-drag">
+        <span id="oracle-icon" aria-hidden="true"></span>
+        <input id="oracle-input" type="text" spellcheck="false" autocomplete="off" placeholder="Summon songs, artists, albums&hellip;">
+      </div>
+    </div>
     <div class="topbar-right">
-      <div id="root-info" class="mono dim">surveying the archive&hellip;</div>
       <div class="no-drag gear-island">
         <button id="btn-settings" type="button" class="icon-btn btn-small" aria-label="Settings"></button>
         <div class="window-controls no-drag">
@@ -31,23 +68,6 @@
       </div>
     </div>
   </header>
-
-  <div id="controlbar">
-    <div class="control-center">
-      <nav id="mode-tabs" class="segmented" aria-label="Browse mode">
-        <button type="button" data-mode="albums" class="active">Albums</button>
-        <button type="button" data-mode="artists">Artists</button>
-        <button type="button" data-mode="songs">Songs</button>
-        <button type="button" data-mode="playlists">Playlists</button>
-      </nav>
-      <nav id="sort-chips" aria-label="Sort order">
-        <button type="button" data-sort="alpha" class="active">A&ndash;Z</button>
-        <button type="button" data-sort="duration">Longest</button>
-        <button type="button" data-sort="artist">Artist</button>
-      </nav>
-    </div>
-    <button id="filter-chip" type="button" hidden></button>
-  </div>
 
   <main id="browser">
     <div id="carousel"><div id="carousel-content"></div></div>
@@ -165,18 +185,7 @@
     </div>
   </div>
 
-  <div id="search-oracle" hidden>
-    <div class="oracle-input-row">
-      <span id="oracle-icon" aria-hidden="true"></span>
-      <input
-        id="oracle-input"
-        type="text"
-        spellcheck="false"
-        autocomplete="off"
-        placeholder="Summon songs, artists, albums&hellip;"
-      >
-      <span id="oracle-count" class="mono dim"></span>
-    </div>
+  <div id="search-oracle" class="plate" hidden>
     <div id="oracle-results"></div>
   </div>
 

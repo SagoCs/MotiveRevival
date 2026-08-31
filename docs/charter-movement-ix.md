@@ -45,7 +45,7 @@ Plane rotation is static per view; only translations animate, compositor-only an
 
 ## VI. Phases (in order)
 
-1. **The Bezel** — merged single-row top chrome: wordmark removed; tabs (becoming the three views), summon-search center, contextual sort/filter marker on the active tab, status + gear island right. Lands with current tabs; tab labels evolve as each view arrives.
+1. **The Bezel** — merged single-row top chrome: wordmark and status line removed (settings owns library status); tabs (becoming the three views), summon-search center, bare glowing gear + window controls right. The active tab is flanked by accent stars and opens its sort/filter popover on click. Lands with current tabs; tab labels evolve as each view arrives. The bezel is the **zenith** of the app's space — content recedes upward toward it (near at the horizon, far at the meridian), attenuated by a soft deep-field fade beneath a graduated double rule: two hairlines with fine static ticks, the chart's instrument edge. Its species are defined here and inherited by every later view: the plate card style (near-opaque void, hairline, tracked caps, star nodes — first worn by the sort/filter popover and the summon results panel), the line-and-star vocabulary shared with future crystal edges, and the summon star as the crystal material's ambassador (painted per Material Law, re-skinned at the spike). The frame is still so the sky can move: chrome never tilts, parallaxes, or tracks the pointer or the music — its one licensed motion is the meridian starfield, sparse slow specks that must read as distant stars, never dust (varied brightness, twinkle-in-place, rare travelers; uniform directional particles are dust), gated by the ambient flag, transform and opacity only.
 2. **The Spike** — one crystal slab on a throwaway branch: painted glass, fake cuboid, feel-check against Material Law. Cheap to revert; the movement's escape hatch.
 3. **The Song View** — built to the feature-parity checklist (oracle song rows land at their crystal; add-to-playlist context menu has a home; queue panel untouched; sorts order the river via the tab marker). Flat list retires at parity.
 4. **The Artist View** — after the year-tag audit; shelf + discography chart; albums tab retires at parity.
@@ -53,7 +53,7 @@ Plane rotation is static per view; only translations animate, compositor-only an
 
 ## VII. Retirements & Absorptions
 
-- **Retired:** flat songs list; Albums tab and carousel (absorbed by Artist); `arrowMarkers.ts` and the arrow pair; the designed-but-unbuilt hover glow.
+- **Retired:** flat songs list; Albums tab and carousel (absorbed by Artist); the row arrows at Phase 3 parity — a same-day experiment flanking the bezel's active tab with the arrow art was scrapped after live review (the multi-tone art loses its body at bezel scale); the bezel instead flanks the active tab with accent stars; the designed-but-unbuilt hover glow.
 - **Absorbed and kept:** `moments.ts` onset detector, the mote canvas and burst pipeline (re-pointed to crystal showers and Phase 7), the pause-with-resume preview machinery, the waveform peaks pipeline, playlist KV store, detail stage, horizon haze.
 - **Amended:** Movement VIII Phase 6 closes as *superseded — assets absorbed*; Phase 7 (Waveform Horizon) continues and now decorates the horizon the crystals rise from; the folder-picker rider will be built in the new plate/crystal language.
 
