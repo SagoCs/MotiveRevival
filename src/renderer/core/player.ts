@@ -186,6 +186,19 @@ export class PlayerService {
     if (index < this.queue.length) this.playFrom(index);
   }
 
+  playUpcomingNow(offset: number): void {
+    if (!Number.isInteger(offset) || offset < 0 || this.queueIndex < 0) return;
+    const target = this.queueIndex + 1 + offset;
+    const selected = this.queue[target];
+    const current = this.queue[this.queueIndex];
+    if (selected === undefined || current === undefined) return;
+    const currentIndex = this.queueIndex;
+    this.queue.splice(target, 1);
+    this.queue.splice(currentIndex, 1);
+    this.queue.unshift(selected, current);
+    this.playFrom(0);
+  }
+
   moveUpcoming(fromOffset: number, toOffset: number): void {
     const base = this.queueIndex + 1;
     if (
