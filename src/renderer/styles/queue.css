@@ -163,24 +163,6 @@
   letter-spacing: 0.1em;
 }
 
-.queue-close {
-  width: 28px;
-  height: 28px;
-  color: var(--dim);
-  border: none;
-  border-radius: 0;
-  background: none;
-  box-shadow: none;
-}
-
-.queue-close:hover {
-  color: var(--moon-bright);
-  border: none;
-  background: none;
-  box-shadow: none;
-  filter: drop-shadow(0 0 7px color-mix(in srgb, var(--acc-glow) 58%, transparent));
-}
-
 .queue-list {
   list-style: none;
   margin: 0;

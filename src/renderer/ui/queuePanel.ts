@@ -1,7 +1,7 @@
 import '../styles/queue.css';
 import { el, fmtTime, createArtImage, thumbOf, paletteBedOf } from '../core/dom';
 import { mediaUrl, player } from '../core/player';
-import { ICON_CLOSE, ICON_SIGIL, ICON_STAR4, ICON_STAR_HOLLOW } from './icons';
+import { ICON_SIGIL, ICON_STAR4, ICON_STAR_HOLLOW } from './icons';
 import { attachContextMenu } from './playlistsView';
 import type { IndexedTrack } from '../../shared/types';
 
@@ -44,15 +44,11 @@ export function createQueuePanel(): QueuePanelHandle {
   panel.id = 'queue-panel';
   panel.classList.add('plate');
 
-  const closeBtn = el('button', 'icon-btn btn-small queue-close');
-  closeBtn.type = 'button';
-  closeBtn.setAttribute('aria-label', 'Close queue');
-  closeBtn.innerHTML = ICON_CLOSE;
   const nowHead = el('header', 'queue-now-head');
   const nowTitle = el('h3', 'queue-title queue-now-title');
   nowTitle.innerHTML = `${ICON_STAR4}<span>Now Playing</span>`;
   const queueSummary = el('span', 'dim queue-summary');
-  nowHead.append(nowTitle, queueSummary, closeBtn);
+  nowHead.append(nowTitle, queueSummary);
   const nowBody = el('div', 'queue-now-body q-body');
   const headDivider = createQueueDivider(true);
 
@@ -307,7 +303,16 @@ export function createQueuePanel(): QueuePanelHandle {
   document.addEventListener('keydown', (e) => {
     if (open && e.key === 'Escape') setOpen(false);
   });
-  closeBtn.addEventListener('click', () => setOpen(false));
+  document.addEventListener(
+    'pointerdown',
+    (e) => {
+      if (!open) return;
+      const hit = e.target as HTMLElement | null;
+      if (hit?.closest('#queue-panel, .queue-toggle') !== null) return;
+      setOpen(false);
+    },
+    true,
+  );
 
   player.bus.on('queueMutated', () => {
     if (open) render();

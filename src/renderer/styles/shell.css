@@ -3012,8 +3012,9 @@ body:has(#playlist-layer.open) #bottom-bar::before {
 #search-summon {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 14px;
   margin: 0 auto;
+  padding: 10px 28px;
   border: none;
   background: none;
   color: var(--dim);
@@ -3031,8 +3032,8 @@ body:has(#playlist-layer.open) #bottom-bar::before {
 
 .summon-glyph.crescent,
 .summon-glyph.sun {
-  width: 11px;
-  height: 11px;
+  width: 15px;
+  height: 15px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.6;
@@ -3044,8 +3045,8 @@ body:has(#playlist-layer.open) #bottom-bar::before {
 }
 
 .summon-glyph.sun {
-  width: 12px;
-  height: 12px;
+  width: 16px;
+  height: 16px;
   filter: drop-shadow(0 0 6px color-mix(in srgb, var(--acc-glow) 55%, transparent));
   transition:
     color 160ms ease,
