@@ -116,22 +116,16 @@
 
   <div id="settings-modal" class="modal" hidden>
     <div class="modal-card">
-      <header class="modal-head">
-        <h3 class="modal-title">Settings</h3>
-        <button id="settings-close" type="button" class="icon-btn btn-small modal-close" aria-label="Close settings"></button>
-      </header>
-
       <div id="settings-home">
         <section class="settings-section">
           <div class="section-head">
-            <h4 class="section-title">Libraries</h4>
-            <button id="btn-manage-libraries" type="button" class="ghost-btn ghost-mini">Manage</button>
+            <div class="section-divider"><span class="divider-line"></span><i class="settings-star" aria-hidden="true"></i><h4 class="section-title">Libraries</h4><i class="settings-star" aria-hidden="true"></i><span class="divider-line"></span></div>
           </div>
           <ul id="archive-summary"></ul>
         </section>
 
         <section class="settings-section">
-          <div class="section-head"><h4 class="section-title">Motion</h4></div>
+          <div class="section-head"><div class="section-divider"><span class="divider-line"></span><i class="settings-star" aria-hidden="true"></i><h4 class="section-title">Motion</h4><i class="settings-star" aria-hidden="true"></i><span class="divider-line"></span></div></div>
           <div class="setting-row"><span class="setting-label">Master effects switch</span><input id="set-motion-master" type="checkbox" class="toggle"></div>
           <div class="setting-row"><span class="setting-label">Carousel spacing &amp; parallax</span><input id="set-motion-carousel" type="checkbox" class="toggle"></div>
           <div class="setting-row"><span class="setting-label">Ambient pulse &amp; color field</span><input id="set-motion-pulse" type="checkbox" class="toggle"></div>
@@ -139,7 +133,7 @@
         </section>
 
         <section class="settings-section">
-          <div class="section-head"><h4 class="section-title">Lyrics</h4></div>
+          <div class="section-head"><div class="section-divider"><span class="divider-line"></span><i class="settings-star" aria-hidden="true"></i><h4 class="section-title">Lyrics</h4><i class="settings-star" aria-hidden="true"></i><span class="divider-line"></span></div></div>
           <div class="setting-row"><span class="setting-label">Fetch from lrclib</span><input id="set-autofetch" type="checkbox" class="toggle"></div>
           <div class="setting-row"><span class="setting-label">Save sheets beside songs</span><input id="set-savebeside" type="checkbox" class="toggle"></div>
           <div class="setting-row"><span class="setting-label">Timeline lyric size</span>
@@ -175,12 +169,9 @@
       <div id="libraries-view" hidden>
         <div class="libraries-head">
           <button id="btn-libraries-back" type="button" class="icon-btn btn-small" aria-label="Back to settings"></button>
-          <h3 class="modal-title">Libraries</h3>
+          <div class="section-divider"><span class="divider-line"></span><i class="settings-star" aria-hidden="true"></i><h3 class="modal-title">Libraries</h3><i class="settings-star" aria-hidden="true"></i><span class="divider-line"></span></div>
         </div>
         <ul id="archive-full-list"></ul>
-        <div class="settings-row-end">
-          <button id="btn-add-archive" type="button" class="ghost-btn">Add archive&hellip;</button>
-        </div>
       </div>
     </div>
   </div>

@@ -233,9 +233,10 @@ function registerIpc(): void {
     return saveSettings(allowed);
   });
   ipcMain.handle('archives:add', async (): Promise<Settings> => {
+    const currentDirs = getSettings().musicDirs;
     const result = await dialog.showOpenDialog({
       properties: ['openDirectory', 'multiSelections'],
-      defaultPath: getSettings().musicDirs[0],
+      ...(currentDirs[0] === undefined ? {} : { defaultPath: currentDirs[0] }),
     });
     if (!result.canceled && result.filePaths.length > 0) {
       const current = getSettings().musicDirs;
@@ -251,9 +252,8 @@ function registerIpc(): void {
   });
   ipcMain.handle('archives:remove', (_e, dir: string): Settings => {
     const remaining = getSettings().musicDirs.filter((d) => d.toLowerCase() !== dir.toLowerCase());
-    const settings =
-      remaining.length > 0 ? saveSettings({ musicDirs: remaining }) : getSettings();
-    if (remaining.length > 0 || settings.musicDirs.length === 0) scheduleScan();
+    const settings = saveSettings({ musicDirs: remaining });
+    scheduleScan();
     return settings;
   });
   ipcMain.handle('library:list', async (): Promise<LibraryResult> => {

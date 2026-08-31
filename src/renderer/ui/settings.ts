@@ -1,5 +1,6 @@
 ﻿import { ICON_BACK, ICON_CLOSE, ICON_SETTINGS } from './icons';
 import { fx, applyMotionFlags, applyLyricSize, applyTimelineLyricSize } from '../core/fx';
+import { ICON_STAR4 } from './icons';
 
 export function applyLyricsLayout(align?: 'left' | 'middle' | 'right', pane?: 'left' | 'right'): void {
   const overlay = document.getElementById('overlay');
@@ -19,13 +20,10 @@ export function initSettingsPanel(onLibraryChanged: () => void): void {
 
   const gearBtn = must<HTMLButtonElement>('#btn-settings');
   const modal = must<HTMLDivElement>('#settings-modal');
-  const closeBtn = must<HTMLButtonElement>('#settings-close');
   const home = must<HTMLElement>('#settings-home');
   const librariesView = must<HTMLElement>('#libraries-view');
 
-  const manageBtn = must<HTMLButtonElement>('#btn-manage-libraries');
   const backBtn = must<HTMLButtonElement>('#btn-libraries-back');
-  const addBtn = must<HTMLButtonElement>('#btn-add-archive');
   const archiveSummary = must<HTMLUListElement>('#archive-summary');
   const archiveFullList = must<HTMLUListElement>('#archive-full-list');
 
@@ -42,12 +40,9 @@ export function initSettingsPanel(onLibraryChanged: () => void): void {
 
   if (
     modal === null ||
-    closeBtn === null ||
     home === null ||
     librariesView === null ||
-    manageBtn === null ||
     backBtn === null ||
-    addBtn === null ||
     archiveSummary === null ||
     archiveFullList === null ||
     masterToggle === null ||
@@ -61,7 +56,6 @@ export function initSettingsPanel(onLibraryChanged: () => void): void {
     return;
   }
 
-  closeBtn.innerHTML = ICON_CLOSE;
   if (gearBtn !== null) {
     gearBtn.innerHTML = ICON_SETTINGS;
     gearBtn.classList.add('no-drag');
@@ -69,75 +63,168 @@ export function initSettingsPanel(onLibraryChanged: () => void): void {
   backBtn.innerHTML = ICON_BACK;
 
   let currentDirs: string[] = [];
+  let closeTimer = 0;
 
-  function renderArchiveRows(
-    host: HTMLElement,
-    dirs: readonly string[],
-    removable: boolean,
-  ): void {
+  function addLibrary(): void {
+    void window.mr.archivesAdd().then((settings) => {
+      refreshFrom(settings);
+      renderArchiveRows(archiveFullList, currentDirs);
+      onLibraryChanged();
+    });
+  }
+
+  function archiveDivider(): HTMLElement {
+    const divider = document.createElement('li');
+    divider.className = 'archive-divider';
+    divider.setAttribute('aria-hidden', 'true');
+    divider.innerHTML = `<span></span><i>${ICON_STAR4}</i><span></span>`;
+    return divider;
+  }
+
+  function renderArchiveRows(host: HTMLElement, dirs: readonly string[]): void {
     host.replaceChildren();
     if (dirs.length === 0) {
       const empty = document.createElement('li');
-      empty.className = 'oracle-hint mono dim';
-      empty.textContent = 'No archives yet.';
+      empty.className = 'archive-empty-row';
+      const add = document.createElement('button');
+      add.type = 'button';
+      add.className = 'archive-add archive-add-empty mono';
+      add.textContent = '+ Add a library';
+      add.addEventListener('pointerdown', (event) => event.stopPropagation());
+      add.addEventListener('click', addLibrary);
+      empty.append(add);
       host.append(empty);
       return;
     }
     const frag = document.createDocumentFragment();
-    for (const dir of dirs) {
+    frag.append(archiveDivider());
+    for (let i = 0; i < dirs.length; i++) {
+      const dir = dirs[i];
+      if (dir === undefined) continue;
       const row = document.createElement('li');
       row.className = 'archive-row';
+      row.dataset.dir = dir;
+
+      const body = document.createElement('div');
+      body.className = 'archive-row-body';
 
       const pathSpan = document.createElement('span');
       pathSpan.className = 'mono dim archive-path';
       pathSpan.textContent = dir;
       pathSpan.title = dir;
 
-      row.append(pathSpan);
+      body.append(pathSpan);
 
-      if (removable) {
-        const removeBtn = document.createElement('button');
-        removeBtn.type = 'button';
-        removeBtn.className = 'icon-btn btn-small archive-remove';
-        removeBtn.setAttribute('aria-label', `Remove ${dir}`);
-        removeBtn.innerHTML = ICON_CLOSE;
-        removeBtn.dataset.dir = dir;
-        row.append(removeBtn);
-      }
+      const addBtn = document.createElement('button');
+      addBtn.type = 'button';
+      addBtn.className = 'archive-add archive-add-compact';
+      addBtn.setAttribute('aria-label', 'Add a library');
+      addBtn.textContent = '+';
+      addBtn.addEventListener('pointerdown', (event) => event.stopPropagation());
+      addBtn.addEventListener('click', addLibrary);
+      body.append(addBtn);
+
+      const hint = document.createElement('span');
+      hint.className = 'archive-swipe-hint';
+      hint.textContent = 'Delete library';
+      row.append(hint, body);
+
+      const startX = { value: 0 };
+      const startY = { value: 0 };
+      let axis: 'x' | null = null;
+      let dx = 0;
+
+      const finish = (commit: boolean): void => {
+        row.removeEventListener('pointermove', onMove);
+        row.removeEventListener('pointerup', onUp);
+        row.removeEventListener('pointercancel', onCancel);
+        if (axis === 'x' && commit) {
+          if (Math.abs(dx) > row.offsetWidth * 0.33) {
+            row.classList.add('archive-swipe-out');
+            body.style.translate = `${dx > 0 ? 130 : -130}% 0`;
+            body.style.opacity = '0';
+            window.setTimeout(() => {
+              void window.mr.archivesRemove(dir).then((settings) => {
+                refreshFrom(settings);
+                onLibraryChanged();
+              });
+            }, 170);
+          } else {
+            row.classList.add('archive-spring');
+            body.style.translate = '0 0';
+            body.style.opacity = '1';
+            hint.style.opacity = '0';
+            window.setTimeout(() => row.classList.remove('archive-spring'), 260);
+          }
+        }
+        axis = null;
+        dx = 0;
+      };
+
+      const onMove = (event: PointerEvent): void => {
+        const mx = event.clientX - startX.value;
+        const my = event.clientY - startY.value;
+        if (axis === null) {
+          if (Math.abs(mx) < 8 && Math.abs(my) < 8) return;
+          if (Math.abs(mx) <= Math.abs(my)) {
+            finish(false);
+            return;
+          }
+          axis = 'x';
+        }
+        dx = mx;
+        body.style.translate = `${dx}px 0`;
+        body.style.opacity = String(Math.max(0.12, 1 - Math.abs(dx) / 110));
+        hint.style.opacity = String(Math.min(1, Math.abs(dx) / 90));
+      };
+
+      const onUp = (): void => finish(true);
+      const onCancel = (): void => finish(false);
+
+      row.addEventListener('pointerdown', (event) => {
+        if (event.button !== 0) return;
+        startX.value = event.clientX;
+        startY.value = event.clientY;
+        axis = null;
+        dx = 0;
+        try {
+          row.setPointerCapture(event.pointerId);
+        } catch {
+          return;
+        }
+        row.addEventListener('pointermove', onMove);
+        row.addEventListener('pointerup', onUp);
+        row.addEventListener('pointercancel', onCancel);
+      });
 
       frag.append(row);
+      if (i < dirs.length - 1) frag.append(archiveDivider());
     }
+    frag.append(archiveDivider());
     host.append(frag);
   }
 
   function renderSummary(dirs: readonly string[]): void {
     archiveSummary.replaceChildren();
     if (dirs.length === 0) {
-      archiveSummary.append(hintLi('No archives yet.'));
+      renderArchiveRows(archiveSummary, []);
       return;
     }
     const visible = dirs.slice(0, 5);
-    renderArchiveRows(archiveSummary, visible, false);
+    renderArchiveRows(archiveSummary, visible);
     if (dirs.length > 5) {
       const more = document.createElement('li');
       more.className = 'archive-more';
-      more.innerHTML = `+${dirs.length - 5} more — <span class="linkish">manage</span>`;
+      more.innerHTML = `+${dirs.length - 5} more — <span class="linkish">show all</span>`;
       more.addEventListener('click', () => showView(true));
       archiveSummary.append(more);
     }
   }
 
-  function hintLi(text: string): HTMLElement {
-    const li = document.createElement('li');
-    li.className = 'oracle-hint mono dim';
-    li.textContent = text;
-    return li;
-  }
-
   function refreshFrom(settings: import('../../shared/types').Settings): void {
     currentDirs = [...settings.musicDirs];
     renderSummary(currentDirs);
-    renderArchiveRows(archiveFullList, currentDirs, true);
+    renderArchiveRows(archiveFullList, currentDirs);
     applyMotionFlags(settings);
     applyLyricSize(settings.lyricSize);
 
@@ -169,6 +256,10 @@ export function initSettingsPanel(onLibraryChanged: () => void): void {
   }
 
   async function openModal(): Promise<void> {
+    if (closeTimer !== 0) {
+      window.clearTimeout(closeTimer);
+      closeTimer = 0;
+    }
     modal.hidden = false;
     requestAnimationFrame(() => modal.classList.add('open'));
     showView(false);
@@ -177,11 +268,14 @@ export function initSettingsPanel(onLibraryChanged: () => void): void {
 
   function closeModal(): void {
     modal.classList.remove('open');
-    modal.hidden = true;
+    if (closeTimer !== 0) window.clearTimeout(closeTimer);
+    closeTimer = window.setTimeout(() => {
+      closeTimer = 0;
+      if (!modal.classList.contains('open')) modal.hidden = true;
+    }, 750);
   }
 
   if (gearBtn !== null) gearBtn.addEventListener('click', () => void openModal());
-  closeBtn.addEventListener('click', closeModal);
   modal.addEventListener('click', (e) => {
     if (e.target === modal) closeModal();
   });
@@ -189,39 +283,30 @@ export function initSettingsPanel(onLibraryChanged: () => void): void {
     if (e.key === 'Escape' && !modal.hidden) closeModal();
   });
 
-  manageBtn.addEventListener('click', () => {
-    renderArchiveRows(archiveFullList, currentDirs, true);
-    showView(true);
-  });
   backBtn.addEventListener('click', () => showView(false));
-
-  addBtn.addEventListener('click', () => {
-    void window.mr.archivesAdd().then((settings) => {
-      refreshFrom(settings);
-      renderArchiveRows(archiveFullList, currentDirs, true);
-      onLibraryChanged();
-    });
-  });
-
-  archiveFullList.addEventListener('click', (e) => {
-    const btn = (e.target as HTMLElement | null)?.closest<HTMLButtonElement>(
-      'button.archive-remove',
-    );
-    const dir = btn?.dataset['dir'];
-    if (dir === undefined) return;
-    void window.mr.archivesRemove(dir).then((settings) => {
-      refreshFrom(settings);
-      onLibraryChanged();
-    });
-  });
 
   function bindToggle(
     input: HTMLInputElement,
     key: 'motionEffects' | 'motionCarousel' | 'motionPulse' | 'motionMorph' | 'autoFetchLyrics' | 'lyricsSaveBeside',
   ): void {
     input.addEventListener('change', () => {
+      if (key === 'motionEffects') {
+        const enabled = input.checked;
+        carouselToggle.checked = enabled;
+        pulseToggle.checked = enabled;
+        morphToggle.checked = enabled;
+        fx.motion = enabled;
+        void window.mr
+          .updateSettings({
+            motionEffects: enabled,
+            motionCarousel: enabled,
+            motionPulse: enabled,
+            motionMorph: enabled,
+          })
+          .then(refreshFrom);
+        return;
+      }
       const patch = { [key]: input.checked } as Partial<import('../../shared/types').Settings>;
-      if (key === 'motionEffects') fx.motion = input.checked;
       void window.mr.updateSettings(patch).then(refreshFrom);
     });
   }

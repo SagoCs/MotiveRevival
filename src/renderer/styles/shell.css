@@ -1344,12 +1344,12 @@ body:has(#playlist-layer.open) #bottom-bar::before {
   inset: 0;
   z-index: 50;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: rgba(4, 6, 13, 0.6);
-  backdrop-filter: blur(14px);
+  background: var(--void-0);
   opacity: 0;
-  transition: opacity 320ms var(--ease-drift);
+  transition: opacity 750ms var(--ease-drift);
   pointer-events: none;
 }
 
@@ -1365,17 +1365,17 @@ body:has(#playlist-layer.open) #bottom-bar::before {
 .modal-card {
   position: relative;
   width: min(640px, 86vw);
-  border-radius: var(--radius-card);
-  border: 1px solid rgba(199, 205, 244, 0.12);
+  border-radius: 7px;
+  border: 1px solid color-mix(in srgb, var(--acc-a) 24%, rgba(199, 205, 244, 0.14));
   background:
-    radial-gradient(400px 200px at 50% -60px, color-mix(in srgb, var(--acc-a) 14%, transparent), transparent 70%),
-    linear-gradient(180deg, rgba(12, 17, 34, 0.98), rgba(7, 11, 23, 0.96));
+    linear-gradient(180deg, rgba(7, 11, 23, 0.995), rgba(5, 7, 15, 0.995));
   box-shadow:
-    inset 0 1px 0 rgba(238, 240, 255, 0.06),
-    0 24px 60px rgba(2, 3, 8, 0.6);
-  padding: 26px 26px 24px;
+    inset 0 1px 0 color-mix(in srgb, var(--moon) 7%, transparent),
+    0 24px 60px rgba(2, 3, 8, 0.7),
+    0 0 32px color-mix(in srgb, var(--acc-glow) 8%, transparent);
+  padding: 8px 30px 28px;
   transform: translateY(10px) scale(0.99);
-  transition: transform 380ms var(--ease-drift);
+  transition: transform 750ms var(--ease-drift);
 }
 
 .modal.open .modal-card {
@@ -1385,17 +1385,11 @@ body:has(#playlist-layer.open) #bottom-bar::before {
 .modal-title {
   font-family: var(--font-display);
   font-weight: 300;
-  font-size: 15px;
-  letter-spacing: 0.3em;
+  font-size: 13px;
+  letter-spacing: 0.38em;
   text-transform: uppercase;
   color: var(--moon-bright);
-  margin-bottom: 20px;
-}
-
-.modal-close {
-  position: absolute;
-  top: 16px;
-  right: 16px;
+  margin: 0;
 }
 
 .setting-row {
@@ -1427,9 +1421,9 @@ body:has(#playlist-layer.open) #bottom-bar::before {
 
 .toggle {
   appearance: none;
-  width: 40px;
-  height: 22px;
-  border-radius: 999px;
+  width: 44px;
+  height: 20px;
+  border-radius: 3px;
   border: 1px solid var(--line);
   background: rgba(12, 17, 34, 0.8);
   position: relative;
@@ -1444,10 +1438,10 @@ body:has(#playlist-layer.open) #bottom-bar::before {
   content: '';
   position: absolute;
   top: 50%;
-  left: 3px;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
+  left: 4px;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
   transform: translateY(-50%);
   background: var(--dim);
   transition:
@@ -1461,14 +1455,14 @@ body:has(#playlist-layer.open) #bottom-bar::before {
 }
 
 .toggle:checked::after {
-  left: 21px;
+  left: 27px;
   background: var(--acc-b);
   box-shadow: 0 0 8px color-mix(in srgb, var(--acc-glow) 45%, transparent);
 }
 
 .setting-label {
   font-size: 13.5px;
-  color: var(--moon);
+  color: var(--dim);
   white-space: nowrap;
 }
 
@@ -1688,9 +1682,8 @@ body:has(#playlist-layer.open) #bottom-bar::before {
   translate: 22px 0;
 }
 .settings-section {
-  padding-top: 16px;
+  padding-top: 14px;
   margin-top: 14px;
-  border-top: 1px solid rgba(199, 205, 244, 0.09);
 }
 
 .settings-section:first-of-type {
@@ -1702,22 +1695,131 @@ body:has(#playlist-layer.open) #bottom-bar::before {
 .section-title {
   font-family: var(--font-display);
   font-weight: 400;
-  font-size: 10px;
-  letter-spacing: 0.3em;
+  font-size: 13px;
+  letter-spacing: 0.34em;
   text-transform: uppercase;
-  color: var(--dim);
-  margin-bottom: 12px;
+  color: var(--moon-bright);
+  margin: 0;
+  text-shadow: 0 0 14px color-mix(in srgb, var(--acc-glow) 42%, transparent);
+}
+
+.section-note {
+  max-width: 390px;
+  margin: 8px auto 18px;
+  color: var(--moon-bright);
+  font-size: 11px;
+  line-height: 1.55;
+  letter-spacing: 0.06em;
+  text-align: center;
 }
 
 .archive-row {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  padding: 0;
+  margin-bottom: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.archive-row-body {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 6px 8px 6px 12px;
-  margin-bottom: 8px;
-  border-radius: 10px;
-  border: 1px solid rgba(199, 205, 244, 0.09);
-  background: linear-gradient(180deg, rgba(15, 20, 38, 0.55), rgba(9, 13, 26, 0.4));
+  min-height: 42px;
+  padding: 9px 0;
+  background: transparent;
+}
+
+.archive-swipe-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 9.5px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--moon-bright);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.archive-row.archive-spring .archive-row-body {
+  transition:
+    translate 220ms var(--ease-drift),
+    opacity 200ms ease;
+}
+
+.archive-row.archive-swipe-out .archive-row-body {
+  transition:
+    translate 180ms ease-in,
+    opacity 180ms ease-in;
+}
+
+.archive-row .archive-add {
+  opacity: 1;
+}
+
+.archive-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--dim);
+  cursor: pointer;
+  transition:
+    color 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    opacity 180ms ease;
+}
+
+.archive-add:hover {
+  color: var(--acc-b);
+  border-color: color-mix(in srgb, var(--acc-b) 42%, transparent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--acc-glow) 22%, transparent);
+}
+
+.archive-add:focus-visible {
+  opacity: 1;
+  color: var(--acc-b);
+  border-color: color-mix(in srgb, var(--acc-b) 58%, transparent);
+}
+
+.archive-empty-row {
+  display: flex;
+  justify-content: center;
+  padding: 12px 0 4px;
+  list-style: none;
+}
+
+#archive-summary {
+  margin-top: 18px;
+}
+
+
+.archive-add-empty {
+  width: auto;
+  height: 30px;
+  padding: 0 14px;
+  color: var(--dim);
+  letter-spacing: 0.12em;
+}
+
+.archive-add-empty:hover,
+.archive-add-empty:focus-visible {
+  color: var(--acc-b);
 }
 
 .archive-path {
@@ -1736,20 +1838,79 @@ body:has(#playlist-layer.open) #bottom-bar::before {
 .settings-row-end {
   display: flex;
   justify-content: flex-end;
-  margin-top: 4px;
+  margin-top: 16px;
 }
-.modal-head {
+
+.settings-section-action {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 6px;
+  justify-content: center;
+  margin-top: 14px;
 }
 
 .section-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  gap: 14px;
+  margin-bottom: 0;
+}
+
+.section-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  flex: 1;
+  min-width: 0;
+}
+
+.section-divider .divider-line {
+  height: 1px;
+  flex: 1;
+  min-width: 22px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--acc-a) 32%, var(--moon-faint)));
+}
+
+.section-divider .divider-line:last-child {
+  transform: scaleX(-1);
+}
+
+.settings-star {
+  position: relative;
+  display: inline-block;
+  flex: 0 0 11px;
+  width: 11px;
+  height: 11px;
+  background: var(--acc-b);
+  clip-path: polygon(50% 0%, 59% 41%, 100% 50%, 59% 59%, 50% 100%, 41% 59%, 0% 50%, 41% 41%);
+  opacity: 0.8;
+}
+
+.archive-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 19px;
+  margin: 0 4px;
+  list-style: none;
+}
+
+.archive-divider span {
+  flex: 1;
+  height: 1px;
+  background: color-mix(in srgb, var(--acc-b) 46%, rgba(199, 205, 244, 0.1));
+}
+
+.archive-divider i {
+  display: inline-flex;
+  width: 9px;
+  height: 9px;
+  color: color-mix(in srgb, var(--acc-b) 84%, var(--moon-faint));
+}
+
+.archive-divider svg {
+  width: 100%;
+  height: 100%;
 }
 
 .ghost-mini {
@@ -1780,6 +1941,14 @@ body:has(#playlist-layer.open) #bottom-bar::before {
   margin-bottom: 14px;
 }
 
+.libraries-head .section-divider {
+  margin-right: 10px;
+}
+
+.libraries-head .modal-title {
+  white-space: nowrap;
+}
+
 #archive-full-list {
   max-height: 46vh;
   overflow-y: auto;
@@ -1799,7 +1968,7 @@ body:has(#playlist-layer.open) #bottom-bar::before {
 .seg-mini {
   display: flex;
   border: 1px solid rgba(199, 205, 244, 0.16);
-  border-radius: 999px;
+  border-radius: 3px;
   overflow: hidden;
 }
 
