@@ -440,8 +440,8 @@
   position: relative;
 }
 
-.song-row.playing::before,
-.song-row.playing::after {
+html.song-marker-surface .song-row.playing::before,
+html.song-marker-surface .song-row.playing::after {
   content: '';
   position: absolute;
   top: calc(50% - 32px);
@@ -455,12 +455,12 @@
   animation: song-marker-in 450ms var(--ease-drift) 250ms both;
 }
 
-.song-row.playing::before {
+html.song-marker-surface .song-row.playing::before {
   right: calc(100% + 26px);
   translate: 10px 0;
 }
 
-.song-row.playing::after {
+html.song-marker-surface .song-row.playing::after {
   left: calc(100% + 26px);
   translate: -10px 0;
   scale: -1 1;
@@ -476,8 +476,8 @@
   }
 }
 
-.no-motion .song-row.playing::before,
-.no-motion .song-row.playing::after {
+.no-motion.song-marker-surface .song-row.playing::before,
+.no-motion.song-marker-surface .song-row.playing::after {
   animation: none;
   opacity: 0.9;
   translate: 0 0;
@@ -2861,14 +2861,15 @@ body:has(#playlist-layer.open) #bottom-bar::before {
   color: var(--moon);
 }
 
-.summon-glyph.crescent {
+.summon-glyph.crescent,
+.summon-glyph.sun {
   width: 11px;
   height: 11px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.6;
   stroke-linecap: round;
-  color: var(--dim);
+  color: color-mix(in srgb, var(--acc-a) 28%, var(--dim));
   transition:
     color 160ms ease,
     translate 240ms var(--ease-drift);
@@ -2877,11 +2878,6 @@ body:has(#playlist-layer.open) #bottom-bar::before {
 .summon-glyph.sun {
   width: 12px;
   height: 12px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  color: color-mix(in srgb, var(--acc-a) 60%, var(--moon));
   filter: drop-shadow(0 0 6px color-mix(in srgb, var(--acc-glow) 55%, transparent));
   transition:
     color 160ms ease,
@@ -2889,12 +2885,12 @@ body:has(#playlist-layer.open) #bottom-bar::before {
 }
 
 #search-summon:hover .crescent {
-  color: var(--moon);
+  color: var(--moon-bright);
   translate: -2px 0;
 }
 
 #search-summon:hover .sun {
-  color: color-mix(in srgb, var(--acc-a) 85%, var(--moon-bright));
+  color: var(--moon-bright);
   translate: 2px 0;
 }
 

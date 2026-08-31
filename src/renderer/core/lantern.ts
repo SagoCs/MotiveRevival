@@ -74,6 +74,7 @@ interface Mote {
   rot: number;
   spin: number;
   sprite: HTMLCanvasElement | null;
+  source: 'cursor' | 'arrow';
 }
 
 const motes: Mote[] = [];
@@ -211,7 +212,7 @@ export function hslToRgb(h: number, s: number, l: number): [number, number, numb
   return [Math.round(f(0) * 255), Math.round(f(8) * 255), Math.round(f(4) * 255)];
 }
 
-function accentRgb(): [number, number, number] {
+function accentRgb(value = accent): [number, number, number] {
   if (sampleCtx === null) {
     const c = document.createElement('canvas');
     c.width = 1;
@@ -220,14 +221,14 @@ function accentRgb(): [number, number, number] {
   }
   if (sampleCtx === null) return [143, 151, 232];
   sampleCtx.clearRect(0, 0, 1, 1);
-  sampleCtx.fillStyle = accent;
+  sampleCtx.fillStyle = value;
   sampleCtx.fillRect(0, 0, 1, 1);
   const d = sampleCtx.getImageData(0, 0, 1, 1).data;
   return [d[0] ?? 0, d[1] ?? 0, d[2] ?? 0];
 }
 
-export function songAccentHsl(): [number, number, number] {
-  const [r, g, b] = accentRgb();
+export function songAccentHsl(value?: string): [number, number, number] {
+  const [r, g, b] = value === undefined ? accentRgb() : accentRgb(value);
   return rgbToHsl(r, g, b);
 }
 
@@ -307,7 +308,17 @@ function buildMoteSprites(): void {
   }
 }
 
-function spawnMote(px: number, py: number, vx: number, vy: number, ttl: number, size: number, star: boolean, damp: number): void {
+function spawnMote(
+  px: number,
+  py: number,
+  vx: number,
+  vy: number,
+  ttl: number,
+  size: number,
+  star: boolean,
+  damp: number,
+  source: 'cursor' | 'arrow',
+): void {
   const pool = star ? starVariants : roundVariants;
   if (pool.length === 0) return;
   const m = motes[moteIndex % MOTE_CAP];
@@ -326,6 +337,7 @@ function spawnMote(px: number, py: number, vx: number, vy: number, ttl: number, 
   m.rot = Math.random() * Math.PI * 2;
   m.spin = (Math.random() - 0.5) * 3;
   m.sprite = art;
+  m.source = source;
 }
 
 function spawnTrailMote(dx: number, dy: number): void {
@@ -353,6 +365,7 @@ function spawnTrailMote(dx: number, dy: number): void {
       size,
       star,
       MOTE_DAMP,
+      'cursor',
     );
   } else {
     spawnMote(
@@ -364,6 +377,7 @@ function spawnTrailMote(dx: number, dy: number): void {
       size,
       star,
       MOTE_DAMP,
+      'cursor',
     );
   }
 }
@@ -387,6 +401,7 @@ function spawnBurst(): void {
       size,
       star,
       MOTE_DAMP,
+      'cursor',
     );
   }
 }
@@ -598,7 +613,20 @@ export const lantern = {
     if (trailCtx !== null) trailCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
     document.body.append(trailCanvas);
     for (let i = 0; i < MOTE_CAP; i++) {
-      motes.push({ x: 0, y: 0, vx: 0, vy: 0, damp: MOTE_DAMP, life: 0, ttl: 0, size: 0, rot: 0, spin: 0, sprite: null });
+      motes.push({
+        x: 0,
+        y: 0,
+        vx: 0,
+        vy: 0,
+        damp: MOTE_DAMP,
+        life: 0,
+        ttl: 0,
+        size: 0,
+        rot: 0,
+        spin: 0,
+        sprite: null,
+        source: 'cursor',
+      });
     }
     for (let i = 0; i < RIBBON_POINTS; i++) {
       ribbon.push({ x: 0, y: 0, born: -1 });
@@ -715,6 +743,7 @@ export const lantern = {
       4.5 + Math.random() * 4,
       Math.random() < 0.5,
       1.1 + Math.random() * 0.3,
+      'arrow',
     );
   },
 
@@ -731,8 +760,16 @@ export const lantern = {
         5 + Math.random() * 4.5,
         Math.random() < 0.5,
         MOTE_DAMP,
+        'arrow',
       );
     }
+  },
+
+  clearArrowMotes(): void {
+    for (const m of motes) {
+      if (m.source === 'arrow') m.ttl = 0;
+    }
+    rearm();
   },
 
   sync(): void {

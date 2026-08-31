@@ -56,8 +56,22 @@ function boot(): void {
     return { x: side < 0 ? rect.left - 54 : rect.right + 54, y: rect.top + rect.height / 2 };
   };
 
+  let arrowSurfaceActive = false;
+  const syncArrowSurface = (): void => {
+    const songsTabActive = document.querySelector('#mode-tabs button[data-mode="songs"].active') !== null;
+    const blocked = document.querySelector(
+      '#overlay:not([hidden]), #detail-layer:not([hidden]), #playlist-layer:not([hidden]), #search-oracle:not([hidden]), #settings-modal:not([hidden]), #sort-popover:not([hidden])',
+    ) !== null;
+    const active = songsTabActive && !blocked;
+    if (active === arrowSurfaceActive) return;
+    arrowSurfaceActive = active;
+    document.documentElement.classList.toggle('song-marker-surface', active);
+    if (!active) lantern.clearArrowMotes();
+  };
+
   window.setInterval(() => {
-    if (!player.playing) return;
+    syncArrowSurface();
+    if (!arrowSurfaceActive || !player.playing) return;
     for (const side of [-1, 1]) {
       const a = arrowAnchor(side);
       if (a !== null) lantern.streamMote(a.x, a.y, side);
@@ -65,6 +79,8 @@ function boot(): void {
   }, 330);
 
   onMoment((strength) => {
+    syncArrowSurface();
+    if (!arrowSurfaceActive) return;
     for (const side of [-1, 1]) {
       const a = arrowAnchor(side);
       if (a === null) continue;
@@ -75,6 +91,13 @@ function boot(): void {
   const transportHost = document.getElementById('transport-host');
   const transport = transportHost !== null ? createTransport(transportHost) : null;
   initBrowser((text, upcoming) => transport?.setCompactLyric(text, upcoming));
+  syncArrowSurface();
+  new MutationObserver(syncArrowSurface).observe(document.body, {
+    subtree: true,
+    childList: true,
+    attributes: true,
+    attributeFilter: ['class', 'hidden'],
+  });
 
   const rootInfo = document.querySelector<HTMLDivElement>('#root-info');
 

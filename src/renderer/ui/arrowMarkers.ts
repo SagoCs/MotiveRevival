@@ -1,13 +1,19 @@
 import { songAccentHsl, hslToRgb } from '../core/lantern';
+import { appBus } from '../core/appBus';
+import { deriveAccent } from '../core/palette';
 import arrowUrl from '../assets/arrow.png';
 
 let base: HTMLImageElement | null = null;
 let crop: HTMLCanvasElement | null = null;
 let quietTimer = 0;
+let targetAccent: string | undefined;
 
 function scheduleRetint(): void {
   window.clearTimeout(quietTimer);
-  quietTimer = window.setTimeout(retint, 250);
+  quietTimer = window.setTimeout(() => {
+    quietTimer = 0;
+    retint(targetAccent);
+  }, 100);
 }
 
 function buildCrop(): void {
@@ -89,7 +95,7 @@ function drawScaled(source: HTMLCanvasElement, tw: number, th: number): HTMLCanv
   return c;
 }
 
-function retint(): void {
+function retint(value?: string): void {
   if (crop === null) return;
   const ratio = window.devicePixelRatio || 1;
   const h = Math.round(64 * ratio);
@@ -99,7 +105,7 @@ function retint(): void {
   if (g === null) return;
   const frame = g.getImageData(0, 0, w, h);
   const d = frame.data;
-  const [ah, as] = songAccentHsl();
+  const [ah, as] = songAccentHsl(value);
   const sat = Math.min(1, as * 1.1);
   const [cr, cg, cb] = hslToRgb(ah, sat, 0.62);
   for (let i = 0; i < d.length; i += 4) {
@@ -119,9 +125,12 @@ export function initArrowMarkers(): void {
   img.onload = () => {
     base = img;
     buildCrop();
-    retint();
+    retint(targetAccent);
   };
   img.src = arrowUrl;
-  new MutationObserver(scheduleRetint).observe(document.documentElement, { attributes: true, attributeFilter: ['style'] });
+  appBus.on('track-selected', ({ track }) => {
+    targetAccent = deriveAccent(track.palette).a;
+    retint(targetAccent);
+  });
   window.addEventListener('resize', scheduleRetint);
 }
