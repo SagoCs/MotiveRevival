@@ -305,7 +305,7 @@ function buildMoteSprites(): void {
     const t = i / (MOTE_VARIANTS - 1);
     const hue = h + (t - 0.5) * 28;
     const sat = Math.min(1, s * (1 + t * 0.3));
-    const light = Math.max(0.12, l * (0.66 - t * 0.26));
+    const light = Math.max(0.16, l * (0.78 - t * 0.3));
     const [nr, ng, nb] = hslToRgb(hue, sat, light);
     roundVariants.push(makeRoundSprite(nr, ng, nb));
     starVariants.push(makeStarSprite(nr, ng, nb));
@@ -505,7 +505,7 @@ function drawTrail(dt: number): boolean {
   }
   for (const m of motes) {
     if (m.ttl <= 0 || m.sprite === null) continue;
-    const a = Math.sin(Math.PI * (m.life / m.ttl)) * 0.9;
+    const a = Math.min(1, Math.sin(Math.PI * (m.life / m.ttl)) * (m.source === 'arrow' ? 1.15 : 0.9));
     trailCtx.globalAlpha = a;
     trailCtx.save();
     trailCtx.translate(m.x, m.y);
@@ -742,36 +742,41 @@ export const lantern = {
 
   streamMote(px: number, py: number, side: number): void {
     if (trailCanvas === null || !fx.lantern) return;
-    const speed = 70 + Math.random() * 100;
+    const speed = 28 + Math.random() * 42;
     spawnMote(
       px + (Math.random() - 0.5) * 6,
-      py + (Math.random() - 0.5 + Math.random() - 0.5) * 32,
+      py + (Math.random() - 0.5) * 8,
       side * speed,
-      (Math.random() - 0.5) * 30,
-      2.8 + Math.random() * 1.2,
-      4.5 + Math.random() * 4,
+      (Math.random() - 0.5) * 18,
+      1.5 + Math.random() * 0.6,
+      4 + Math.random() * 3,
       Math.random() < 0.5,
-      1.1 + Math.random() * 0.3,
+      1.3 + Math.random() * 0.3,
       'arrow',
     );
+    rearm();
   },
 
   burstMotes(px: number, py: number, side: number, strength: number): void {
     if (trailCanvas === null || !fx.lantern) return;
-    const count = 2 + (strength > 0.6 ? 1 : 0);
+    const count = 18 + Math.round(strength * 10);
     for (let i = 0; i < count; i++) {
+      const direction = side >= 0 ? 0 : Math.PI;
+      const angle = direction + (Math.random() - 0.5) * 1.8;
+      const speed = (72 + Math.random() * 110) * (0.75 + strength * 0.45);
       spawnMote(
-        px + (Math.random() - 0.5) * 14,
+        px + side * (Math.random() * 24),
         py + (Math.random() - 0.5) * 30,
-        side * ((40 + Math.random() * 30) * (0.7 + strength * 0.5)),
-        (Math.random() - 0.5) * 24,
-        1.8 + Math.random() * 0.7,
-        5 + Math.random() * 4.5,
+        Math.cos(angle) * speed,
+        Math.sin(angle) * speed,
+        0.9 + Math.random() * 0.45,
+        5.5 + Math.random() * 4.5,
         Math.random() < 0.5,
-        MOTE_DAMP,
+        1.5 + Math.random() * 0.4,
         'arrow',
       );
     }
+    rearm();
   },
 
   clearArrowMotes(): void {

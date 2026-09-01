@@ -45,27 +45,32 @@ body.song-river-active #carousel-content {
 
 .river-glow {
   position: fixed;
-  top: 0;
-  bottom: 0;
-  width: 170px;
+  top: var(--river-cy, 50%);
+  width: min(520px, 56vw);
+  height: min(380px, max(190px, calc(100vh - 114px)));
+  transform: translateY(-50%);
+  border-radius: 50%;
+  background: color-mix(in srgb, #8f97e8 45%, white);
+  filter: blur(44px);
   opacity: 0;
   transition: opacity 200ms var(--ease-drift);
   pointer-events: none;
+  z-index: 14;
 }
 
 .river-glow-right {
   right: 0;
-  background: linear-gradient(to left, #c7cdf4, transparent);
+  transform: translate(50%, -50%);
 }
 
 .river-glow-left {
   left: 0;
-  background: linear-gradient(to right, #c7cdf4, transparent);
+  transform: translate(-50%, -50%);
 }
 
 .river-swipe-prompt {
   position: fixed;
-  top: 50%;
+  top: var(--river-cy, 50%);
   transform: translateY(-50%);
   font: 400 13px var(--font-display);
   letter-spacing: 0.3em;
@@ -76,6 +81,7 @@ body.song-river-active #carousel-content {
   transition: opacity 200ms var(--ease-drift);
   pointer-events: none;
   white-space: nowrap;
+  z-index: 16;
 }
 
 .river-swipe-prompt.right {

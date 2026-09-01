@@ -4,6 +4,7 @@ import { createArtImage } from '../core/dom';
 import { appBus } from '../core/appBus';
 import { playlistsStore } from '../core/playlistsStore';
 import { lantern } from '../core/lantern';
+import { deriveAccent } from '../core/palette';
 import { openNowPlaying } from './overlay';
 import type { IndexedTrack } from '../../shared/types';
 
@@ -65,16 +66,21 @@ let namesList: HTMLDivElement | null = null;
 let namesTrack: IndexedTrack | null = null;
 let dragSuppress = false;
 let lastSwipeRelease = 0;
+const addedTimers = new Map<HTMLDivElement, number>();
 const swipeQueued = new Set<string>();
 let tiltMax = 38;
 let curveAmt = 0.55;
 let fadeAmt = 1;
 let fall = 420;
 let fadeRange = 350;
+let riverCy = 0;
+let fitScale = 1;
 
 const mod = (a: number, n: number): number => ((a % n) + n) % n;
 const wrapSpan = (x: number): number => mod(x, SPAN);
 const wrapHalf = (x: number): number => mod(x + HALF, SPAN) - HALF;
+
+const diluteColor = (color: string): string => `color-mix(in srgb, ${color} 45%, white)`;
 
 const wake = (): void => {
   if (!on || raf !== 0) return;
@@ -83,14 +89,17 @@ const wake = (): void => {
 };
 
 const measure = (): void => {
-  if (river === null) return;
+  const w = window.innerWidth;
   const h = window.innerHeight;
   const topEdge = BEZEL_H;
   const bottomEdge = h - TIMELINE_H;
-  const centerY = (topEdge + bottomEdge) / 2;
+  riverCy = (topEdge + bottomEdge) / 2;
   fall = Math.max(300, (bottomEdge - topEdge) / 2);
   fadeRange = Math.max(240, fall - EDGE_MARGIN);
-  river.style.setProperty('--river-cy', `${Math.round(centerY)}px`);
+  fitScale = Math.max(0.7, Math.min(1, Math.min(w / 1200, h / 780)));
+  const glowH = Math.round(Math.max(300, Math.min(640, fadeRange * 1.05)));
+  document.body.style.setProperty('--river-cy', `${Math.round(riverCy)}px`);
+  document.body.style.setProperty('--river-gh', `${glowH}px`);
 };
 
 const rebind = (slab: Slab, song: number): void => {
@@ -136,7 +145,8 @@ const layout = (): void => {
     const nS = n * n;
     const nT = Math.pow(n, 1.5);
     const y = Math.round(d * 2) / 2;
-    const scale = Math.round((1 - curveAmt * nS) * (slab === committed ? 1.07 : 1) * 100) / 100;
+    const scale =
+      Math.round((1 - curveAmt * nS) * (slab === committed ? 1.07 : 1) * fitScale * 100) / 100;
     const tilt = Math.round(-Math.sign(d) * tiltMax * nT * 10) / 10;
     const opacity = Math.round((1 - fadeAmt * nS) * 50) / 50;
     const z = Math.round((1 - n) * 60);
@@ -227,6 +237,33 @@ const fadeGlow = (): void => {
   }
 };
 
+const resetPrompt = (prompt: HTMLDivElement | null, label: string): void => {
+  if (prompt === null) return;
+  const timer = addedTimers.get(prompt);
+  if (timer !== undefined) window.clearTimeout(timer);
+  addedTimers.delete(prompt);
+  prompt.textContent = label;
+  prompt.style.color = '';
+};
+
+const showAdded = (side: 1 | -1, track: IndexedTrack): void => {
+  const prompt = side === 1 ? promptL : promptR;
+  if (prompt === null) return;
+  const label = side === 1 ? 'Add to queue' : 'Add to playlist';
+  const accent = deriveAccent(track.palette).g;
+  const timer = addedTimers.get(prompt);
+  if (timer !== undefined) window.clearTimeout(timer);
+  prompt.textContent = 'Added.';
+  prompt.style.color = accent;
+  prompt.style.opacity = '0.72';
+  const next = window.setTimeout(() => {
+    prompt.style.opacity = '0';
+    const restore = window.setTimeout(() => resetPrompt(prompt, label), 240);
+    addedTimers.set(prompt, restore);
+  }, 1250);
+  addedTimers.set(prompt, next);
+};
+
 const springBack = (el: HTMLDivElement, from: number): void => {
   if (from === 0) return;
   const start = performance.now();
@@ -244,7 +281,7 @@ const swipeTrackOf = (slab: Slab): IndexedTrack | undefined =>
   tracks.length > 0 ? tracks[mod(slab.song, tracks.length)] : undefined;
 
 const onCardPointerDown = (slab: Slab, event: PointerEvent): void => {
-  if (event.button !== 0) return;
+  if (event.button !== 0 || slab !== committed) return;
   const el = slab.el;
   const startX = event.clientX;
   const startY = event.clientY;
@@ -271,14 +308,21 @@ const onCardPointerDown = (slab: Slab, event: PointerEvent): void => {
         return;
       }
       dragging = true;
-      const hex = swipeTrackOf(slab)?.palette?.[0] ?? '#c7cdf4';
-      if (glowR !== null) glowR.style.background = `linear-gradient(to left, ${hex}, transparent)`;
-      if (glowL !== null) glowL.style.background = `linear-gradient(to right, ${hex}, transparent)`;
+      closeNames();
+      resetPrompt(promptR, 'Add to playlist');
+      resetPrompt(promptL, 'Add to queue');
+      const soft = diluteColor(deriveAccent(swipeTrackOf(slab)?.palette ?? null).g);
+      if (glowR !== null) {
+        glowR.style.background = soft;
+      }
+      if (glowL !== null) {
+        glowL.style.background = soft;
+      }
     }
     x = Math.max(-DRAG_MAX, Math.min(DRAG_MAX, dx));
     el.style.translate = `${x}px 0`;
-    const r = Math.max(0, Math.min(1, (x - 24) / (SWIPE_T - 24)));
-    const l = Math.max(0, Math.min(1, (-x - 24) / (SWIPE_T - 24)));
+    const r = Math.max(0, Math.min(1, (x - 40) / (SWIPE_T - 40))) * 0.55;
+    const l = Math.max(0, Math.min(1, (-x - 40) / (SWIPE_T - 40))) * 0.55;
     if (glowR !== null) glowR.style.opacity = String(r);
     if (glowL !== null) glowL.style.opacity = String(l);
     if (promptR !== null) promptR.style.opacity = String(r);
@@ -299,7 +343,7 @@ const onCardPointerDown = (slab: Slab, event: PointerEvent): void => {
     } else if (x < -SWIPE_T && !swipeQueued.has(track.id)) {
       swipeQueued.add(track.id);
       player.appendToQueue(track);
-      showerFrom(1);
+      showAdded(1, track);
     }
   };
   const onCancel = (): void => {
@@ -311,15 +355,6 @@ const onCardPointerDown = (slab: Slab, event: PointerEvent): void => {
   el.addEventListener('pointermove', onMove);
   el.addEventListener('pointerup', onUp);
   el.addEventListener('pointercancel', onCancel);
-};
-
-const showerFrom = (side: 1 | -1): void => {
-  const x = side === 1 ? 40 : window.innerWidth - 40;
-  const midY = window.innerHeight / 2;
-  for (let i = 0; i < 4; i++) {
-    const y = midY + (i - 1.5) * 110;
-    window.setTimeout(() => lantern.burstMotes(x, y, side, 1), i * 110);
-  }
 };
 
 const rebuildNames = (): void => {
@@ -337,9 +372,10 @@ const rebuildNames = (): void => {
     if (track === null) return;
     const name = input.value.trim() === '' ? 'New Playlist' : input.value.trim();
     void playlistsStore.create(name).then((pl) => {
-      void playlistsStore.addTrack(pl.id, { trackId: track.id, absPath: track.absPath });
-      showerFrom(-1);
-      closeNames();
+      void playlistsStore.addTrack(pl.id, { trackId: track.id, absPath: track.absPath }).then(() => {
+        showAdded(-1, track);
+        closeNames();
+      });
     });
   });
   namesList.append(input);
@@ -357,9 +393,10 @@ const rebuildNames = (): void => {
         closeNames();
         return;
       }
-      void playlistsStore.addTrack(pl.id, { trackId: track.id, absPath: track.absPath });
-      showerFrom(-1);
-      closeNames();
+      void playlistsStore.addTrack(pl.id, { trackId: track.id, absPath: track.absPath }).then(() => {
+        showAdded(-1, track);
+        closeNames();
+      });
     });
     namesList.append(item);
   }
