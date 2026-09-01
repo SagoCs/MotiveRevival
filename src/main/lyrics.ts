@@ -97,10 +97,8 @@ async function fetchFromLrclib(payload: LyricsPayload): Promise<FetchedLyrics | 
   try {
     const getUrl = `${LRCLIB_GET}?${params.toString()}`;
     const getRes = await httpGetJson(getUrl);
-    if (getRes !== null) {
-      const picked = pickFetched(getRes);
-      if (picked !== null) return picked;
-    }
+    const getPicked = getRes === null ? null : pickFetched(getRes);
+    if (getPicked !== null && getPicked.syncedText !== null) return getPicked;
 
     const searchUrl = `${LRCLIB_SEARCH}?${params.toString()}`;
     const searchRes = await httpGetJson(searchUrl);
@@ -109,13 +107,14 @@ async function fetchFromLrclib(payload: LyricsPayload): Promise<FetchedLyrics | 
       const ranked = [...searchRes].sort((a, b) => rank(b, want) - rank(a, want));
       for (const item of ranked) {
         const picked = pickFetched(item);
-        if (picked !== null) return picked;
+        if (picked !== null && picked.syncedText !== null) return picked;
       }
     }
+
+    return getPicked;
   } catch {
     return null;
   }
-  return null;
 }
 
 function rank(item: unknown, wantDuration: number): number {
