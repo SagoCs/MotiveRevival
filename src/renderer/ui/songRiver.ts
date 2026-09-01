@@ -1,14 +1,16 @@
 import { libraryStore } from '../core/libraryStore';
 import { mediaUrl, player } from '../core/player';
 import { createArtImage } from '../core/dom';
+import { openNowPlaying } from './overlay';
 import type { IndexedTrack } from '../../shared/types';
 
 const SLAB_COUNT = 21;
-const GAP = 272;
+const GAP = 165;
 const SPAN = SLAB_COUNT * GAP;
 const HALF = SPAN / 2;
 const BEZEL_H = 52;
 const TIMELINE_H = 62;
+const EDGE_MARGIN = 70;
 
 const FAKE_TITLES = [
   'Winterlight Vow', 'Gossamer Meridian', 'Aurelian Skies', 'Pale Commotion',
@@ -37,7 +39,6 @@ interface Slab {
 let tracks: IndexedTrack[] = [];
 let slabs: Slab[] = [];
 let river: HTMLDivElement | null = null;
-let readout: HTMLDivElement | null = null;
 let on = false;
 let raf = 0;
 let last = 0;
@@ -54,8 +55,7 @@ let tiltMax = 26;
 let curveAmt = 0.55;
 let fadeAmt = 1;
 let fall = 420;
-const ring: number[] = [];
-let readoutAt = 0;
+let fadeRange = 350;
 
 const mod = (a: number, n: number): number => ((a % n) + n) % n;
 const wrapSpan = (x: number): number => mod(x, SPAN);
@@ -73,22 +73,25 @@ const measure = (): void => {
   const topEdge = BEZEL_H;
   const bottomEdge = h - TIMELINE_H;
   const centerY = (topEdge + bottomEdge) / 2;
-  fall = Math.max(260, (bottomEdge - topEdge) / 2);
+  fall = Math.max(300, (bottomEdge - topEdge) / 2);
+  fadeRange = Math.max(240, fall - EDGE_MARGIN);
   river.style.setProperty('--river-cy', `${Math.round(centerY)}px`);
 };
 
 const rebind = (slab: Slab, song: number): void => {
   slab.song = song;
   const track = tracks.length > 0 ? tracks[mod(song, tracks.length)] : undefined;
-  if (track !== undefined) {
-    slab.title.textContent = track.title;
-    slab.artist.textContent = track.artist ?? 'Unknown Artist';
-    slab.art.replaceChildren();
-    const art = track.artFile;
-    if (art !== null) {
-      slab.art.append(createArtImage(mediaUrl(art), { fallbackUrl: mediaUrl(art) }));
-    }
-  } else {
+    if (track !== undefined) {
+      slab.title.textContent = track.title;
+      slab.artist.textContent = track.artist ?? 'Unknown Artist';
+      slab.art.replaceChildren();
+      const art = track.artFile;
+      if (art !== null) {
+        const img = createArtImage(mediaUrl(art), { fallbackUrl: mediaUrl(art) });
+        img.decoding = 'async';
+        slab.art.append(img);
+      }
+    } else {
     slab.title.textContent = FAKE_TITLES[mod(song, FAKE_TITLES.length)] ?? 'Untitled';
     slab.artist.textContent = FAKE_ARTISTS[mod(song, FAKE_ARTISTS.length)] ?? '';
     slab.art.replaceChildren();
@@ -114,18 +117,19 @@ const layout = (): void => {
       }
     }
     slab.d = d;
-    const n = Math.min(1, Math.abs(d) / fall);
-    const nc = n * n * n;
-    const y = Math.round(d);
-    const scale = Math.round((1 - curveAmt * nc) * 100) / 100;
-    const tilt = Math.round(-Math.sign(d) * tiltMax * nc);
-    const opacity = Math.round((1 - fadeAmt * nc) * 50) / 50;
+    const n = Math.min(1, Math.abs(d) / fadeRange);
+    const nT = n * n * n;
+    const nO = n * n;
+    const y = Math.round(d * 2) / 2;
+    const scale = Math.round((1 - curveAmt * nT) * 100) / 100;
+    const tilt = Math.round(-Math.sign(d) * tiltMax * nT);
+    const opacity = Math.round((1 - fadeAmt * nO) * 50) / 50;
     const z = Math.round((1 - n) * 60);
     if (slab.lastY !== y || slab.lastScale !== scale || slab.lastTilt !== tilt) {
       slab.lastY = y;
       slab.lastScale = scale;
       slab.lastTilt = tilt;
-      slab.el.style.transform = `translate3d(0, ${y}px, 0) rotateX(${tilt}deg) scale(${scale})`;
+      slab.el.style.transform = `translate3d(0, ${y.toFixed(1)}px, 0) rotateX(${tilt}deg) scale(${scale})`;
     }
     if (slab.lastOpacity !== opacity) {
       slab.lastOpacity = opacity;
@@ -183,10 +187,16 @@ const glideToCenter = (slab: Slab): void => {
 };
 
 const onFrontClick = (slab: Slab): void => {
-  if (committed !== null && committed !== slab) committed.el.classList.remove('committed');
-  slab.el.classList.add('committed');
-  committed = slab;
-  if (tracks.length > 0) player.setContext(tracks, mod(slab.song, tracks.length));
+  const cur = player.currentTrack;
+  const track = tracks.length > 0 ? tracks[mod(slab.song, tracks.length)] : undefined;
+  if (cur !== null && track !== undefined && track.absPath === cur.absPath) {
+    openNowPlaying();
+  } else if (track !== undefined) {
+    if (committed !== null && committed !== slab) committed.el.classList.remove('committed');
+    slab.el.classList.add('committed');
+    committed = slab;
+    player.setContext(tracks, mod(slab.song, tracks.length));
+  }
   glideToCenter(slab);
   wake();
 };
@@ -204,24 +214,11 @@ const step = (ts: number): void => {
       velocity = 0;
     }
   } else if (velocity !== 0) {
-    velocity *= Math.exp(-4.4 * dt);
-    if (Math.abs(velocity) < 6) velocity = 0;
+    velocity *= Math.exp(-3.1 * dt);
+    if (Math.abs(velocity) < 5) velocity = 0;
     offset = wrapSpan(offset + velocity * dt);
   }
   layout();
-  ring.push(dtMs);
-  if (ring.length > 60) ring.shift();
-  if (ts - readoutAt > 250 && readout !== null) {
-    readoutAt = ts;
-    let sum = 0;
-    let worst = 0;
-    for (const dMs of ring) {
-      sum += dMs;
-      if (dMs > worst) worst = dMs;
-    }
-    const fps = ring.length > 0 ? (1000 / (sum / ring.length)).toFixed(1) : '0.0';
-    readout.textContent = `${fps} fps · worst ${worst.toFixed(1)} ms · ${tracks.length} tracks\n↑↓ tilt ${tiltMax}° · ←→ fade ${fadeAmt.toFixed(2)} · shift+↑↓ depth ${curveAmt.toFixed(2)}`;
-  }
   if (gliding || velocity !== 0) raf = window.requestAnimationFrame(step);
   else last = 0;
 };
@@ -304,11 +301,7 @@ export function initSongRiver(): void {
   river = document.createElement('div');
   river.id = 'song-river';
   for (let i = 0; i < SLAB_COUNT; i++) slabs.push(buildSlab(i));
-  readout = document.createElement('div');
-  readout.className = 'spike-readout';
-  readout.textContent =
-    'wheel scrolls · click plays and centers\n↑↓ tilt · ←→ fade · shift+↑↓ depth';
-  river.append(...slabs.map((s) => s.el), readout);
+  river.append(...slabs.map((s) => s.el));
   document.body.append(river);
 
   libraryStore.onChange((result) => {
@@ -324,7 +317,7 @@ export function initSongRiver(): void {
       if (!on) return;
       event.preventDefault();
       gliding = false;
-      velocity = Math.max(-9500, Math.min(9500, velocity - event.deltaY * 4.5));
+      velocity = Math.max(-13000, Math.min(13000, velocity - event.deltaY * 2.8));
       wake();
     },
     { passive: false },
