@@ -1,6 +1,7 @@
 import { libraryStore } from '../core/libraryStore';
 import { mediaUrl, player } from '../core/player';
 import { createArtImage } from '../core/dom';
+import { appBus } from '../core/appBus';
 import { openNowPlaying } from './overlay';
 import type { IndexedTrack } from '../../shared/types';
 
@@ -49,6 +50,7 @@ let glideStart = 0;
 let nextForward = 1;
 let nextBackward = -1;
 let committed: Slab | null = null;
+let riverOriginated = false;
 let tiltMax = 38;
 let curveAmt = 0.55;
 let fadeAmt = 1;
@@ -193,6 +195,7 @@ const onFrontClick = (slab: Slab): void => {
     if (committed !== null && committed !== slab) committed.el.classList.remove('committed');
     slab.el.classList.add('committed');
     committed = slab;
+    riverOriginated = true;
     player.setContext(tracks, mod(slab.song, tracks.length));
   }
   glideToCenter(slab);
@@ -300,10 +303,19 @@ export function initSongRiver(): void {
     }
   });
 
-  river.addEventListener(
+  window.addEventListener(
     'wheel',
     (event) => {
       if (!on) return;
+      const target = event.target as HTMLElement | null;
+      if (
+        target !== null &&
+        target.closest(
+          '#overlay, #detail-layer, #playlist-layer, #search-oracle, #settings-modal, #sort-popover, #queue-panel',
+        ) !== null
+      ) {
+        return;
+      }
       event.preventDefault();
       gliding = false;
       velocity = Math.max(-13000, Math.min(13000, velocity - event.deltaY * 2.8));
@@ -311,6 +323,16 @@ export function initSongRiver(): void {
     },
     { passive: false },
   );
+
+  appBus.on('track-selected', ({ track }) => {
+    if (!on) return;
+    if (riverOriginated) {
+      riverOriginated = false;
+      return;
+    }
+    const idx = tracks.findIndex((t) => t.absPath === track.absPath);
+    if (idx >= 0) arrangeAround(idx);
+  });
 
   window.addEventListener('resize', () => {
     measure();
