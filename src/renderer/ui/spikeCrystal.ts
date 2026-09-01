@@ -3,6 +3,11 @@ const SLOT_GAP = 120;
 const SPAN = PANE_COUNT * SLOT_GAP;
 const FAR = -2400;
 
+interface StressSet {
+  items: HTMLDivElement[];
+  label: string;
+}
+
 export function initCrystalSpike(): void {
   const demo = document.createElement('div');
   demo.id = 'spike-demo';
@@ -17,29 +22,18 @@ export function initCrystalSpike(): void {
   scene.className = 'spike-stress-scene';
   const plane = document.createElement('div');
   plane.className = 'spike-stress-plane';
-  const panes: HTMLDivElement[] = [];
-  for (let i = 0; i < PANE_COUNT; i++) {
-    const pane = document.createElement('div');
-    pane.className = 'spike-glass spike-stress-pane';
-    const text = document.createElement('div');
-    text.className = 'spike-text';
-    const title = document.createElement('span');
-    title.className = 'spike-title';
-    title.textContent = `Pane ${String(i + 1).padStart(2, '0')}`;
-    text.append(title);
-    pane.append(text);
-    plane.append(pane);
-    panes.push(pane);
-  }
+  const flat = buildFlatSet();
+  const slabs = buildSlabSet();
+  plane.append(...flat.items, ...slabs.items);
   const readout = document.createElement('div');
   readout.className = 'spike-readout';
-  readout.textContent = 'starting…';
+  readout.textContent = 'F9 cycles: flat panes · slabs · off';
   scene.append(plane);
   stress.append(scene, readout);
 
   document.body.append(demo, stress);
 
-  let running = false;
+  let mode = 0;
   let raf = 0;
   let last = 0;
   let offset = 0;
@@ -48,7 +42,7 @@ export function initCrystalSpike(): void {
   let readoutAt = 0;
 
   const step = (ts: number): void => {
-    if (!running) return;
+    if (mode === 0) return;
     const dtMs = last === 0 ? 16 : Math.min(50, ts - last);
     last = ts;
     ring.push(dtMs);
@@ -59,8 +53,9 @@ export function initCrystalSpike(): void {
       velocity = (700 + Math.random() * 1500) * (Math.random() < 0.5 ? -1 : 1);
     }
     offset = ((offset + velocity * dt) % SPAN + SPAN) % SPAN;
-    for (let i = 0; i < panes.length; i++) {
-      const el = panes[i];
+    const active = mode === 1 ? flat : slabs;
+    for (let i = 0; i < active.items.length; i++) {
+      const el = active.items[i];
       if (el === undefined) continue;
       const raw = i * SLOT_GAP - offset;
       const y = ((raw % SPAN) + SPAN) % SPAN + FAR;
@@ -75,7 +70,8 @@ export function initCrystalSpike(): void {
         if (d > worst) worst = d;
       }
       const fps = ring.length > 0 ? (1000 / (sum / ring.length)).toFixed(1) : '0.0';
-      readout.textContent = `${fps} fps · worst ${worst.toFixed(1)} ms · ${PANE_COUNT} panes · F9 stops`;
+      const tail = mode === 1 ? 'F9 slabs' : 'F9 stops';
+      readout.textContent = `${fps} fps · worst ${worst.toFixed(1)} ms · ${PANE_COUNT} ${active.label} · ${tail}`;
     }
     raf = window.requestAnimationFrame(step);
   };
@@ -89,15 +85,15 @@ export function initCrystalSpike(): void {
     ) {
       return;
     }
-    running = !running;
-    stress.classList.toggle('on', running);
-    demo.classList.toggle('parked', running);
-    if (running) {
+    mode = (mode + 1) % 3;
+    stress.classList.toggle('flat', mode === 1);
+    stress.classList.toggle('slab', mode === 2);
+    demo.classList.toggle('parked', mode !== 0);
+    window.cancelAnimationFrame(raf);
+    if (mode !== 0) {
       last = 0;
       readoutAt = 0;
       raf = window.requestAnimationFrame(step);
-    } else {
-      window.cancelAnimationFrame(raf);
     }
   });
 }
@@ -147,4 +143,46 @@ function paneNode(title: string, artist: string): HTMLElement {
   pane.className = 'spike-pane spike-glass';
   pane.append(textBlock(title, artist));
   return pane;
+}
+
+function stressTitle(title: string): HTMLDivElement {
+  const text = document.createElement('div');
+  text.className = 'spike-text';
+  const t = document.createElement('span');
+  t.className = 'spike-title';
+  t.textContent = title;
+  text.append(t);
+  return text;
+}
+
+function buildFlatSet(): StressSet {
+  const items: HTMLDivElement[] = [];
+  for (let i = 0; i < PANE_COUNT; i++) {
+    const pane = document.createElement('div');
+    pane.className = 'spike-glass spike-stress-pane';
+    pane.append(stressTitle(`Pane ${String(i + 1).padStart(2, '0')}`));
+    items.push(pane);
+  }
+  return { items, label: 'panes' };
+}
+
+function buildSlabSet(): StressSet {
+  const items: HTMLDivElement[] = [];
+  for (let i = 0; i < PANE_COUNT; i++) {
+    const item = document.createElement('div');
+    item.className = 'spike-stress-item';
+    const inner = document.createElement('div');
+    inner.className = 'spike-stress-inner';
+    const top = document.createElement('div');
+    top.className = 'spike-face spike-top';
+    const side = document.createElement('div');
+    side.className = 'spike-face spike-side';
+    const front = document.createElement('div');
+    front.className = 'spike-face spike-glass spike-front';
+    front.append(stressTitle(`Slab ${String(i + 1).padStart(2, '0')}`));
+    inner.append(top, side, front);
+    item.append(inner);
+    items.push(item);
+  }
+  return { items, label: 'slabs' };
 }

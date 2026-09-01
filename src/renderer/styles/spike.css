@@ -169,12 +169,34 @@
   transform: rotateX(31deg);
 }
 
-.spike-stress-pane {
+.spike-stress-pane,
+.spike-stress-item {
+  position: absolute;
   left: -104px;
   top: -62px;
   width: 208px;
   height: 124px;
   will-change: transform;
+  display: none;
+}
+
+#spike-stress.flat .spike-stress-pane {
+  display: block;
+}
+
+#spike-stress.slab .spike-stress-item {
+  display: block;
+}
+
+.spike-stress-item {
+  transform-style: preserve-3d;
+}
+
+.spike-stress-inner {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transform: rotateY(-18deg);
 }
 
 .spike-readout {
