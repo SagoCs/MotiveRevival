@@ -5,7 +5,7 @@ import { openNowPlaying } from './overlay';
 import type { IndexedTrack } from '../../shared/types';
 
 const SLAB_COUNT = 21;
-const GAP = 165;
+const GAP = 145;
 const SPAN = SLAB_COUNT * GAP;
 const HALF = SPAN / 2;
 const BEZEL_H = 52;
@@ -21,8 +21,6 @@ const FAKE_ARTISTS = ['Aurelian Skies', 'Northfold Choir', 'The Quiet Shore'];
 
 interface Slab {
   el: HTMLDivElement;
-  front: HTMLDivElement;
-  faces: HTMLDivElement[];
   title: HTMLSpanElement;
   artist: HTMLSpanElement;
   art: HTMLDivElement;
@@ -51,7 +49,7 @@ let glideStart = 0;
 let nextForward = 1;
 let nextBackward = -1;
 let committed: Slab | null = null;
-let tiltMax = 26;
+let tiltMax = 38;
 let curveAmt = 0.55;
 let fadeAmt = 1;
 let fall = 420;
@@ -118,22 +116,22 @@ const layout = (): void => {
     }
     slab.d = d;
     const n = Math.min(1, Math.abs(d) / fadeRange);
-    const nT = n * n * n;
-    const nO = n * n;
+    const nS = n * n;
+    const nT = Math.pow(n, 1.5);
     const y = Math.round(d * 2) / 2;
-    const scale = Math.round((1 - curveAmt * nT) * 100) / 100;
-    const tilt = Math.round(-Math.sign(d) * tiltMax * nT);
-    const opacity = Math.round((1 - fadeAmt * nO) * 50) / 50;
+    const scale = Math.round((1 - curveAmt * nS) * 100) / 100;
+    const tilt = Math.round(-Math.sign(d) * tiltMax * nT * 10) / 10;
+    const opacity = Math.round((1 - fadeAmt * nS) * 50) / 50;
     const z = Math.round((1 - n) * 60);
     if (slab.lastY !== y || slab.lastScale !== scale || slab.lastTilt !== tilt) {
       slab.lastY = y;
       slab.lastScale = scale;
       slab.lastTilt = tilt;
-      slab.el.style.transform = `translate3d(0, ${y.toFixed(1)}px, 0) rotateX(${tilt}deg) scale(${scale})`;
+      slab.el.style.transform = `translate3d(0, ${y.toFixed(1)}px, 0) rotateX(${tilt.toFixed(1)}deg) scale(${scale})`;
     }
     if (slab.lastOpacity !== opacity) {
       slab.lastOpacity = opacity;
-      for (const face of slab.faces) face.style.opacity = String(opacity);
+      slab.el.style.opacity = String(opacity);
     }
     if (slab.lastZ !== z) {
       slab.lastZ = z;
@@ -251,9 +249,7 @@ export const songRiver = {
 
 function buildSlab(slot: number): Slab {
   const el = document.createElement('div');
-  el.className = 'river-slab';
-  const front = document.createElement('div');
-  front.className = 'river-front';
+  el.className = 'river-card';
   const art = document.createElement('div');
   art.className = 'river-art';
   const veil = document.createElement('div');
@@ -265,16 +261,9 @@ function buildSlab(slot: number): Slab {
   const artist = document.createElement('span');
   artist.className = 'river-artist';
   text.append(title, artist);
-  front.append(art, veil, text);
-  const top = document.createElement('div');
-  top.className = 'river-edge river-edge-top';
-  const bottom = document.createElement('div');
-  bottom.className = 'river-edge river-edge-bottom';
-  el.append(front, top, bottom);
+  el.append(art, veil, text);
   const slab: Slab = {
     el,
-    front,
-    faces: [front, top, bottom],
     title,
     artist,
     art,
@@ -287,7 +276,7 @@ function buildSlab(slot: number): Slab {
     lastOpacity: NaN,
     lastZ: -1,
   };
-  front.addEventListener('click', () => onFrontClick(slab));
+  el.addEventListener('click', () => onFrontClick(slab));
   return slab;
 }
 
