@@ -1,13 +1,13 @@
 import { libraryStore } from '../core/libraryStore';
 import { mediaUrl, player } from '../core/player';
-import { createArtImage, thumbOf } from '../core/dom';
+import { createArtImage } from '../core/dom';
 import type { IndexedTrack } from '../../shared/types';
 
 const SLAB_COUNT = 21;
-const GAP = 210;
+const GAP = 272;
 const SPAN = SLAB_COUNT * GAP;
 const HALF = SPAN / 2;
-const FALL = 640;
+const FALL = 720;
 
 let tiltMax = 22;
 let curveAmt = 0.55;
@@ -60,7 +60,7 @@ export function initCrystalSpike(): void {
   const readout = document.createElement('div');
   readout.className = 'spike-readout';
   readout.textContent =
-    'F9 opens the river · wheel scrolls · click previews · click again plays\n↑↓ tilt · ←→ fade · shift+↑↓ depth';
+    'F9 opens the river · wheel scrolls · click plays and centers\n↑↓ tilt · ←→ fade · shift+↑↓ depth';
   river.append(...slabs.map((s) => s.el), readout);
   document.body.append(river);
 
@@ -75,7 +75,6 @@ export function initCrystalSpike(): void {
   let glideStart = 0;
   let nextForward = 1;
   let nextBackward = -1;
-  let previewed: Slab | null = null;
   let committed: Slab | null = null;
   const ring: number[] = [];
   let readoutAt = 0;
@@ -99,7 +98,7 @@ export function initCrystalSpike(): void {
       slab.art.replaceChildren();
       const art = track.artFile;
       if (art !== null) {
-        slab.art.append(createArtImage(mediaUrl(thumbOf(art)), { fallbackUrl: mediaUrl(art) }));
+        slab.art.append(createArtImage(mediaUrl(art), { fallbackUrl: mediaUrl(art) }));
       }
     } else {
       slab.title.textContent = FAKE_TITLES[mod(song, FAKE_TITLES.length)] ?? 'Untitled';
@@ -118,9 +117,7 @@ export function initCrystalSpike(): void {
     offset = 0;
     velocity = 0;
     gliding = false;
-    if (previewed !== null) previewed.el.classList.remove('preview');
     if (committed !== null) committed.el.classList.remove('committed');
-    previewed = null;
     committed = null;
     let maxBelow = 0;
     for (const slab of slabs) {
@@ -177,19 +174,11 @@ export function initCrystalSpike(): void {
   }
 
   const onFrontClick = (slab: Slab): void => {
-    if (previewed === slab) {
-      slab.el.classList.remove('preview');
-      previewed = null;
-      if (committed !== null && committed !== slab) committed.el.classList.remove('committed');
-      slab.el.classList.add('committed');
-      committed = slab;
-      if (tracks.length > 0) player.setContext(tracks, mod(slab.song, tracks.length));
-      glideToCenter(slab);
-    } else {
-      if (previewed !== null && previewed !== slab) previewed.el.classList.remove('preview');
-      previewed = slab;
-      slab.el.classList.add('preview');
-    }
+    if (committed !== null && committed !== slab) committed.el.classList.remove('committed');
+    slab.el.classList.add('committed');
+    committed = slab;
+    if (tracks.length > 0) player.setContext(tracks, mod(slab.song, tracks.length));
+    glideToCenter(slab);
     wake();
   };
 
@@ -281,7 +270,7 @@ export function initCrystalSpike(): void {
       if (!on) return;
       event.preventDefault();
       gliding = false;
-      velocity = Math.max(-5200, Math.min(5200, velocity - event.deltaY * 2.4));
+      velocity = Math.max(-9500, Math.min(9500, velocity - event.deltaY * 4.5));
       wake();
     },
     { passive: false },
