@@ -10,8 +10,6 @@ import type { IndexedTrack } from '../../shared/types';
 
 const SLAB_COUNT = 21;
 const GAP = 145;
-const SPAN = SLAB_COUNT * GAP;
-const HALF = SPAN / 2;
 const BEZEL_H = 52;
 const TIMELINE_H = 62;
 const EDGE_MARGIN = 70;
@@ -33,6 +31,7 @@ interface Slab {
   art: HTMLDivElement;
   slot: number;
   song: number;
+  trackPath: string | null;
   d: number | null;
   lastY: number;
   lastScale: number;
@@ -47,15 +46,16 @@ let river: HTMLDivElement | null = null;
 let on = false;
 let raf = 0;
 let last = 0;
-let offset = 0;
+let position = 0;
+let basePosition = 0;
 let velocity = 0;
 let gliding = false;
 let glideFrom = 0;
 let glideDelta = 0;
 let glideStart = 0;
-let nextForward = 1;
-let nextBackward = -1;
+let glideDuration = 700;
 let committed: Slab | null = null;
+let committedPath: string | null = null;
 let riverOriginated = false;
 let glowR: HTMLDivElement | null = null;
 let glowL: HTMLDivElement | null = null;
@@ -77,8 +77,26 @@ let riverCy = 0;
 let fitScale = 1;
 
 const mod = (a: number, n: number): number => ((a % n) + n) % n;
-const wrapSpan = (x: number): number => mod(x, SPAN);
-const wrapHalf = (x: number): number => mod(x + HALF, SPAN) - HALF;
+const slotOffset = (slot: number): number => (slot <= Math.floor(SLAB_COUNT / 2) ? slot : slot - SLAB_COUNT);
+
+const resetSlabs = (base: number): void => {
+  for (let i = 0; i < slabs.length; i++) {
+    const slab = slabs[i];
+    if (slab === undefined) continue;
+    slab.slot = slotOffset(i);
+    rebind(slab, base + slab.slot);
+  }
+};
+
+const rotateSlabs = (direction: 1 | -1): void => {
+  basePosition += direction;
+  const edge = direction > 0 ? -Math.floor(SLAB_COUNT / 2) : Math.floor(SLAB_COUNT / 2);
+  const incoming = slabs.find((slab) => slab.slot === edge);
+  if (incoming === undefined) return;
+  for (const slab of slabs) slab.slot -= direction;
+  incoming.slot = direction > 0 ? Math.floor(SLAB_COUNT / 2) : -Math.floor(SLAB_COUNT / 2);
+  rebind(incoming, basePosition + incoming.slot);
+};
 
 const diluteColor = (color: string): string => `color-mix(in srgb, ${color} 45%, white)`;
 
@@ -105,6 +123,7 @@ const measure = (): void => {
 const rebind = (slab: Slab, song: number): void => {
   slab.song = song;
   const track = tracks.length > 0 ? tracks[mod(song, tracks.length)] : undefined;
+  slab.trackPath = track?.absPath ?? null;
     if (track !== undefined) {
       slab.title.textContent = track.title;
       slab.artist.textContent = track.artist ?? 'Unknown Artist';
@@ -129,18 +148,26 @@ const rebind = (slab: Slab, song: number): void => {
 };
 
 const layout = (): void => {
+  if (tracks.length === 0) return;
+  const base = Math.floor(position);
+  while (basePosition < base) rotateSlabs(1);
+  while (basePosition > base) rotateSlabs(-1);
+  const fraction = position - basePosition;
   for (const slab of slabs) {
-    const d = wrapHalf(slab.slot * GAP - offset);
-    if (slab.d !== null) {
-      if (slab.d - d > HALF) {
-        rebind(slab, nextBackward);
-        nextBackward -= 1;
-      } else if (d - slab.d > HALF) {
-        rebind(slab, nextForward);
-        nextForward += 1;
-      }
-    }
+    const localOffset = slotOffset(slab.slot);
+    const d = (localOffset - fraction) * GAP;
     slab.d = d;
+  }
+  if (committedPath !== null) {
+    committed = null;
+    for (const slab of slabs) {
+      const isCommitted = slab.trackPath === committedPath;
+      slab.el.classList.toggle('committed', isCommitted);
+      if (isCommitted) committed = slab;
+    }
+  }
+  for (const slab of slabs) {
+    const d = slab.d ?? 0;
     const n = Math.min(1, Math.abs(d) / fadeRange);
     const nS = n * n;
     const nT = Math.pow(n, 1.5);
@@ -177,24 +204,19 @@ const currentCenter = (): number => {
 };
 
 const arrangeAround = (center: number): void => {
-  offset = 0;
+  position = center;
+  basePosition = Math.floor(center);
   velocity = 0;
   gliding = false;
   if (committed !== null) committed.el.classList.remove('committed');
   committed = null;
-  let maxBelow = 0;
-  for (const slab of slabs) {
-    const d0 = wrapHalf(slab.slot * GAP);
-    rebind(slab, center + Math.round(d0 / GAP));
-    if (d0 > maxBelow) maxBelow = d0;
-  }
-  const k = Math.round(maxBelow / GAP);
-  nextForward = center + k + 1;
-  nextBackward = center - k - 1;
+  committedPath = null;
+  resetSlabs(basePosition);
   const cur = player.currentTrack;
   const known = cur !== null && tracks.some((t) => t.absPath === cur.absPath);
   const home = slabs[0];
   if (known && home !== undefined) {
+    committedPath = cur?.absPath ?? null;
     home.el.classList.add('committed');
     committed = home;
   }
@@ -202,10 +224,27 @@ const arrangeAround = (center: number): void => {
 };
 
 const glideToCenter = (slab: Slab): void => {
-  const raw = wrapSpan(slab.slot * GAP - offset);
-  glideDelta = raw > HALF ? raw - SPAN : raw;
-  glideFrom = offset;
+  glideDelta = slab.song - position;
+  glideFrom = position;
   glideStart = performance.now();
+  glideDuration = 700;
+  gliding = true;
+  velocity = 0;
+  wake();
+};
+
+const glideToCurrent = (): void => {
+  const current = player.currentTrack;
+  if (current === null || tracks.length === 0) return;
+  const currentIndex = tracks.findIndex((track) => track.absPath === current.absPath);
+  if (currentIndex < 0) return;
+  const cycle = tracks.length;
+  const cycleOffset = Math.round((position - currentIndex) / cycle);
+  const targetPosition = currentIndex + cycleOffset * cycle;
+  glideDelta = targetPosition - position;
+  glideFrom = position;
+  glideStart = performance.now();
+  glideDuration = Math.max(700, Math.min(3000, Math.abs(glideDelta) / 0.9));
   gliding = true;
   velocity = 0;
   wake();
@@ -222,6 +261,7 @@ const onFrontClick = (slab: Slab): void => {
     openNowPlaying();
   } else if (track !== undefined) {
     if (committed !== null && committed !== slab) committed.el.classList.remove('committed');
+    committedPath = track.absPath;
     slab.el.classList.add('committed');
     committed = slab;
     riverOriginated = true;
@@ -422,8 +462,8 @@ const step = (ts: number): void => {
   last = ts;
   const dt = dtMs / 1000;
   if (gliding) {
-    const t = Math.min(1, (ts - glideStart) / 700);
-    offset = wrapSpan(glideFrom + glideDelta * (1 - Math.pow(1 - t, 4)));
+    const t = Math.min(1, (ts - glideStart) / glideDuration);
+    position = glideFrom + glideDelta * (1 - Math.pow(1 - t, 4));
     if (t >= 1) {
       gliding = false;
       velocity = 0;
@@ -431,7 +471,7 @@ const step = (ts: number): void => {
   } else if (velocity !== 0) {
     velocity *= Math.exp(-3.1 * dt);
     if (Math.abs(velocity) < 5) velocity = 0;
-    offset = wrapSpan(offset + velocity * dt);
+    position += (velocity * dt) / GAP;
   }
   layout();
   if (gliding || velocity !== 0) raf = window.requestAnimationFrame(step);
@@ -488,6 +528,7 @@ function buildSlab(slot: number): Slab {
     art,
     slot,
     song: 0,
+    trackPath: null,
     d: null,
     lastY: NaN,
     lastScale: NaN,
@@ -573,6 +614,23 @@ export function initSongRiver(): void {
     },
     { passive: false },
   );
+
+  window.addEventListener('dblclick', (event) => {
+    if (!on || player.currentTrack === null) return;
+    if (event.clientY < BEZEL_H || event.clientY > window.innerHeight - TIMELINE_H) return;
+    const target = event.target as HTMLElement | null;
+    if (
+      target !== null &&
+      target.closest(
+        '.river-card, #river-names, #overlay, #detail-layer, #playlist-layer, #search-oracle, #settings-modal, #sort-popover, #queue-panel',
+      ) !== null
+    ) {
+      return;
+    }
+    event.preventDefault();
+    glideToCurrent();
+    wake();
+  });
 
   appBus.on('track-selected', ({ track }) => {
     swipeQueued.delete(track.id);

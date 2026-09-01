@@ -121,8 +121,8 @@ export function initBrowser(onCompactLyric?: (text: string | null, upcoming: boo
   }
 
   appBus.on('track-selected', ({ track }) => {
-    playingId = track.id;
-    markPlaying(track.id);
+    playingPath = track.absPath;
+    reconcilePlayingRows();
   });
   appBus.on('track-selected', ({ track }) => uiTheme.setBase(track.palette));
 
@@ -175,7 +175,6 @@ function wireTabs(): void {
       const mode = tab.dataset.mode as Mode | undefined;
       if (!mode) return;
       if (state.mode === mode) {
-        if (mode !== 'playlists') toggleSortPopover();
         return;
       }
       state.mode = mode;
@@ -523,7 +522,7 @@ function syncFilterChip(): void {
 const SONG_ROW_HEIGHT = 96;
 let pendingSwapTimer = 0;
 let renderedMode: Mode | null = null;
-let playingId: string | null = null;
+let playingPath: string | null = null;
 let vlistTop = -1;
 let vlistBottom = -1;
 let windowRefreshQueued = false;
@@ -632,6 +631,7 @@ function refreshSongWindow(): void {
   const w = songWindowBounds(hostH, posY);
   slideSongWindow(w.start, w.end);
   carousel.refresh();
+  reconcilePlayingRows();
 }
 
 function retractVisibleRows(): void {
@@ -660,6 +660,7 @@ function render(immediate = false): void {
     if (state.mode === 'playlists') renderTabCards(frag);
     else renderBrowse(frag);
     carousel.setContent(frag);
+    if (state.mode === 'songs') reconcilePlayingRows();
     if (state.mode === 'songs') carousel.enterStagger();
     syncFilterChip();
     renderedMode = state.mode;
@@ -870,8 +871,9 @@ function songRow(
   const row = el('div', 'card song-row');
   row.dataset.interactive = '1';
   row.dataset.trackId = track.id;
+  row.dataset.trackPath = track.absPath;
   if (enterIndex >= 0) row.style.setProperty('--ed', `${Math.min(enterIndex * 12, 420)}ms`);
-  if (track.id === playingId) row.classList.add('playing');
+  if (track.absPath === playingPath) row.classList.add('playing');
 
   const thumb = el('div', 'song-thumb');
   artInto(thumb, track.artFile, 'card-img', true);
@@ -899,7 +901,7 @@ function songRow(
   });
   row.addEventListener('click', () => {
     if (carousel.wasDrag()) return;
-    if (playingId === track.id) {
+    if (playingPath === track.absPath) {
       openNowPlaying();
       return;
     }
@@ -921,11 +923,10 @@ function playFromList(
   }
 }
 
-function markPlaying(trackId: string): void {
-  for (const node of document.querySelectorAll<HTMLElement>('[data-track-id].playing')) {
-    node.classList.remove('playing');
+function reconcilePlayingRows(): void {
+  for (const node of document.querySelectorAll<HTMLElement>('.song-row')) {
+    node.classList.toggle('playing', playingPath !== null && node.dataset.trackPath === playingPath);
   }
-  document.querySelector<HTMLElement>(`[data-track-id="${trackId}"]`)?.classList.add('playing');
 }
 
 function markPreview(className: 'preview-pending' | 'previewing', trackId: string | null): void {
