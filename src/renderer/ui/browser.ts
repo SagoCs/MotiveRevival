@@ -22,6 +22,7 @@ import { enqueueIdle } from '../core/peakAnalyzer';
 import { Viz } from './viz';
 import { createLyrics } from './lyrics';
 import { renderTabCards, searchPlaylists, closePlaylistLayer, isPlaylistLayerOpen, openDetail, attachContextMenu } from './playlistsView';
+import { songRiver } from './songRiver';
 import type { Playlist } from '../../shared/types';
 
 type Mode = 'albums' | 'artists' | 'songs' | 'playlists';
@@ -647,6 +648,7 @@ function render(immediate = false): void {
   preview.cancel();
   uiTheme.popPreview();
   const runSwap = (): void => {
+    songRiver.setVisible(state.mode === 'songs' && libraryOk && idx.songs.length > 0);
     const frag = document.createDocumentFragment();
     if ((!libraryOk || idx.songs.length === 0) && state.mode !== 'playlists') {
       renderEmptyLibrary(frag);

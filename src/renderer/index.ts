@@ -6,7 +6,7 @@ import '@fontsource/ibm-plex-mono/400.css';
 import './styles/tokens.css';
 import './styles/base.css';
 import './styles/shell.css';
-import './styles/spike.css';
+import './styles/river.css';
 
 import { player } from './core/player';
 import { appBus } from './core/appBus';
@@ -24,7 +24,7 @@ import { initSettingsPanel, applyLyricsLayout } from './ui/settings';
 import { createTransport } from './ui/transport';
 import { initWindowControls } from './ui/windowControls';
 import { initArrowMarkers } from './ui/arrowMarkers';
-import { initCrystalSpike } from './ui/spikeCrystal';
+import { initSongRiver } from './ui/songRiver';
 
 window.addEventListener('error', (e) => {
   fatal(`Uncaught: ${e.message}`);
@@ -49,7 +49,7 @@ function boot(): void {
   });
   lantern.init();
   initArrowMarkers();
-  initCrystalSpike();
+  initSongRiver();
 
   const arrowAnchor = (side: number): { x: number; y: number } | null => {
     const row = document.querySelector<HTMLElement>('.song-row.playing');
@@ -61,7 +61,9 @@ function boot(): void {
 
   let arrowSurfaceActive = false;
   const syncArrowSurface = (): void => {
-    const songsTabActive = document.querySelector('#mode-tabs button[data-mode="songs"].active') !== null;
+    const songsTabActive =
+      document.querySelector('#mode-tabs button[data-mode="songs"].active') !== null &&
+      !document.body.classList.contains('song-river-active');
     const blocked = document.querySelector(
       '#overlay:not([hidden]), #detail-layer:not([hidden]), #playlist-layer:not([hidden]), #search-oracle:not([hidden]), #settings-modal:not([hidden]), #sort-popover:not([hidden])',
     ) !== null;
