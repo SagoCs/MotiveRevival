@@ -1,204 +1,115 @@
-#spike-demo {
+#spike-river {
   position: fixed;
-  left: 0;
-  right: 0;
-  bottom: calc(var(--bottom-h, 62px) + 26px);
-  display: flex;
-  justify-content: center;
-  align-items: flex-end;
-  gap: 84px;
+  inset: 0;
   z-index: 15;
+  display: none;
+  perspective: 1100px;
   pointer-events: none;
 }
 
-#spike-demo.parked {
-  display: none;
+#spike-river.on {
+  display: block;
 }
 
-.spike-unit {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 14px;
-}
-
-.spike-tag {
-  font: 400 9px/1 var(--font-mono);
-  letter-spacing: 0.3em;
-  color: var(--moon-faint);
-}
-
-.spike-scene {
-  perspective: 1100px;
-}
-
-.spike-slab3d {
-  position: relative;
-  width: 232px;
-  height: 144px;
-  transform-style: preserve-3d;
-  transform: rotateX(28deg) rotateY(-18deg);
-  pointer-events: auto;
-}
-
-.spike-face {
+.river-slab {
   position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 340px;
+  height: 190px;
+  margin: -95px 0 0 -170px;
+  transform-style: preserve-3d;
+  will-change: transform;
+  pointer-events: none;
 }
 
-.spike-glass {
-  border-radius: 3px;
+.river-front {
+  position: absolute;
+  inset: 0;
+  transform: translateZ(12px);
+  overflow: hidden;
+  border-radius: 4px;
   border: 1px solid color-mix(in srgb, var(--acc-a) 36%, rgba(210, 218, 255, 0.18));
-  background:
-    radial-gradient(130% 100% at 28% -8%, color-mix(in srgb, var(--acc-a) 22%, transparent), transparent 58%),
-    linear-gradient(170deg, color-mix(in srgb, var(--acc-b) 16%, rgba(15, 21, 42, 0.62)), color-mix(in srgb, var(--acc-a) 7%, rgba(6, 9, 20, 0.78)));
+  background: linear-gradient(170deg, color-mix(in srgb, var(--acc-b) 16%, rgba(15, 21, 42, 0.6)), color-mix(in srgb, var(--acc-a) 7%, rgba(6, 9, 20, 0.78)));
   box-shadow:
     inset 0 0 30px color-mix(in srgb, var(--acc-glow) 14%, transparent),
     inset 0 1px 0 color-mix(in srgb, var(--moon) 12%, transparent);
-}
-
-.spike-glass::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: rgba(226, 232, 255, 0.08);
-  opacity: 0;
-  transition: opacity 300ms var(--ease-drift);
-}
-
-.spike-slab3d:hover .spike-glass::after,
-.spike-pane:hover::after {
-  opacity: 1;
-}
-
-.spike-front {
-  inset: 0;
-  transform: translateZ(12px);
-}
-
-.spike-top {
-  left: 0;
-  top: -12px;
-  width: 100%;
-  height: 24px;
-  transform: rotateX(90deg);
-  border: 1px solid color-mix(in srgb, var(--acc-a) 44%, rgba(220, 228, 255, 0.28));
-  border-radius: 3px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--acc-a) 34%, rgba(222, 229, 255, 0.26)), color-mix(in srgb, var(--acc-a) 12%, rgba(150, 160, 215, 0.12)));
-  box-shadow: inset 0 0 12px color-mix(in srgb, var(--acc-glow) 18%, transparent);
-}
-
-.spike-side {
-  top: 0;
-  right: -12px;
-  width: 24px;
-  height: 100%;
-  transform: rotateY(90deg);
-  border: 1px solid color-mix(in srgb, var(--acc-a) 40%, rgba(210, 218, 255, 0.26));
-  border-radius: 3px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--acc-b) 22%, rgba(28, 36, 70, 0.92)), color-mix(in srgb, var(--acc-a) 10%, rgba(17, 23, 48, 0.9)));
-  box-shadow: inset 0 0 10px color-mix(in srgb, var(--acc-glow) 10%, transparent);
-}
-
-.spike-pane {
-  position: relative;
-  width: 232px;
-  height: 144px;
   pointer-events: auto;
 }
 
-.spike-unit::before {
-  content: '';
-  position: absolute;
-  bottom: 16px;
-  left: 50%;
-  width: 210px;
-  height: 26px;
-  translate: -50% 0;
-  background: radial-gradient(50% 50% at 50% 50%, rgba(0, 0, 0, 0.55), transparent 72%);
+.river-slab.preview .river-front {
+  outline: 1px dashed color-mix(in srgb, var(--acc-a) 75%, rgba(238, 240, 255, 0.3));
+  outline-offset: 4px;
 }
 
-.spike-text {
+.river-slab.committed .river-front {
+  border-color: color-mix(in srgb, var(--acc-a) 70%, rgba(238, 240, 255, 0.4));
+  box-shadow:
+    inset 0 0 34px color-mix(in srgb, var(--acc-glow) 26%, transparent),
+    0 0 26px color-mix(in srgb, var(--acc-glow) 18%, transparent);
+}
+
+.river-art {
   position: absolute;
-  left: 18px;
-  right: 18px;
-  bottom: 14px;
+  inset: 0;
+}
+
+.river-art img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.5;
+}
+
+.river-veil {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(175deg, color-mix(in srgb, var(--acc-b) 12%, rgba(13, 18, 36, 0.42)) 30%, color-mix(in srgb, var(--acc-a) 10%, rgba(5, 8, 18, 0.8)) 100%);
+}
+
+.river-text {
+  position: absolute;
+  left: 22px;
+  right: 22px;
+  bottom: 16px;
   display: flex;
   flex-direction: column;
   gap: 5px;
 }
 
-.spike-title {
-  font: 400 15px/1.25 var(--font-display);
+.river-title {
+  font: 400 17px/1.25 var(--font-display);
   color: var(--moon-bright);
+  text-shadow: 0 1px 8px rgba(3, 5, 12, 0.8);
 }
 
-.spike-artist {
-  font: 300 10px/1 var(--font-display);
+.river-artist {
+  font: 300 10.5px/1 var(--font-display);
   letter-spacing: 0.24em;
   text-transform: uppercase;
-  color: color-mix(in srgb, var(--moon-bright) 60%, transparent);
+  color: color-mix(in srgb, var(--moon-bright) 62%, transparent);
 }
 
-#spike-stress {
-  position: fixed;
-  inset: 0;
-  z-index: 15;
-  display: none;
-  pointer-events: none;
-}
-
-#spike-stress.flat,
-#spike-stress.slab {
-  display: block;
-}
-
-.spike-stress-scene {
+.river-edge {
   position: absolute;
-  inset: 0;
-  perspective: 1150px;
-  perspective-origin: 50% 62px;
+  left: 0;
+  width: 100%;
+  height: 24px;
+  border: 1px solid color-mix(in srgb, var(--acc-a) 40%, rgba(210, 218, 255, 0.26));
+  border-radius: 3px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--acc-a) 30%, rgba(200, 208, 250, 0.2)), color-mix(in srgb, var(--acc-b) 14%, rgba(24, 31, 60, 0.85)));
 }
 
-.spike-stress-plane {
-  position: absolute;
-  left: 50%;
-  top: 66%;
-  width: 0;
-  height: 0;
-  transform-style: preserve-3d;
-  transform: rotateX(31deg);
+.river-edge-top {
+  top: -12px;
+  transform: rotateX(90deg);
 }
 
-.spike-stress-pane,
-.spike-stress-item {
-  position: absolute;
-  left: -104px;
-  top: -62px;
-  width: 208px;
-  height: 124px;
-  will-change: transform;
-  display: none;
-}
-
-#spike-stress.flat .spike-stress-pane {
-  display: block;
-}
-
-#spike-stress.slab .spike-stress-item {
-  display: block;
-}
-
-.spike-stress-item {
-  transform-style: preserve-3d;
-}
-
-.spike-stress-inner {
-  position: absolute;
-  inset: 0;
-  transform-style: preserve-3d;
-  transform: rotateY(-18deg);
+.river-edge-bottom {
+  bottom: -12px;
+  transform: rotateX(-90deg);
 }
 
 .spike-readout {

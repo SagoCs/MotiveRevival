@@ -1,99 +1,291 @@
-const PANE_COUNT = 25;
-const SLOT_GAP = 120;
-const SPAN = PANE_COUNT * SLOT_GAP;
-const FAR = -2400;
+import { libraryStore } from '../core/libraryStore';
+import { mediaUrl, player } from '../core/player';
+import { createArtImage, thumbOf } from '../core/dom';
+import type { IndexedTrack } from '../../shared/types';
 
-interface StressSet {
-  items: HTMLDivElement[];
-  inners: HTMLDivElement[];
-  label: string;
+const SLAB_COUNT = 21;
+const GAP = 210;
+const SPAN = SLAB_COUNT * GAP;
+const HALF = SPAN / 2;
+const FALL = 640;
+
+let tiltMax = 22;
+let curveAmt = 0.55;
+let fadeAmt = 0.7;
+
+interface Slab {
+  el: HTMLDivElement;
+  front: HTMLDivElement;
+  faces: HTMLDivElement[];
+  title: HTMLSpanElement;
+  artist: HTMLSpanElement;
+  art: HTMLDivElement;
+  slot: number;
+  song: number;
+  d: number | null;
+  lastY: number;
+  lastScale: number;
+  lastTilt: number;
+  lastOpacity: number;
+  lastZ: number;
 }
 
-export function initCrystalSpike(): void {
-  const demo = document.createElement('div');
-  demo.id = 'spike-demo';
-  demo.append(
-    buildUnit(slabNode('Winterlight Vow', 'Aurelian Skies'), 'CRYSTAL SLAB'),
-    buildUnit(paneNode('Gossamer Meridian', 'Northfold Choir'), 'FLAT PANE'),
-  );
+const FAKE_TITLES = [
+  'Winterlight Vow', 'Gossamer Meridian', 'Aurelian Skies', 'Pale Commotion',
+  'Northfold Choir', 'Ivory Descent', 'Hollow Lantern', 'Ember Verdict',
+  'Silken Meridian', 'The Quiet Shore', 'Lantern Thesis', 'Cinder Waltz',
+];
+const FAKE_ARTISTS = ['Aurelian Skies', 'Northfold Choir', 'The Quiet Shore'];
 
-  const stress = document.createElement('div');
-  stress.id = 'spike-stress';
-  const scene = document.createElement('div');
-  scene.className = 'spike-stress-scene';
-  const plane = document.createElement('div');
-  plane.className = 'spike-stress-plane';
-  const flat = buildFlatSet();
-  const slabs = buildSlabSet();
-  plane.append(...flat.items, ...slabs.items);
+export function initCrystalSpike(): void {
+  let tracks: IndexedTrack[] = [];
+  const pull = (): void => {
+    const result = libraryStore.result;
+    if (result !== null && result.ok) tracks = result.tracks;
+  };
+  pull();
+  libraryStore.onChange((result) => {
+    if (result.ok) {
+      tracks = result.tracks;
+      rebindAll();
+    }
+  });
+
+  const river = document.createElement('div');
+  river.id = 'spike-river';
+  const slabs: Slab[] = [];
+  for (let i = 0; i < SLAB_COUNT; i++) {
+    slabs.push(buildSlab(i));
+  }
   const readout = document.createElement('div');
   readout.className = 'spike-readout';
   readout.textContent =
-    'F9 cycles: panes · slabs · off\narrows tune lean/turn · shift+arrows tune curve';
-  scene.append(plane);
-  stress.append(scene, readout);
+    'F9 opens the river · wheel scrolls · click previews · click again plays\n↑↓ tilt · ←→ fade · shift+↑↓ depth';
+  river.append(...slabs.map((s) => s.el), readout);
+  document.body.append(river);
 
-  document.body.append(demo, stress);
-
-  const demoSlab = demo.querySelector<HTMLDivElement>('.spike-slab3d');
-
-  let mode = 0;
-  let lean = 28;
-  let turn = -18;
-  let curve = -140;
+  let on = false;
   let raf = 0;
   let last = 0;
   let offset = 0;
-  let velocity = 1500;
+  let velocity = 0;
+  let gliding = false;
+  let glideFrom = 0;
+  let glideDelta = 0;
+  let glideStart = 0;
+  let nextForward = 1;
+  let nextBackward = -1;
+  let previewed: Slab | null = null;
+  let committed: Slab | null = null;
   const ring: number[] = [];
   let readoutAt = 0;
 
-  const tuningText = (): string => `lean ${lean}° · turn ${turn}° · curve ${curve}`;
+  const mod = (a: number, n: number): number => ((a % n) + n) % n;
+  const wrapSpan = (x: number): number => mod(x, SPAN);
+  const wrapHalf = (x: number): number => mod(x + HALF, SPAN) - HALF;
 
-  const applyTuning = (): void => {
-    if (demoSlab !== null) demoSlab.style.transform = `rotateX(${lean}deg) rotateY(${turn}deg)`;
-    plane.style.transform = `rotateX(${lean}deg)`;
-    for (const inner of slabs.inners) inner.style.transform = `rotateY(${turn}deg)`;
-    readout.textContent = tuningText();
+  const wake = (): void => {
+    if (!on || raf !== 0) return;
+    last = 0;
+    raf = window.requestAnimationFrame(step);
   };
-  applyTuning();
+
+  const rebind = (slab: Slab, song: number): void => {
+    slab.song = song;
+    const track = tracks.length > 0 ? tracks[mod(song, tracks.length)] : undefined;
+    if (track !== undefined) {
+      slab.title.textContent = track.title;
+      slab.artist.textContent = track.artist ?? 'Unknown Artist';
+      slab.art.replaceChildren();
+      const art = track.artFile;
+      if (art !== null) {
+        slab.art.append(createArtImage(mediaUrl(thumbOf(art)), { fallbackUrl: mediaUrl(art) }));
+      }
+    } else {
+      slab.title.textContent = FAKE_TITLES[mod(song, FAKE_TITLES.length)] ?? 'Untitled';
+      slab.artist.textContent = FAKE_ARTISTS[mod(song, FAKE_ARTISTS.length)] ?? '';
+      slab.art.replaceChildren();
+    }
+    slab.d = null;
+    slab.lastY = NaN;
+    slab.lastScale = NaN;
+    slab.lastTilt = NaN;
+    slab.lastOpacity = NaN;
+    slab.lastZ = -1;
+  };
+
+  const rebindAll = (): void => {
+    offset = 0;
+    velocity = 0;
+    gliding = false;
+    if (previewed !== null) previewed.el.classList.remove('preview');
+    if (committed !== null) committed.el.classList.remove('committed');
+    previewed = null;
+    committed = null;
+    let maxBelow = 0;
+    for (const slab of slabs) {
+      const d0 = wrapHalf(slab.slot * GAP);
+      const song = d0 >= 0 ? Math.round(d0 / GAP) : -Math.round(-d0 / GAP);
+      rebind(slab, song);
+      if (d0 > maxBelow) maxBelow = d0;
+    }
+    nextForward = Math.round(maxBelow / GAP) + 1;
+    nextBackward = -nextForward;
+    layout();
+  };
+
+  function buildSlab(slot: number): Slab {
+    const el = document.createElement('div');
+    el.className = 'river-slab';
+    const front = document.createElement('div');
+    front.className = 'river-front';
+    const art = document.createElement('div');
+    art.className = 'river-art';
+    const veil = document.createElement('div');
+    veil.className = 'river-veil';
+    const text = document.createElement('div');
+    text.className = 'river-text';
+    const title = document.createElement('span');
+    title.className = 'river-title';
+    const artist = document.createElement('span');
+    artist.className = 'river-artist';
+    text.append(title, artist);
+    front.append(art, veil, text);
+    const top = document.createElement('div');
+    top.className = 'river-edge river-edge-top';
+    const bottom = document.createElement('div');
+    bottom.className = 'river-edge river-edge-bottom';
+    el.append(front, top, bottom);
+    const slab: Slab = {
+      el,
+      front,
+      faces: [front, top, bottom],
+      title,
+      artist,
+      art,
+      slot,
+      song: 0,
+      d: null,
+      lastY: NaN,
+      lastScale: NaN,
+      lastTilt: NaN,
+      lastOpacity: NaN,
+      lastZ: -1,
+    };
+    front.addEventListener('click', () => onFrontClick(slab));
+    return slab;
+  }
+
+  const onFrontClick = (slab: Slab): void => {
+    if (previewed === slab) {
+      slab.el.classList.remove('preview');
+      previewed = null;
+      if (committed !== null && committed !== slab) committed.el.classList.remove('committed');
+      slab.el.classList.add('committed');
+      committed = slab;
+      if (tracks.length > 0) player.setContext(tracks, mod(slab.song, tracks.length));
+      glideToCenter(slab);
+    } else {
+      if (previewed !== null && previewed !== slab) previewed.el.classList.remove('preview');
+      previewed = slab;
+      slab.el.classList.add('preview');
+    }
+    wake();
+  };
+
+  const glideToCenter = (slab: Slab): void => {
+    const raw = wrapSpan(slab.slot * GAP - offset);
+    glideDelta = raw > HALF ? raw - SPAN : raw;
+    glideFrom = offset;
+    glideStart = performance.now();
+    gliding = true;
+    velocity = 0;
+    wake();
+  };
+
+  const layout = (): void => {
+    for (const slab of slabs) {
+      const d = wrapHalf(slab.slot * GAP - offset);
+      if (slab.d !== null) {
+        if (slab.d - d > HALF) {
+          rebind(slab, nextBackward);
+          nextBackward -= 1;
+        } else if (d - slab.d > HALF) {
+          rebind(slab, nextForward);
+          nextForward += 1;
+        }
+      }
+      slab.d = d;
+      const n = Math.min(1, Math.abs(d) / FALL);
+      const nq = n * n;
+      const y = Math.round(d);
+      const scale = Math.round((1 - curveAmt * nq) * 100) / 100;
+      const tilt = Math.round(-Math.sign(d) * tiltMax * nq);
+      const opacity = Math.round((1 - fadeAmt * nq) * 50) / 50;
+      const z = Math.round((1 - n) * 60);
+      if (slab.lastY !== y || slab.lastScale !== scale || slab.lastTilt !== tilt) {
+        slab.lastY = y;
+        slab.lastScale = scale;
+        slab.lastTilt = tilt;
+        slab.el.style.transform = `translate3d(0, ${y}px, 0) rotateX(${tilt}deg) scale(${scale})`;
+      }
+      if (slab.lastOpacity !== opacity) {
+        slab.lastOpacity = opacity;
+        for (const face of slab.faces) face.style.opacity = String(opacity);
+      }
+      if (slab.lastZ !== z) {
+        slab.lastZ = z;
+        slab.el.style.zIndex = String(z);
+      }
+    }
+  };
 
   const step = (ts: number): void => {
-    if (mode === 0) return;
+    raf = 0;
     const dtMs = last === 0 ? 16 : Math.min(50, ts - last);
     last = ts;
+    const dt = dtMs / 1000;
+    if (gliding) {
+      const t = Math.min(1, (ts - glideStart) / 700);
+      offset = wrapSpan(glideFrom + glideDelta * (1 - Math.pow(1 - t, 4)));
+      if (t >= 1) {
+        gliding = false;
+        velocity = 0;
+      }
+    } else if (velocity !== 0) {
+      velocity *= Math.exp(-4.4 * dt);
+      if (Math.abs(velocity) < 6) velocity = 0;
+      offset = wrapSpan(offset + velocity * dt);
+    }
+    layout();
     ring.push(dtMs);
     if (ring.length > 60) ring.shift();
-    const dt = dtMs / 1000;
-    velocity *= Math.exp(-1.3 * dt);
-    if (Math.abs(velocity) < 70) {
-      velocity = (700 + Math.random() * 1500) * (Math.random() < 0.5 ? -1 : 1);
-    }
-    offset = ((offset + velocity * dt) % SPAN + SPAN) % SPAN;
-    const active = mode === 1 ? flat : slabs;
-    for (let i = 0; i < active.items.length; i++) {
-      const el = active.items[i];
-      if (el === undefined) continue;
-      const raw = i * SLOT_GAP - offset;
-      const y = ((raw % SPAN) + SPAN) % SPAN + FAR;
-      const u = (y - FAR) / SPAN;
-      const x = curve * Math.sin(u * Math.PI);
-      el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`;
-    }
     if (ts - readoutAt > 250) {
       readoutAt = ts;
       let sum = 0;
       let worst = 0;
-      for (const d of ring) {
-        sum += d;
-        if (d > worst) worst = d;
+      for (const dMs of ring) {
+        sum += dMs;
+        if (dMs > worst) worst = dMs;
       }
       const fps = ring.length > 0 ? (1000 / (sum / ring.length)).toFixed(1) : '0.0';
-      const tail = mode === 1 ? 'F9 slabs' : 'F9 off';
-      readout.textContent = `${fps} fps · worst ${worst.toFixed(1)} ms · ${PANE_COUNT} ${active.label} · ${tail}\n${tuningText()}`;
+      readout.textContent = `${fps} fps · worst ${worst.toFixed(1)} ms · ${SLAB_COUNT} slabs · F9 closes\n↑↓ tilt ${tiltMax}° · ←→ fade ${fadeAmt.toFixed(2)} · shift+↑↓ depth ${curveAmt.toFixed(2)}`;
     }
-    raf = window.requestAnimationFrame(step);
+    if (gliding || velocity !== 0) raf = window.requestAnimationFrame(step);
+    else last = 0;
   };
+
+  river.addEventListener(
+    'wheel',
+    (event) => {
+      if (!on) return;
+      event.preventDefault();
+      gliding = false;
+      velocity = Math.max(-5200, Math.min(5200, velocity - event.deltaY * 2.4));
+      wake();
+    },
+    { passive: false },
+  );
 
   window.addEventListener('keydown', (event) => {
     if (event.key !== 'F9') return;
@@ -104,20 +296,21 @@ export function initCrystalSpike(): void {
     ) {
       return;
     }
-    mode = (mode + 1) % 3;
-    stress.classList.toggle('flat', mode === 1);
-    stress.classList.toggle('slab', mode === 2);
-    demo.classList.toggle('parked', mode !== 0);
-    window.cancelAnimationFrame(raf);
-    if (mode !== 0) {
-      last = 0;
-      readoutAt = 0;
-      raf = window.requestAnimationFrame(step);
+    on = !on;
+    river.classList.toggle('on', on);
+    if (on) {
+      rebindAll();
+      wake();
+    } else {
+      window.cancelAnimationFrame(raf);
+      raf = 0;
+      velocity = 0;
+      gliding = false;
     }
   });
 
   window.addEventListener('keydown', (event) => {
-    if (mode === 0) return;
+    if (!on) return;
     const target = event.target as HTMLElement | null;
     if (
       target !== null &&
@@ -126,106 +319,17 @@ export function initCrystalSpike(): void {
       return;
     }
     let used = true;
-    if (event.shiftKey && event.key === 'ArrowLeft') curve = Math.max(-480, curve - 40);
-    else if (event.shiftKey && event.key === 'ArrowRight') curve = Math.min(480, curve + 40);
-    else if (event.key === 'ArrowLeft') turn = Math.max(-45, turn - 3);
-    else if (event.key === 'ArrowRight') turn = Math.min(45, turn + 3);
-    else if (event.key === 'ArrowUp') lean = Math.min(60, lean + 3);
-    else if (event.key === 'ArrowDown') lean = Math.max(0, lean - 3);
+    if (event.key === 'ArrowUp') tiltMax = Math.min(48, tiltMax + 2);
+    else if (event.key === 'ArrowDown') tiltMax = Math.max(0, tiltMax - 2);
+    else if (event.key === 'ArrowLeft') fadeAmt = Math.min(0.92, fadeAmt + 0.05);
+    else if (event.key === 'ArrowRight') fadeAmt = Math.max(0, fadeAmt - 0.05);
+    else if (event.shiftKey && event.key === 'ArrowUp') curveAmt = Math.min(0.8, curveAmt + 0.05);
+    else if (event.shiftKey && event.key === 'ArrowDown') curveAmt = Math.max(0, curveAmt - 0.05);
     else used = false;
     if (!used) return;
     event.preventDefault();
-    applyTuning();
+    wake();
   });
-}
 
-function buildUnit(node: HTMLElement, tag: string): HTMLElement {
-  const unit = document.createElement('div');
-  unit.className = 'spike-unit';
-  const label = document.createElement('span');
-  label.className = 'spike-tag';
-  label.textContent = tag;
-  unit.append(node, label);
-  return unit;
-}
-
-function textBlock(title: string, artist: string): HTMLDivElement {
-  const text = document.createElement('div');
-  text.className = 'spike-text';
-  const t = document.createElement('span');
-  t.className = 'spike-title';
-  t.textContent = title;
-  const a = document.createElement('span');
-  a.className = 'spike-artist';
-  a.textContent = artist;
-  text.append(t, a);
-  return text;
-}
-
-function slabNode(title: string, artist: string): HTMLElement {
-  const scene = document.createElement('div');
-  scene.className = 'spike-scene';
-  const slab = document.createElement('div');
-  slab.className = 'spike-slab3d';
-  const top = document.createElement('div');
-  top.className = 'spike-face spike-top';
-  const side = document.createElement('div');
-  side.className = 'spike-face spike-side';
-  const front = document.createElement('div');
-  front.className = 'spike-face spike-glass spike-front';
-  front.append(textBlock(title, artist));
-  slab.append(top, side, front);
-  scene.append(slab);
-  return scene;
-}
-
-function paneNode(title: string, artist: string): HTMLElement {
-  const pane = document.createElement('div');
-  pane.className = 'spike-pane spike-glass';
-  pane.append(textBlock(title, artist));
-  return pane;
-}
-
-function stressTitle(title: string): HTMLDivElement {
-  const text = document.createElement('div');
-  text.className = 'spike-text';
-  const t = document.createElement('span');
-  t.className = 'spike-title';
-  t.textContent = title;
-  text.append(t);
-  return text;
-}
-
-function buildFlatSet(): StressSet {
-  const items: HTMLDivElement[] = [];
-  for (let i = 0; i < PANE_COUNT; i++) {
-    const pane = document.createElement('div');
-    pane.className = 'spike-glass spike-stress-pane';
-    pane.append(stressTitle(`Pane ${String(i + 1).padStart(2, '0')}`));
-    items.push(pane);
-  }
-  return { items, inners: [], label: 'panes' };
-}
-
-function buildSlabSet(): StressSet {
-  const items: HTMLDivElement[] = [];
-  const inners: HTMLDivElement[] = [];
-  for (let i = 0; i < PANE_COUNT; i++) {
-    const item = document.createElement('div');
-    item.className = 'spike-stress-item';
-    const inner = document.createElement('div');
-    inner.className = 'spike-stress-inner';
-    const top = document.createElement('div');
-    top.className = 'spike-face spike-top';
-    const side = document.createElement('div');
-    side.className = 'spike-face spike-side';
-    const front = document.createElement('div');
-    front.className = 'spike-face spike-glass spike-front';
-    front.append(stressTitle(`Slab ${String(i + 1).padStart(2, '0')}`));
-    inner.append(top, side, front);
-    item.append(inner);
-    items.push(item);
-    inners.push(inner);
-  }
-  return { items, inners, label: 'slabs' };
+  rebindAll();
 }
