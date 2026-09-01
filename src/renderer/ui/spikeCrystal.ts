@@ -77,7 +77,7 @@ export function initCrystalSpike(): void {
       const raw = i * SLOT_GAP - offset;
       const y = ((raw % SPAN) + SPAN) % SPAN + FAR;
       const u = (y - FAR) / SPAN;
-      const x = curve * u * u;
+      const x = curve * Math.sin(u * Math.PI);
       el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`;
     }
     if (ts - readoutAt > 250) {
