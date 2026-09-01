@@ -65,6 +65,7 @@ let namesList: HTMLDivElement | null = null;
 let namesTrack: IndexedTrack | null = null;
 let dragSuppress = false;
 let lastSwipeRelease = 0;
+const swipeQueued = new Set<string>();
 let tiltMax = 38;
 let curveAmt = 0.55;
 let fadeAmt = 1;
@@ -295,9 +296,10 @@ const onCardPointerDown = (slab: Slab, event: PointerEvent): void => {
     if (track === undefined) return;
     if (x > SWIPE_T) {
       openNames(track);
-    } else if (x < -SWIPE_T) {
+    } else if (x < -SWIPE_T && !swipeQueued.has(track.id)) {
+      swipeQueued.add(track.id);
       player.appendToQueue(track);
-      showerFrom(-1);
+      showerFrom(1);
     }
   };
   const onCancel = (): void => {
@@ -312,9 +314,10 @@ const onCardPointerDown = (slab: Slab, event: PointerEvent): void => {
 };
 
 const showerFrom = (side: 1 | -1): void => {
-  const x = side === 1 ? window.innerWidth - 60 : 60;
-  const y = window.innerHeight / 2;
-  for (let i = 0; i < 3; i++) {
+  const x = side === 1 ? 40 : window.innerWidth - 40;
+  const midY = window.innerHeight / 2;
+  for (let i = 0; i < 4; i++) {
+    const y = midY + (i - 1.5) * 110;
     window.setTimeout(() => lantern.burstMotes(x, y, side, 1), i * 110);
   }
 };
@@ -335,7 +338,7 @@ const rebuildNames = (): void => {
     const name = input.value.trim() === '' ? 'New Playlist' : input.value.trim();
     void playlistsStore.create(name).then((pl) => {
       void playlistsStore.addTrack(pl.id, { trackId: track.id, absPath: track.absPath });
-      showerFrom(1);
+      showerFrom(-1);
       closeNames();
     });
   });
@@ -355,7 +358,7 @@ const rebuildNames = (): void => {
         return;
       }
       void playlistsStore.addTrack(pl.id, { trackId: track.id, absPath: track.absPath });
-      showerFrom(1);
+      showerFrom(-1);
       closeNames();
     });
     namesList.append(item);
@@ -535,6 +538,7 @@ export function initSongRiver(): void {
   );
 
   appBus.on('track-selected', ({ track }) => {
+    swipeQueued.delete(track.id);
     if (!on) return;
     if (riverOriginated) {
       riverOriginated = false;
