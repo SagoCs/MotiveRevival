@@ -5,6 +5,7 @@ const FAR = -2400;
 
 interface StressSet {
   items: HTMLDivElement[];
+  inners: HTMLDivElement[];
   label: string;
 }
 
@@ -27,19 +28,35 @@ export function initCrystalSpike(): void {
   plane.append(...flat.items, ...slabs.items);
   const readout = document.createElement('div');
   readout.className = 'spike-readout';
-  readout.textContent = 'F9 cycles: flat panes · slabs · off';
+  readout.textContent =
+    'F9 cycles: panes · slabs · off\narrows tune lean/turn · shift+arrows tune curve';
   scene.append(plane);
   stress.append(scene, readout);
 
   document.body.append(demo, stress);
 
+  const demoSlab = demo.querySelector<HTMLDivElement>('.spike-slab3d');
+
   let mode = 0;
+  let lean = 28;
+  let turn = -18;
+  let curve = -140;
   let raf = 0;
   let last = 0;
   let offset = 0;
   let velocity = 1500;
   const ring: number[] = [];
   let readoutAt = 0;
+
+  const tuningText = (): string => `lean ${lean}° · turn ${turn}° · curve ${curve}`;
+
+  const applyTuning = (): void => {
+    if (demoSlab !== null) demoSlab.style.transform = `rotateX(${lean}deg) rotateY(${turn}deg)`;
+    plane.style.transform = `rotateX(${lean}deg)`;
+    for (const inner of slabs.inners) inner.style.transform = `rotateY(${turn}deg)`;
+    readout.textContent = tuningText();
+  };
+  applyTuning();
 
   const step = (ts: number): void => {
     if (mode === 0) return;
@@ -59,7 +76,9 @@ export function initCrystalSpike(): void {
       if (el === undefined) continue;
       const raw = i * SLOT_GAP - offset;
       const y = ((raw % SPAN) + SPAN) % SPAN + FAR;
-      el.style.transform = `translate3d(0, ${y.toFixed(1)}px, 0)`;
+      const u = (y - FAR) / SPAN;
+      const x = curve * u * u;
+      el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`;
     }
     if (ts - readoutAt > 250) {
       readoutAt = ts;
@@ -70,8 +89,8 @@ export function initCrystalSpike(): void {
         if (d > worst) worst = d;
       }
       const fps = ring.length > 0 ? (1000 / (sum / ring.length)).toFixed(1) : '0.0';
-      const tail = mode === 1 ? 'F9 slabs' : 'F9 stops';
-      readout.textContent = `${fps} fps · worst ${worst.toFixed(1)} ms · ${PANE_COUNT} ${active.label} · ${tail}`;
+      const tail = mode === 1 ? 'F9 slabs' : 'F9 off';
+      readout.textContent = `${fps} fps · worst ${worst.toFixed(1)} ms · ${PANE_COUNT} ${active.label} · ${tail}\n${tuningText()}`;
     }
     raf = window.requestAnimationFrame(step);
   };
@@ -95,6 +114,28 @@ export function initCrystalSpike(): void {
       readoutAt = 0;
       raf = window.requestAnimationFrame(step);
     }
+  });
+
+  window.addEventListener('keydown', (event) => {
+    if (mode === 0) return;
+    const target = event.target as HTMLElement | null;
+    if (
+      target !== null &&
+      (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+    ) {
+      return;
+    }
+    let used = true;
+    if (event.shiftKey && event.key === 'ArrowLeft') curve = Math.max(-480, curve - 40);
+    else if (event.shiftKey && event.key === 'ArrowRight') curve = Math.min(480, curve + 40);
+    else if (event.key === 'ArrowLeft') turn = Math.max(-45, turn - 3);
+    else if (event.key === 'ArrowRight') turn = Math.min(45, turn + 3);
+    else if (event.key === 'ArrowUp') lean = Math.min(60, lean + 3);
+    else if (event.key === 'ArrowDown') lean = Math.max(0, lean - 3);
+    else used = false;
+    if (!used) return;
+    event.preventDefault();
+    applyTuning();
   });
 }
 
@@ -163,11 +204,12 @@ function buildFlatSet(): StressSet {
     pane.append(stressTitle(`Pane ${String(i + 1).padStart(2, '0')}`));
     items.push(pane);
   }
-  return { items, label: 'panes' };
+  return { items, inners: [], label: 'panes' };
 }
 
 function buildSlabSet(): StressSet {
   const items: HTMLDivElement[] = [];
+  const inners: HTMLDivElement[] = [];
   for (let i = 0; i < PANE_COUNT; i++) {
     const item = document.createElement('div');
     item.className = 'spike-stress-item';
@@ -183,6 +225,7 @@ function buildSlabSet(): StressSet {
     inner.append(top, side, front);
     item.append(inner);
     items.push(item);
+    inners.push(inner);
   }
-  return { items, label: 'slabs' };
+  return { items, inners, label: 'slabs' };
 }

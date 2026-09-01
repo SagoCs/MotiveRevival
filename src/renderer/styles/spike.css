@@ -148,7 +148,8 @@
   pointer-events: none;
 }
 
-#spike-stress.on {
+#spike-stress.flat,
+#spike-stress.slab {
   display: block;
 }
 
@@ -203,7 +204,8 @@
   position: absolute;
   left: 20px;
   top: 66px;
-  font: 400 11px/1.6 var(--font-mono);
+  font: 400 11px/1.7 var(--font-mono);
   letter-spacing: 0.08em;
   color: var(--moon-faint);
+  white-space: pre-line;
 }
