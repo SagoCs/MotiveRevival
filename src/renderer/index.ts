@@ -6,6 +6,7 @@ import '@fontsource/ibm-plex-mono/400.css';
 import './styles/tokens.css';
 import './styles/base.css';
 import './styles/shell.css';
+import './styles/spike.css';
 
 import { player } from './core/player';
 import { appBus } from './core/appBus';
@@ -23,6 +24,7 @@ import { initSettingsPanel, applyLyricsLayout } from './ui/settings';
 import { createTransport } from './ui/transport';
 import { initWindowControls } from './ui/windowControls';
 import { initArrowMarkers } from './ui/arrowMarkers';
+import { initCrystalSpike } from './ui/spikeCrystal';
 
 window.addEventListener('error', (e) => {
   fatal(`Uncaught: ${e.message}`);
@@ -47,6 +49,7 @@ function boot(): void {
   });
   lantern.init();
   initArrowMarkers();
+  initCrystalSpike();
 
   const arrowAnchor = (side: number): { x: number; y: number } | null => {
     const row = document.querySelector<HTMLElement>('.song-row.playing');
