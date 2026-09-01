@@ -31,13 +31,114 @@ body.song-river-active #carousel-content {
     inset 0 1px 0 color-mix(in srgb, var(--moon) 10%, transparent);
   pointer-events: auto;
   will-change: transform, opacity;
+  user-select: none;
+  touch-action: none;
 }
 
 .river-card.committed {
-  border-color: color-mix(in srgb, var(--acc-a) 70%, rgba(238, 240, 255, 0.4));
+  border-color: color-mix(in srgb, var(--acc-a) 78%, rgba(238, 240, 255, 0.45));
   box-shadow:
-    inset 0 0 34px color-mix(in srgb, var(--acc-glow) 26%, transparent),
-    0 0 26px color-mix(in srgb, var(--acc-glow) 18%, transparent);
+    inset 0 0 34px color-mix(in srgb, var(--acc-glow) 30%, transparent),
+    0 0 30px color-mix(in srgb, var(--acc-glow) 26%, transparent),
+    0 0 90px color-mix(in srgb, var(--acc-glow) 16%, transparent);
+}
+
+.river-glow {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  width: 170px;
+  opacity: 0;
+  transition: opacity 200ms var(--ease-drift);
+  pointer-events: none;
+}
+
+.river-glow-right {
+  right: 0;
+  background: linear-gradient(to left, #c7cdf4, transparent);
+}
+
+.river-glow-left {
+  left: 0;
+  background: linear-gradient(to right, #c7cdf4, transparent);
+}
+
+.river-swipe-prompt {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  font: 400 13px var(--font-display);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--moon-bright);
+  text-shadow: 0 1px 8px rgba(3, 5, 12, 0.9);
+  opacity: 0;
+  transition: opacity 200ms var(--ease-drift);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.river-swipe-prompt.right {
+  right: 44px;
+}
+
+.river-swipe-prompt.left {
+  left: 44px;
+}
+
+#river-picker {
+  position: fixed;
+  right: 30px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 45;
+  width: 280px;
+  max-height: 62vh;
+  overflow-y: auto;
+  display: none;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(199, 205, 244, 0.14);
+  background: linear-gradient(180deg, rgba(11, 16, 30, 0.97), rgba(6, 9, 18, 0.98));
+  box-shadow:
+    inset 0 1px 0 rgba(238, 240, 255, 0.05),
+    0 24px 60px rgba(2, 3, 8, 0.65);
+  pointer-events: auto;
+}
+
+#river-picker.open {
+  display: block;
+}
+
+.river-pick-head {
+  padding: 8px 12px 10px;
+  font: 400 10px var(--font-display);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--moon-faint);
+}
+
+.river-pick-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  font: 400 14px var(--font-display);
+  color: var(--moon-bright);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.river-pick-item:hover {
+  background: color-mix(in srgb, var(--moon) 8%, transparent);
+}
+
+.river-pick-item.added {
+  color: var(--moon-faint);
 }
 
 .river-art {

@@ -2,6 +2,8 @@ import { libraryStore } from '../core/libraryStore';
 import { mediaUrl, player } from '../core/player';
 import { createArtImage } from '../core/dom';
 import { appBus } from '../core/appBus';
+import { playlistsStore } from '../core/playlistsStore';
+import { toast } from '../core/toast';
 import { openNowPlaying } from './overlay';
 import type { IndexedTrack } from '../../shared/types';
 
@@ -12,6 +14,9 @@ const HALF = SPAN / 2;
 const BEZEL_H = 52;
 const TIMELINE_H = 62;
 const EDGE_MARGIN = 70;
+const SWIPE_T = 140;
+const DRAG_MAX = 220;
+const DRAG_DEAD = 8;
 
 const FAKE_TITLES = [
   'Winterlight Vow', 'Gossamer Meridian', 'Aurelian Skies', 'Pale Commotion',
@@ -51,6 +56,15 @@ let nextForward = 1;
 let nextBackward = -1;
 let committed: Slab | null = null;
 let riverOriginated = false;
+let glowR: HTMLDivElement | null = null;
+let glowL: HTMLDivElement | null = null;
+let promptR: HTMLDivElement | null = null;
+let promptL: HTMLDivElement | null = null;
+let picker: HTMLDivElement | null = null;
+let pickerList: HTMLDivElement | null = null;
+let pickerTrack: IndexedTrack | null = null;
+let dragSuppress = false;
+let lastSwipeRelease = 0;
 let tiltMax = 38;
 let curveAmt = 0.55;
 let fadeAmt = 1;
@@ -121,7 +135,7 @@ const layout = (): void => {
     const nS = n * n;
     const nT = Math.pow(n, 1.5);
     const y = Math.round(d * 2) / 2;
-    const scale = Math.round((1 - curveAmt * nS) * 100) / 100;
+    const scale = Math.round((1 - curveAmt * nS) * (slab === committed ? 1.07 : 1) * 100) / 100;
     const tilt = Math.round(-Math.sign(d) * tiltMax * nT * 10) / 10;
     const opacity = Math.round((1 - fadeAmt * nS) * 50) / 50;
     const z = Math.round((1 - n) * 60);
@@ -187,6 +201,10 @@ const glideToCenter = (slab: Slab): void => {
 };
 
 const onFrontClick = (slab: Slab): void => {
+  if (dragSuppress) {
+    dragSuppress = false;
+    return;
+  }
   const cur = player.currentTrack;
   const track = tracks.length > 0 ? tracks[mod(slab.song, tracks.length)] : undefined;
   if (cur !== null && track !== undefined && track.absPath === cur.absPath) {
@@ -200,6 +218,150 @@ const onFrontClick = (slab: Slab): void => {
   }
   glideToCenter(slab);
   wake();
+};
+
+const fadeGlow = (): void => {
+  for (const g of [glowR, glowL, promptR, promptL]) {
+    if (g !== null) g.style.opacity = '0';
+  }
+};
+
+const springBack = (el: HTMLDivElement, from: number): void => {
+  if (from === 0) return;
+  const start = performance.now();
+  const tween = (ts: number): void => {
+    const t = Math.min(1, (ts - start) / 380);
+    const p = 1 - Math.pow(1 - t, 4);
+    el.style.translate = `${(from * (1 - p)).toFixed(1)}px 0`;
+    if (t < 1) window.requestAnimationFrame(tween);
+    else el.style.translate = '0px 0';
+  };
+  window.requestAnimationFrame(tween);
+};
+
+const swipeTrackOf = (slab: Slab): IndexedTrack | undefined =>
+  tracks.length > 0 ? tracks[mod(slab.song, tracks.length)] : undefined;
+
+const onCardPointerDown = (slab: Slab, event: PointerEvent): void => {
+  if (event.button !== 0) return;
+  const el = slab.el;
+  const startX = event.clientX;
+  const startY = event.clientY;
+  let dragging = false;
+  let x = 0;
+  try {
+    el.setPointerCapture(event.pointerId);
+  } catch {
+    return;
+  }
+  const cleanup = (): void => {
+    el.removeEventListener('pointermove', onMove);
+    el.removeEventListener('pointerup', onUp);
+    el.removeEventListener('pointercancel', onCancel);
+  };
+  const onMove = (move: PointerEvent): void => {
+    const dx = move.clientX - startX;
+    const dy = move.clientY - startY;
+    if (!dragging) {
+      if (Math.abs(dx) < DRAG_DEAD && Math.abs(dy) < DRAG_DEAD) return;
+      if (Math.abs(dx) <= Math.abs(dy)) {
+        dragSuppress = true;
+        cleanup();
+        return;
+      }
+      dragging = true;
+      const hex = swipeTrackOf(slab)?.palette?.[0] ?? '#c7cdf4';
+      if (glowR !== null) glowR.style.background = `linear-gradient(to left, ${hex}, transparent)`;
+      if (glowL !== null) glowL.style.background = `linear-gradient(to right, ${hex}, transparent)`;
+    }
+    x = Math.max(-DRAG_MAX, Math.min(DRAG_MAX, dx));
+    el.style.translate = `${x}px 0`;
+    const r = Math.max(0, Math.min(1, (x - 24) / (SWIPE_T - 24)));
+    const l = Math.max(0, Math.min(1, (-x - 24) / (SWIPE_T - 24)));
+    if (glowR !== null) glowR.style.opacity = String(r);
+    if (glowL !== null) glowL.style.opacity = String(l);
+    if (promptR !== null) promptR.style.opacity = String(r);
+    if (promptL !== null) promptL.style.opacity = String(l);
+  };
+  const onUp = (): void => {
+    const wasDragging = dragging;
+    cleanup();
+    fadeGlow();
+    if (!wasDragging) return;
+    dragSuppress = true;
+    lastSwipeRelease = performance.now();
+    springBack(el, x);
+    const track = swipeTrackOf(slab);
+    if (track === undefined) return;
+    if (x > SWIPE_T) {
+      openPicker(track);
+    } else if (x < -SWIPE_T) {
+      player.appendToQueue(track);
+      toast(`Added to queue — ${track.title}`);
+    }
+  };
+  const onCancel = (): void => {
+    cleanup();
+    fadeGlow();
+    dragSuppress = true;
+    springBack(el, x);
+  };
+  el.addEventListener('pointermove', onMove);
+  el.addEventListener('pointerup', onUp);
+  el.addEventListener('pointercancel', onCancel);
+};
+
+const rebuildPicker = (): void => {
+  if (pickerList === null) return;
+  pickerList.replaceChildren();
+  const newBtn = document.createElement('button');
+  newBtn.type = 'button';
+  newBtn.className = 'river-pick-item river-pick-new';
+  newBtn.textContent = 'New Playlist';
+  newBtn.addEventListener('click', () => {
+    const track = pickerTrack;
+    if (track === null) return;
+    void playlistsStore.create('New Playlist').then((pl) => {
+      void playlistsStore.addTrack(pl.id, { trackId: track.id, absPath: track.absPath });
+      toast(`Added to ${pl.name} — ${track.title}`);
+      closePicker();
+    });
+  });
+  pickerList.append(newBtn);
+  for (const pl of playlistsStore.list()) {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'river-pick-item';
+    item.textContent = pl.name;
+    const already = pl.tracks.some((t) => t.trackId === pickerTrack?.id);
+    if (already) {
+      item.classList.add('added');
+      item.textContent = `${pl.name} — added`;
+    }
+    item.addEventListener('click', () => {
+      const track = pickerTrack;
+      if (track === null) return;
+      if (already) {
+        toast(`Already in ${pl.name}`);
+      } else {
+        void playlistsStore.addTrack(pl.id, { trackId: track.id, absPath: track.absPath });
+        toast(`Added to ${pl.name} — ${track.title}`);
+      }
+      closePicker();
+    });
+    pickerList.append(item);
+  }
+};
+
+const openPicker = (track: IndexedTrack): void => {
+  pickerTrack = track;
+  rebuildPicker();
+  if (picker !== null) picker.classList.add('open');
+};
+
+const closePicker = (): void => {
+  pickerTrack = null;
+  if (picker !== null) picker.classList.remove('open');
 };
 
 const step = (ts: number): void => {
@@ -240,6 +402,8 @@ const setVisible = (next: boolean): void => {
     velocity = 0;
     gliding = false;
     last = 0;
+    closePicker();
+    fadeGlow();
   }
 };
 
@@ -280,6 +444,7 @@ function buildSlab(slot: number): Slab {
     lastZ: -1,
   };
   el.addEventListener('click', () => onFrontClick(slab));
+  el.addEventListener('pointerdown', (event) => onCardPointerDown(slab, event));
   return slab;
 }
 
@@ -296,6 +461,42 @@ export function initSongRiver(): void {
   river.append(...slabs.map((s) => s.el));
   document.body.append(river);
 
+  glowR = document.createElement('div');
+  glowR.className = 'river-glow river-glow-right';
+  glowL = document.createElement('div');
+  glowL.className = 'river-glow river-glow-left';
+  promptR = document.createElement('div');
+  promptR.className = 'river-swipe-prompt right';
+  promptR.textContent = 'Add to playlist';
+  promptL = document.createElement('div');
+  promptL.className = 'river-swipe-prompt left';
+  promptL.textContent = 'Add to queue';
+  document.body.append(glowR, glowL, promptR, promptL);
+
+  picker = document.createElement('div');
+  picker.id = 'river-picker';
+  const pickerHead = document.createElement('div');
+  pickerHead.className = 'river-pick-head';
+  pickerHead.textContent = 'Add to playlist';
+  pickerList = document.createElement('div');
+  pickerList.className = 'river-pick-list';
+  picker.append(pickerHead, pickerList);
+  document.body.append(picker);
+
+  if (!playlistsStore.ready) void playlistsStore.load();
+
+  window.addEventListener('click', (event) => {
+    if (pickerTrack === null) return;
+    if (performance.now() - lastSwipeRelease < 200) return;
+    const target = event.target as HTMLElement | null;
+    if (target !== null && target.closest('#river-picker') !== null) return;
+    closePicker();
+  });
+
+  window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && pickerTrack !== null) closePicker();
+  });
+
   libraryStore.onChange((result) => {
     if (result.ok) {
       tracks = result.tracks;
@@ -311,7 +512,7 @@ export function initSongRiver(): void {
       if (
         target !== null &&
         target.closest(
-          '#overlay, #detail-layer, #playlist-layer, #search-oracle, #settings-modal, #sort-popover, #queue-panel',
+          '#overlay, #detail-layer, #playlist-layer, #search-oracle, #settings-modal, #sort-popover, #queue-panel, #river-picker',
         ) !== null
       ) {
         return;
