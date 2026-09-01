@@ -86,58 +86,68 @@ body.song-river-active #carousel-content {
   left: 44px;
 }
 
-#river-picker {
+#river-names {
   position: fixed;
-  right: 30px;
+  right: 48px;
   top: 50%;
   transform: translateY(-50%);
   z-index: 45;
-  width: 280px;
   max-height: 62vh;
   overflow-y: auto;
   display: none;
-  padding: 10px;
-  border-radius: 12px;
-  border: 1px solid rgba(199, 205, 244, 0.14);
-  background: linear-gradient(180deg, rgba(11, 16, 30, 0.97), rgba(6, 9, 18, 0.98));
-  box-shadow:
-    inset 0 1px 0 rgba(238, 240, 255, 0.05),
-    0 24px 60px rgba(2, 3, 8, 0.65);
   pointer-events: auto;
+  scrollbar-width: none;
 }
 
-#river-picker.open {
+#river-names::-webkit-scrollbar {
+  display: none;
+}
+
+#river-names.open {
   display: block;
 }
 
-.river-pick-head {
-  padding: 8px 12px 10px;
-  font: 400 10px var(--font-display);
-  letter-spacing: 0.3em;
-  text-transform: uppercase;
-  color: var(--moon-faint);
-}
-
-.river-pick-item {
+.river-name {
   display: block;
   width: 100%;
-  text-align: left;
-  padding: 10px 12px;
+  text-align: right;
+  padding: 7px 0;
   border: 0;
-  border-radius: 8px;
   background: transparent;
-  font: 400 14px var(--font-display);
+  font: 400 17px var(--font-display);
+  letter-spacing: 0.04em;
   color: var(--moon-bright);
+  text-shadow: 0 1px 8px rgba(3, 5, 12, 0.9);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.river-pick-item:hover {
-  background: color-mix(in srgb, var(--moon) 8%, transparent);
+.river-name:hover {
+  color: #ffffff;
+  text-shadow: 0 0 14px color-mix(in srgb, var(--moon) 40%, transparent);
 }
 
-.river-pick-item.added {
+.river-name.added {
+  color: var(--moon-faint);
+  text-shadow: none;
+}
+
+.river-name-input {
+  display: block;
+  width: 230px;
+  margin: 0 0 8px auto;
+  padding: 6px 2px;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--moon) 26%, transparent);
+  background: transparent;
+  outline: none;
+  font: 400 15px var(--font-display);
+  color: var(--moon-bright);
+  text-align: right;
+}
+
+.river-name-input::placeholder {
   color: var(--moon-faint);
 }
 

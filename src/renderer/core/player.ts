@@ -221,7 +221,6 @@ export class PlayerService {
   }
 
   appendToQueue(track: IndexedTrack): void {
-    if (this.queue.some((t) => t.id === track.id)) return;
     this.queue.push(track);
     this.emitQueueState();
     this.bus.emit('queueMutated', {});

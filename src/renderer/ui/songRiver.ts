@@ -3,7 +3,7 @@ import { mediaUrl, player } from '../core/player';
 import { createArtImage } from '../core/dom';
 import { appBus } from '../core/appBus';
 import { playlistsStore } from '../core/playlistsStore';
-import { toast } from '../core/toast';
+import { lantern } from '../core/lantern';
 import { openNowPlaying } from './overlay';
 import type { IndexedTrack } from '../../shared/types';
 
@@ -60,9 +60,9 @@ let glowR: HTMLDivElement | null = null;
 let glowL: HTMLDivElement | null = null;
 let promptR: HTMLDivElement | null = null;
 let promptL: HTMLDivElement | null = null;
-let picker: HTMLDivElement | null = null;
-let pickerList: HTMLDivElement | null = null;
-let pickerTrack: IndexedTrack | null = null;
+let namesPanel: HTMLDivElement | null = null;
+let namesList: HTMLDivElement | null = null;
+let namesTrack: IndexedTrack | null = null;
 let dragSuppress = false;
 let lastSwipeRelease = 0;
 let tiltMax = 38;
@@ -294,10 +294,10 @@ const onCardPointerDown = (slab: Slab, event: PointerEvent): void => {
     const track = swipeTrackOf(slab);
     if (track === undefined) return;
     if (x > SWIPE_T) {
-      openPicker(track);
+      openNames(track);
     } else if (x < -SWIPE_T) {
       player.appendToQueue(track);
-      toast(`Added to queue — ${track.title}`);
+      showerFrom(-1);
     }
   };
   const onCancel = (): void => {
@@ -311,57 +311,69 @@ const onCardPointerDown = (slab: Slab, event: PointerEvent): void => {
   el.addEventListener('pointercancel', onCancel);
 };
 
-const rebuildPicker = (): void => {
-  if (pickerList === null) return;
-  pickerList.replaceChildren();
-  const newBtn = document.createElement('button');
-  newBtn.type = 'button';
-  newBtn.className = 'river-pick-item river-pick-new';
-  newBtn.textContent = 'New Playlist';
-  newBtn.addEventListener('click', () => {
-    const track = pickerTrack;
-    if (track === null) return;
-    void playlistsStore.create('New Playlist').then((pl) => {
-      void playlistsStore.addTrack(pl.id, { trackId: track.id, absPath: track.absPath });
-      toast(`Added to ${pl.name} — ${track.title}`);
-      closePicker();
-    });
-  });
-  pickerList.append(newBtn);
-  for (const pl of playlistsStore.list()) {
-    const item = document.createElement('button');
-    item.type = 'button';
-    item.className = 'river-pick-item';
-    item.textContent = pl.name;
-    const already = pl.tracks.some((t) => t.trackId === pickerTrack?.id);
-    if (already) {
-      item.classList.add('added');
-      item.textContent = `${pl.name} — added`;
-    }
-    item.addEventListener('click', () => {
-      const track = pickerTrack;
-      if (track === null) return;
-      if (already) {
-        toast(`Already in ${pl.name}`);
-      } else {
-        void playlistsStore.addTrack(pl.id, { trackId: track.id, absPath: track.absPath });
-        toast(`Added to ${pl.name} — ${track.title}`);
-      }
-      closePicker();
-    });
-    pickerList.append(item);
+const showerFrom = (side: 1 | -1): void => {
+  const x = side === 1 ? window.innerWidth - 60 : 60;
+  const y = window.innerHeight / 2;
+  for (let i = 0; i < 3; i++) {
+    window.setTimeout(() => lantern.burstMotes(x, y, side, 1), i * 110);
   }
 };
 
-const openPicker = (track: IndexedTrack): void => {
-  pickerTrack = track;
-  rebuildPicker();
-  if (picker !== null) picker.classList.add('open');
+const rebuildNames = (): void => {
+  if (namesList === null) return;
+  namesList.replaceChildren();
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'river-name-input';
+  input.placeholder = 'New playlist';
+  input.spellcheck = false;
+  input.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    const track = namesTrack;
+    if (track === null) return;
+    const name = input.value.trim() === '' ? 'New Playlist' : input.value.trim();
+    void playlistsStore.create(name).then((pl) => {
+      void playlistsStore.addTrack(pl.id, { trackId: track.id, absPath: track.absPath });
+      showerFrom(1);
+      closeNames();
+    });
+  });
+  namesList.append(input);
+  for (const pl of playlistsStore.list()) {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'river-name';
+    const already = pl.tracks.some((t) => t.trackId === namesTrack?.id);
+    item.textContent = already ? `${pl.name} — added` : pl.name;
+    if (already) item.classList.add('added');
+    item.addEventListener('click', () => {
+      const track = namesTrack;
+      if (track === null) return;
+      if (already) {
+        closeNames();
+        return;
+      }
+      void playlistsStore.addTrack(pl.id, { trackId: track.id, absPath: track.absPath });
+      showerFrom(1);
+      closeNames();
+    });
+    namesList.append(item);
+  }
 };
 
-const closePicker = (): void => {
-  pickerTrack = null;
-  if (picker !== null) picker.classList.remove('open');
+const openNames = (track: IndexedTrack): void => {
+  namesTrack = track;
+  rebuildNames();
+  if (namesPanel !== null) {
+    namesPanel.classList.add('open');
+    namesList?.querySelector<HTMLInputElement>('input')?.focus();
+  }
+};
+
+const closeNames = (): void => {
+  namesTrack = null;
+  if (namesPanel !== null) namesPanel.classList.remove('open');
 };
 
 const step = (ts: number): void => {
@@ -402,7 +414,7 @@ const setVisible = (next: boolean): void => {
     velocity = 0;
     gliding = false;
     last = 0;
-    closePicker();
+    closeNames();
     fadeGlow();
   }
 };
@@ -473,28 +485,25 @@ export function initSongRiver(): void {
   promptL.textContent = 'Add to queue';
   document.body.append(glowR, glowL, promptR, promptL);
 
-  picker = document.createElement('div');
-  picker.id = 'river-picker';
-  const pickerHead = document.createElement('div');
-  pickerHead.className = 'river-pick-head';
-  pickerHead.textContent = 'Add to playlist';
-  pickerList = document.createElement('div');
-  pickerList.className = 'river-pick-list';
-  picker.append(pickerHead, pickerList);
-  document.body.append(picker);
+  namesPanel = document.createElement('div');
+  namesPanel.id = 'river-names';
+  namesList = document.createElement('div');
+  namesList.className = 'river-names-list';
+  namesPanel.append(namesList);
+  document.body.append(namesPanel);
 
   if (!playlistsStore.ready) void playlistsStore.load();
 
   window.addEventListener('click', (event) => {
-    if (pickerTrack === null) return;
+    if (namesTrack === null) return;
     if (performance.now() - lastSwipeRelease < 200) return;
     const target = event.target as HTMLElement | null;
-    if (target !== null && target.closest('#river-picker') !== null) return;
-    closePicker();
+    if (target !== null && target.closest('#river-names') !== null) return;
+    closeNames();
   });
 
   window.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && pickerTrack !== null) closePicker();
+    if (event.key === 'Escape' && namesTrack !== null) closeNames();
   });
 
   libraryStore.onChange((result) => {
@@ -512,7 +521,7 @@ export function initSongRiver(): void {
       if (
         target !== null &&
         target.closest(
-          '#overlay, #detail-layer, #playlist-layer, #search-oracle, #settings-modal, #sort-popover, #queue-panel, #river-picker',
+          '#overlay, #detail-layer, #playlist-layer, #search-oracle, #settings-modal, #sort-popover, #queue-panel, #river-names',
         ) !== null
       ) {
         return;
