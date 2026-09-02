@@ -61,6 +61,7 @@ let stageViz: Viz | null = null;
 let stageLyrics: ReturnType<typeof createLyrics> | null = null;
 let lastSongList: import('../../shared/types').IndexedTrack[] = [];
 let oracleSongs: import('../../shared/types').IndexedTrack[] = [];
+let oracleSelection = -1;
 
 export function initBrowser(onCompactLyric?: (text: string | null, upcoming: boolean) => void): void {
   const host = document.querySelector<HTMLElement>('#carousel');
@@ -283,10 +284,24 @@ function wireSearch(): void {
     }, 110);
   });
   oracleInput.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      moveOracleSelection(e.key === 'ArrowDown' ? 1 : -1);
+      return;
+    }
     if (e.key === 'Enter') {
       e.preventDefault();
-      oracleResults.querySelector<HTMLElement>('[data-interactive]')?.click();
+      const rows = oracleInteractiveRows();
+      const row = rows[oracleSelection >= 0 ? oracleSelection : 0];
+      if (row !== undefined) row.click();
     }
+  });
+
+  oracleResults.addEventListener('pointerover', (e) => {
+    const row = (e.target as HTMLElement | null)?.closest<HTMLElement>('[data-interactive]');
+    if (row === null || row === undefined || row.parentElement !== oracleResults) return;
+    const index = oracleInteractiveRows().indexOf(row);
+    if (index >= 0) setOracleSelection(index, false);
   });
 
   filterChip.addEventListener('click', () => {
@@ -376,11 +391,12 @@ function renderOracleResults(): void {
 
   if (query === '') {
     oracleSongs = [];
+    oracleSelection = -1;
     oracleResults.replaceChildren(hintNode('Type to summon the archive…'));
     return;
   }
 
-  const songHits = scoreOf(idx.songs, query).slice(0, 12);
+  const songHits = scoreSongs(query).slice(0, 12);
   const albumHits = scoreOf(idx.albums, query).slice(0, 8);
   const artistHits = scoreOf(idx.artists, query).slice(0, 6);
   const playlistHits = searchPlaylists(query).slice(0, 5);
@@ -423,6 +439,40 @@ function renderOracleResults(): void {
   }
 
   oracleResults.replaceChildren(frag);
+  const rows = oracleInteractiveRows();
+  oracleSelection = rows.length > 0 ? 0 : -1;
+  syncOracleSelection(false);
+}
+
+function oracleInteractiveRows(): HTMLElement[] {
+  return Array.from(oracleResults.querySelectorAll<HTMLElement>('[data-interactive]'));
+}
+
+function setOracleSelection(index: number, reveal: boolean): void {
+  const rows = oracleInteractiveRows();
+  if (rows.length === 0) {
+    oracleSelection = -1;
+    return;
+  }
+  oracleSelection = Math.max(0, Math.min(index, rows.length - 1));
+  syncOracleSelection(reveal);
+}
+
+function moveOracleSelection(delta: number): void {
+  const rows = oracleInteractiveRows();
+  if (rows.length === 0) return;
+  const next = oracleSelection < 0 ? (delta > 0 ? 0 : rows.length - 1) : oracleSelection + delta;
+  setOracleSelection((next + rows.length) % rows.length, true);
+}
+
+function syncOracleSelection(reveal: boolean): void {
+  const rows = oracleInteractiveRows();
+  for (const [index, row] of rows.entries()) {
+    row.classList.toggle('oracle-keyboard-selected', index === oracleSelection);
+  }
+  if (reveal && oracleSelection >= 0) {
+    rows[oracleSelection]?.scrollIntoView({ block: 'nearest' });
+  }
 }
 
 function hintNode(text: string): HTMLElement {
@@ -742,6 +792,33 @@ function scoreOf<T>(items: readonly T[], query: string): Array<{ item: T; score:
   }
   out.sort((a, b) => b.score - a.score);
   return out;
+}
+
+function scoreSongs(
+  query: string,
+): Array<{ item: { track: import('../../shared/types').IndexedTrack; hay: string }; score: number }> {
+  const hits = scoreOf(idx.songs, query);
+  const wantsInstrumental = /\binstrumental\b/i.test(query);
+  hits.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+
+    const titleScoreA = fuzzyScore(query, a.item.track.title) ?? 0;
+    const titleScoreB = fuzzyScore(query, b.item.track.title) ?? 0;
+    if (titleScoreB !== titleScoreA) return titleScoreB - titleScoreA;
+
+    if (!wantsInstrumental) {
+      const instrumentalA = /\binstrumental\b/i.test(a.item.track.title) ? 1 : 0;
+      const instrumentalB = /\binstrumental\b/i.test(b.item.track.title) ? 1 : 0;
+      if (instrumentalA !== instrumentalB) return instrumentalA - instrumentalB;
+    }
+
+    const durationA = a.item.track.durationSec ?? Number.POSITIVE_INFINITY;
+    const durationB = b.item.track.durationSec ?? Number.POSITIVE_INFINITY;
+    if (durationA !== durationB) return durationA - durationB;
+
+    return a.item.track.title.localeCompare(b.item.track.title);
+  });
+  return hits;
 }
 
 function sortAlbums(albums: readonly AlbumEntry[]): AlbumEntry[] {

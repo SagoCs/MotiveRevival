@@ -226,6 +226,8 @@ function registerIpc(): void {
       'lyricAlign',
       'lyricPane',
       'nowPlayingView',
+      'volume',
+      'loopMode',
     ];
     for (const key of keys) {
       if (patch[key] !== undefined) (allowed as Record<string, unknown>)[key] = patch[key];

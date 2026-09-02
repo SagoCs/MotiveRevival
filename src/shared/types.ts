@@ -37,6 +37,7 @@ export interface Settings {
   lyricPane?: 'left' | 'right';
   nowPlayingView?: NowPlayingView;
   volume?: number;
+  loopMode?: string;
 }
 
 export interface LyricsPayload {

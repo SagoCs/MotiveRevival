@@ -1653,6 +1653,11 @@ body:has(#playlist-layer.open) #bottom-bar::before {
   border-color: color-mix(in srgb, var(--acc-b) 50%, rgba(255, 255, 255, 0.2));
 }
 
+#search-oracle [data-interactive].oracle-keyboard-selected {
+  border-color: color-mix(in srgb, var(--acc-b) 72%, rgba(255, 255, 255, 0.28));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--acc-a) 34%, transparent), 0 0 24px color-mix(in srgb, var(--acc-glow) 18%, transparent);
+}
+
 .oracle-row .song-thumb {
   width: 44px;
   height: 44px;
