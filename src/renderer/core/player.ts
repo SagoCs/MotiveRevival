@@ -1,6 +1,6 @@
 import { Bus } from './bus';
 import { appBus } from './appBus';
-import type { IndexedTrack } from '../../shared/types';
+import type { IndexedTrack, LoopMode } from '../../shared/types';
 
 export type PlayerEventMap = {
   tick: { time: number; duration: number };
@@ -12,6 +12,7 @@ export type PlayerEventMap = {
   queueMutated: Record<string, never>;
   trackChanged: { track: IndexedTrack };
   volume: { volume: number };
+  loopMode: { mode: LoopMode };
 };
 
 const MEDIA_ERROR_MESSAGES: Record<number, string> = {
@@ -34,6 +35,8 @@ export class PlayerService {
 
   private queue: IndexedTrack[] = [];
   private queueIndex = -1;
+
+  private loopMode: LoopMode = 'off';
 
   private audioCtx: AudioContext | null = null;
   private analyserNode: AnalyserNode | null = null;
@@ -60,6 +63,11 @@ export class PlayerService {
     });
     this.audio.addEventListener('seeked', () => this.emitTick());
     this.audio.addEventListener('ended', () => {
+      if (this.loopMode === 'forever') {
+        this.seek(0);
+        void this.play();
+        return;
+      }
       if (this.hasNext()) {
         this.next();
         return;
@@ -84,6 +92,15 @@ export class PlayerService {
 
   get playing(): boolean {
     return !this.audio.paused && !this.audio.ended;
+  }
+
+  get loop(): LoopMode {
+    return this.loopMode;
+  }
+
+  setLoopMode(mode: LoopMode): void {
+    this.loopMode = mode;
+    this.bus.emit('loopMode', { mode });
   }
 
   get volume(): number {

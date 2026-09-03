@@ -936,7 +936,7 @@ html.song-marker-surface .song-row.playing::after {
   flex: 1;
   height: 100%;
   border-top: none;
-  grid-template-columns: 38px 44px 38px 44px minmax(0, 1fr) 44px 46px 64px;
+  grid-template-columns: 38px 44px 38px 44px minmax(0, 1fr) 44px 36px 36px 64px;
   gap: 10px;
   padding: 0;
 }
@@ -944,7 +944,7 @@ html.song-marker-surface .song-row.playing::after {
 .transport {
   position: relative;
   display: grid;
-  grid-template-columns: 40px 46px 40px 48px minmax(0, 1fr) 48px 46px 72px;
+  grid-template-columns: 40px 46px 40px 48px minmax(0, 1fr) 48px 36px 36px 72px;
   align-items: center;
   gap: 12px;
   height: 62px;
@@ -3182,6 +3182,31 @@ body:has(#playlist-layer.open) #bottom-bar::before {
   box-shadow: none;
   color: var(--acc-b);
   filter: drop-shadow(0 0 8px color-mix(in srgb, var(--acc-glow) 60%, transparent));
+}
+
+#bottom-bar .icon-btn.loop-toggle.lit,
+#overlay-bottom .icon-btn.loop-toggle.lit,
+.transport .icon-btn.loop-toggle.lit {
+  color: var(--moon-bright);
+  filter: none;
+}
+
+.transport .icon-btn.loop-toggle:not(.lit) {
+  opacity: 0.35;
+}
+
+.transport .icon-btn.loop-toggle:not(.lit):hover {
+  opacity: 0.75;
+}
+
+#bottom-bar .icon-btn.vol-toggle,
+#overlay-bottom .icon-btn.vol-toggle,
+.transport .icon-btn.vol-toggle {
+  color: #ffffff;
+}
+
+.transport .icon-btn.loop-toggle svg {
+  margin-left: 2.4px;
 }
 
 .transport .icon-btn.transport-toggle svg {

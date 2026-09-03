@@ -28,8 +28,8 @@ export const ICON_PREV = `<svg ${ATTRS} width="16" height="16" aria-hidden="true
 
 export const ICON_NEXT = `<svg ${ATTRS} width="16" height="16" aria-hidden="true"><path d="M7.5 5.5L15 12l-7.5 6.5"/><path d="M17 5.5v13"/></svg>`;
 
-export const ICON_VOLUME = `<svg ${ATTRS} width="16" height="16" aria-hidden="true"><path d="M11 5.5L7 9H4v6h3l4 3.5z" fill="currentColor" stroke="none"/><path d="M15 9.3a4 4 0 0 1 0 5.4"/><path d="M17.6 7a7.6 7.6 0 0 1 0 10"/></svg>`;
-export const ICON_VOLUME_MUTE = `<svg ${ATTRS} width="16" height="16" aria-hidden="true"><path d="M11 5.5L7 9H4v6h3l4 3.5z" fill="currentColor" stroke="none"/><path d="M15.5 9.5l5 5M20.5 9.5l-5 5"/></svg>`;
+export const ICON_VOLUME = `<svg ${ATTRS} width="22" height="22" aria-hidden="true"><path d="M11 5.5L7 9H4v6h3l4 3.5z" fill="currentColor" stroke="none"/><path d="M15 9.3a4 4 0 0 1 0 5.4"/><path d="M17.6 7a7.6 7.6 0 0 1 0 10"/></svg>`;
+export const ICON_VOLUME_MUTE = `<svg ${ATTRS} width="22" height="22" aria-hidden="true"><path d="M11 5.5L7 9H4v6h3l4 3.5z" fill="currentColor" stroke="none"/><path d="M15.5 9.5l5 5M20.5 9.5l-5 5"/></svg>`;
 export const ICON_MINIMIZE = `<svg ${ATTRS} width="15" height="15" aria-hidden="true"><path d="M5.5 12h13"/></svg>`;
 
 export const ICON_MAXIMIZE = `<svg ${ATTRS} width="15" height="15" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1.5"/></svg>`;
@@ -39,6 +39,8 @@ export const ICON_LYRIC_FOCUS = `<svg ${ATTRS} width="17" height="17" aria-hidde
 export const ICON_ART_FOCUS = `<svg ${ATTRS} width="17" height="17" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2"/><circle cx="9.2" cy="9.8" r="1.5"/><path d="M5.5 16.5l4-4 2.8 2.8 3.2-3.2 3 3"/></svg>`;
 
 export const ICON_SHUFFLE = `<svg ${ATTRS} width="17" height="17" aria-hidden="true"><path d="M4.5 7h2.2c2.8 0 3.8 5.8 6.6 5.8h2.2"/><path d="M13.5 4.5h2.8v2.8M13.5 15.5h2.8v-2.8"/><path d="M4.5 15.5h2.2c1 0 1.8-.6 2.4-1.5M11 8.5c.8-1 1.3-1.5 2.3-1.5h2.2"/></svg>`;
+
+export const ICON_LOOP = `<svg ${ATTRS} width="20" height="20" aria-hidden="true"><path d="M13.5 3.5L17 7l-3.5 3.5"/><path d="M4 13v-2.5a3.5 3.5 0 0 1 3.5-3.5H17"/><path d="M10.5 20.5L7 17l3.5-3.5"/><path d="M20 11v2.5a3.5 3.5 0 0 1-3.5 3.5H7"/></svg>`;
 
 export const ICON_TRASH = `<svg ${ATTRS} width="17" height="17" aria-hidden="true"><path d="M5 7.5v10.2c0 .7.6 1.3 1.3 1.3h11.4c.7 0 1.3-.6 1.3-1.3V7.5M3.5 5h16M9 5V3.5h5V5M9 9.5v6M14 9.5v6"/></svg>`;
 

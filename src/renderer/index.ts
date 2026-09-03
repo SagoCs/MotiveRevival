@@ -112,6 +112,7 @@ function boot(): void {
     applyTimelineLyricSize(s.timelineLyricSize);
     applyLyricsLayout(s.lyricAlign, s.lyricPane);
     player.setVolume(typeof s.volume === 'number' ? Math.min(1, Math.max(0, s.volume)) : 1);
+    player.setLoopMode(s.loopMode === 'forever' ? 'forever' : 'off');
   });
 
   appBus.on('track-selected', ({ track }) => {

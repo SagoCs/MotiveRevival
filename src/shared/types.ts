@@ -21,6 +21,7 @@ export interface IndexedTrack {
 
 export type NowPlayingView = 'split' | 'art' | 'lyrics';
 export type LyricSize = 's' | 'm' | 'l';
+export type LoopMode = 'off' | 'forever';
 
 export interface Settings {
   musicDirs: string[];
@@ -37,7 +38,7 @@ export interface Settings {
   lyricPane?: 'left' | 'right';
   nowPlayingView?: NowPlayingView;
   volume?: number;
-  loopMode?: string;
+  loopMode?: LoopMode;
 }
 
 export interface LyricsPayload {

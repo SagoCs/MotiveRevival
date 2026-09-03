@@ -2,7 +2,8 @@ import { el } from '../core/dom';
 import { fmtTime } from '../core/dom';
 import { player } from '../core/player';
 import { createQueuePanel } from './queuePanel';
-import { ICON_PAUSE, ICON_PLAY, ICON_PREV, ICON_NEXT, ICON_VOLUME, ICON_VOLUME_MUTE } from './icons';
+import { ICON_PAUSE, ICON_PLAY, ICON_PREV, ICON_NEXT, ICON_VOLUME, ICON_VOLUME_MUTE, ICON_LOOP } from './icons';
+import type { LoopMode } from '../../shared/types';
 
 const ICON_QUEUE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" width="17" height="17" aria-hidden="true"><path d="M9.5 6.5h10M9.5 12h10M9.5 17.5h10"/><circle cx="5.4" cy="6.5" r="1.15" fill="currentColor" stroke="none"/><circle cx="5.4" cy="12" r="1.15" fill="currentColor" stroke="none"/><circle cx="5.4" cy="17.5" r="1.15" fill="currentColor" stroke="none"/></svg>`;
 
@@ -105,7 +106,24 @@ export function createTransport(host: HTMLElement): TransportHandle {
   queueBtn.setAttribute('aria-pressed', 'false');
   queueBtn.innerHTML = ICON_QUEUE;
 
-  host.append(prevBtn, btn, nextBtn, timeNow, scrub, timeTotal, volBtn, volRail);
+  const loopBtn = el('button', 'icon-btn btn-small loop-toggle');
+  loopBtn.type = 'button';
+  const renderLoop = (): void => {
+    const mode = player.loop;
+    loopBtn.innerHTML = ICON_LOOP;
+    loopBtn.classList.toggle('lit', mode !== 'off');
+    loopBtn.setAttribute('aria-label', mode === 'off' ? 'Loop: off' : 'Loop: repeat this song');
+    loopBtn.setAttribute('aria-pressed', mode !== 'off' ? 'true' : 'false');
+  };
+  renderLoop();
+  player.bus.on('loopMode', renderLoop);
+  loopBtn.addEventListener('click', () => {
+    const next: LoopMode = player.loop === 'off' ? 'forever' : 'off';
+    player.setLoopMode(next);
+    void window.mr.updateSettings({ loopMode: next });
+  });
+
+  host.append(prevBtn, btn, nextBtn, timeNow, scrub, timeTotal, loopBtn, volBtn, volRail);
   host.append(lyric);
 
   const bottomBar = host.parentElement;
