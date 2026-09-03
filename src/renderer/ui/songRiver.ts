@@ -17,13 +17,6 @@ const SWIPE_T = 140;
 const DRAG_MAX = 220;
 const DRAG_DEAD = 8;
 
-const FAKE_TITLES = [
-  'Winterlight Vow', 'Gossamer Meridian', 'Aurelian Skies', 'Pale Commotion',
-  'Northfold Choir', 'Ivory Descent', 'Hollow Lantern', 'Ember Verdict',
-  'Silken Meridian', 'The Quiet Shore', 'Lantern Thesis', 'Cinder Waltz',
-];
-const FAKE_ARTISTS = ['Aurelian Skies', 'Northfold Choir', 'The Quiet Shore'];
-
 interface Slab {
   el: HTMLDivElement;
   title: HTMLSpanElement;
@@ -68,9 +61,9 @@ let dragSuppress = false;
 let lastSwipeRelease = 0;
 const addedTimers = new Map<HTMLDivElement, number>();
 const swipeQueued = new Set<string>();
-let tiltMax = 38;
-let curveAmt = 0.55;
-let fadeAmt = 1;
+const tiltMax = 38;
+const curveAmt = 0.55;
+const fadeAmt = 1;
 let fall = 420;
 let fadeRange = 350;
 let riverCy = 0;
@@ -124,19 +117,19 @@ const rebind = (slab: Slab, song: number): void => {
   slab.song = song;
   const track = tracks.length > 0 ? tracks[mod(song, tracks.length)] : undefined;
   slab.trackPath = track?.absPath ?? null;
-    if (track !== undefined) {
-      slab.title.textContent = track.title;
-      slab.artist.textContent = track.artist ?? 'Unknown Artist';
-      slab.art.replaceChildren();
-      const art = track.artFile;
-      if (art !== null) {
-        const img = createArtImage(mediaUrl(art), { fallbackUrl: mediaUrl(art) });
-        img.decoding = 'async';
-        slab.art.append(img);
-      }
-    } else {
-    slab.title.textContent = FAKE_TITLES[mod(song, FAKE_TITLES.length)] ?? 'Untitled';
-    slab.artist.textContent = FAKE_ARTISTS[mod(song, FAKE_ARTISTS.length)] ?? '';
+  if (track !== undefined) {
+    slab.title.textContent = track.title;
+    slab.artist.textContent = track.artist ?? 'Unknown Artist';
+    slab.art.replaceChildren();
+    const art = track.artFile;
+    if (art !== null) {
+      const img = createArtImage(mediaUrl(art), { fallbackUrl: mediaUrl(art) });
+      img.decoding = 'async';
+      slab.art.append(img);
+    }
+  } else {
+    slab.title.textContent = '';
+    slab.artist.textContent = '';
     slab.art.replaceChildren();
   }
   slab.d = null;
@@ -646,28 +639,6 @@ export function initSongRiver(): void {
   window.addEventListener('resize', () => {
     measure();
     layout();
-    wake();
-  });
-
-  window.addEventListener('keydown', (event) => {
-    if (!on) return;
-    const target = event.target as HTMLElement | null;
-    if (
-      target !== null &&
-      (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
-    ) {
-      return;
-    }
-    let used = true;
-    if (event.key === 'ArrowUp') tiltMax = Math.min(48, tiltMax + 2);
-    else if (event.key === 'ArrowDown') tiltMax = Math.max(0, tiltMax - 2);
-    else if (event.key === 'ArrowLeft') fadeAmt = Math.min(1, fadeAmt + 0.05);
-    else if (event.key === 'ArrowRight') fadeAmt = Math.max(0, fadeAmt - 0.05);
-    else if (event.shiftKey && event.key === 'ArrowUp') curveAmt = Math.min(0.8, curveAmt + 0.05);
-    else if (event.shiftKey && event.key === 'ArrowDown') curveAmt = Math.max(0, curveAmt - 0.05);
-    else used = false;
-    if (!used) return;
-    event.preventDefault();
     wake();
   });
 
