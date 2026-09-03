@@ -53,6 +53,7 @@ let filterChip: HTMLButtonElement;
 let modeTabs: HTMLElement;
 let sortPopover: HTMLElement;
 let summonZone: HTMLElement;
+let summonVeilEl: HTMLElement | null = null;
 let detailLayer: HTMLElement;
 let detailOpen = false;
 let activeDetailKey: string | null = null;
@@ -207,12 +208,22 @@ function isOracleOpen(): boolean {
   return panel !== null && !panel.hidden;
 }
 
+function summonVeil(): HTMLElement {
+  if (summonVeilEl !== null) return summonVeilEl;
+  const node = document.createElement('div');
+  node.id = 'summon-veil';
+  document.body.appendChild(node);
+  summonVeilEl = node;
+  return node;
+}
+
 function openOracle(): void {
   const panel = document.getElementById('search-oracle');
   if (panel === null) return;
   panel.hidden = false;
   requestAnimationFrame(() => panel.classList.add('open'));
   summonZone.classList.add('active');
+  summonVeil().classList.add('on');
   oracleInput.focus();
 }
 
@@ -222,6 +233,7 @@ function closeOracle(): void {
   panel.classList.remove('open');
   panel.hidden = true;
   summonZone.classList.remove('active');
+  summonVeilEl?.classList.remove('on');
   oracleInput.value = '';
   oracleInput.blur();
   oracleSongs = [];

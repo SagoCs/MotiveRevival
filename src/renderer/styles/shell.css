@@ -1598,6 +1598,31 @@ body:has(#playlist-layer.open) #bottom-bar::before {
   display: none !important;
 }
 
+#summon-veil {
+  position: fixed;
+  top: var(--topbar-h);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 37;
+  background: linear-gradient(180deg, rgba(5, 7, 15, 0.58), rgba(3, 4, 10, 0.72));
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 420ms var(--ease-drift),
+    visibility 0s linear 420ms;
+}
+
+#summon-veil.on {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition:
+    opacity 420ms var(--ease-drift),
+    visibility 0s;
+}
+
 #oracle-input {
   flex: 1;
   min-width: 0;
