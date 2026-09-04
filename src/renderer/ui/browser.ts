@@ -791,11 +791,15 @@ function retractVisibleRows(): void {
   }
 }
 
+function syncRiver(): void {
+  songRiver.setVisible(state.mode === 'songs' && libraryOk && idx.songs.length > 0 && !detailOpen);
+}
+
 function render(immediate = false): void {
   preview.cancel();
   uiTheme.popPreview();
   const runSwap = (): void => {
-    songRiver.setVisible(state.mode === 'songs' && libraryOk && idx.songs.length > 0);
+    syncRiver();
     const frag = document.createDocumentFragment();
     if ((!libraryOk || idx.songs.length === 0) && state.mode !== 'playlists') {
       renderEmptyLibrary(frag);
@@ -1146,6 +1150,7 @@ function openAlbum(album: AlbumEntry): void {
   list.append(frag);
 
   detailOpen = true;
+  syncRiver();
   detailLayer.hidden = false;
   requestAnimationFrame(() => detailLayer.classList.add('open'));
 
@@ -1200,7 +1205,10 @@ function closeDetail(): void {
   detailLayer.classList.remove('open');
   stopBands();
   window.setTimeout(() => {
-    if (!detailOpen) detailLayer.hidden = true;
+    if (!detailOpen) {
+      detailLayer.hidden = true;
+      syncRiver();
+    }
   }, 460);
 }
 
