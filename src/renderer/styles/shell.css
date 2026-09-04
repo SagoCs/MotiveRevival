@@ -1604,7 +1604,7 @@ body:has(#playlist-layer.open) #bottom-bar::before {
   background: linear-gradient(
     90deg,
     color-mix(in srgb, var(--acc-a) 12%, rgba(199, 205, 244, 0.06)),
-    rgba(238, 240, 255, 0.7) 50%,
+    color-mix(in srgb, var(--acc-b) 85%, var(--moon-bright)) 50%,
     color-mix(in srgb, var(--acc-a) 12%, rgba(199, 205, 244, 0.06))
   );
   pointer-events: none;
