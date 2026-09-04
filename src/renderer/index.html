@@ -47,15 +47,16 @@
       </div>
     </nav>
     <div id="summon-zone">
-      <button id="search-summon" class="no-drag" type="button" aria-label="Summon the archive">
-        <svg class="summon-glyph crescent" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
-        <span class="summon-hint">Summon</span>
-        <svg class="summon-glyph sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.6v3M12 18.4v3M2.6 12h3M18.4 12h3M5.3 5.3l2.2 2.2M16.5 16.5l2.2 2.2M18.7 5.3l-2.2 2.2M7.5 16.5l-2.2 2.2"/></svg>
+      <span id="summon-line-left" class="summon-line left" aria-hidden="true"></span>
+      <button id="search-summon" class="no-drag" type="button" aria-label="Summon the archive" title="Summon the archive">
+        <svg id="summon-moon" class="summon-glyph crescent" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
       </button>
       <div id="summon-field" class="no-drag">
-        <span id="oracle-icon" aria-hidden="true"></span>
-        <input id="oracle-input" type="text" spellcheck="false" autocomplete="off" placeholder="Summon songs, artists, albums&hellip;">
+        <input id="oracle-input" type="text" spellcheck="false" autocomplete="off">
       </div>
+      <svg id="summon-sun" class="summon-glyph sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.6v3M12 18.4v3M2.6 12h3M18.4 12h3M5.3 5.3l2.2 2.2M16.5 16.5l2.2 2.2M18.7 5.3l-2.2 2.2M7.5 16.5l-2.2 2.2"/></svg>
+      <span id="summon-word" aria-hidden="true">Summon</span>
+      <span id="summon-line-right" class="summon-line right" aria-hidden="true"></span>
     </div>
     <div class="topbar-right">
       <div class="no-drag gear-island">

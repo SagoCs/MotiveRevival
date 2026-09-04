@@ -12,7 +12,7 @@ import {
 } from '../core/searchIndex';
 import { Carousel } from './carousel';
 import { isOverlayOpen, openNowPlaying, toggleNowPlaying } from './overlay';
-import { ICON_SIGIL, ICON_NOTE, ICON_SEARCH } from './icons';
+import { ICON_SIGIL, ICON_NOTE } from './icons';
 import { startBands, stopBands } from '../core/audioBands';
 import { fallbackPalette, applyPalette, applyLyricsInk } from '../core/palette';
 import { uiTheme } from '../core/uiTheme';
@@ -63,6 +63,9 @@ let stageLyrics: ReturnType<typeof createLyrics> | null = null;
 let lastSongList: import('../../shared/types').IndexedTrack[] = [];
 let oracleSongs: import('../../shared/types').IndexedTrack[] = [];
 let oracleSelection = -1;
+let summonField: HTMLElement;
+let summonMirror: HTMLElement;
+let summonWord: HTMLElement;
 
 export function initBrowser(onCompactLyric?: (text: string | null, upcoming: boolean) => void): void {
   const host = document.querySelector<HTMLElement>('#carousel');
@@ -97,6 +100,22 @@ export function initBrowser(onCompactLyric?: (text: string | null, upcoming: boo
     (() => {
       throw new Error('missing #summon-zone');
     })();
+  summonField =
+    document.querySelector<HTMLElement>('#summon-field') ??
+    (() => {
+      throw new Error('missing #summon-field');
+    })();
+  summonMirror = document.createElement('span');
+  summonMirror.setAttribute('aria-hidden', 'true');
+  summonMirror.style.cssText = 'position:absolute;visibility:hidden;white-space:pre;left:-9999px;top:0;pointer-events:none;';
+  document.body.appendChild(summonMirror);
+  summonWord =
+    document.querySelector<HTMLElement>('#summon-word') ??
+    (() => {
+      throw new Error('missing #summon-word');
+    })();
+  updateSummonWidth();
+  document.fonts?.ready.then(() => updateSummonWidth());
   detailLayer =
     document.querySelector<HTMLElement>('#detail-layer') ??
     (() => {
@@ -104,8 +123,6 @@ export function initBrowser(onCompactLyric?: (text: string | null, upcoming: boo
     })();
 
   if (!host || !content) throw new Error('missing carousel nodes');
-  const oracleIcon = document.querySelector<HTMLSpanElement>('#oracle-icon');
-  if (oracleIcon) oracleIcon.innerHTML = ICON_SEARCH;
 
   detailLayer.addEventListener('click', (e) => {
     if (e.target !== detailLayer || !detailLayer.classList.contains('open')) return;
@@ -217,13 +234,30 @@ function summonVeil(): HTMLElement {
   return node;
 }
 
+function updateSummonWidth(): void {
+  const style = window.getComputedStyle(oracleInput);
+  summonMirror.style.fontFamily = style.fontFamily;
+  summonMirror.style.fontSize = style.fontSize;
+  summonMirror.style.fontWeight = style.fontWeight;
+  summonMirror.style.fontStyle = style.fontStyle;
+  summonMirror.style.letterSpacing = style.letterSpacing;
+  summonMirror.textContent = oracleInput.value;
+  const wordW = summonWord.getBoundingClientRect().width;
+  const textW = oracleInput.value !== '' ? summonMirror.getBoundingClientRect().width + 36 : 0;
+  const max = Math.max(40, summonZone.clientWidth - 92);
+  const width = Math.min(Math.max(textW, wordW), max);
+  summonField.style.width = `${Math.ceil(width)}px`;
+}
+
 function openOracle(): void {
   const panel = document.getElementById('search-oracle');
   if (panel === null) return;
   panel.hidden = false;
   requestAnimationFrame(() => panel.classList.add('open'));
   summonZone.classList.add('active');
+  summonZone.classList.add('summon-animate');
   summonVeil().classList.add('on');
+  updateSummonWidth();
   oracleInput.focus();
 }
 
@@ -233,10 +267,12 @@ function closeOracle(): void {
   panel.classList.remove('open');
   panel.hidden = true;
   summonZone.classList.remove('active');
+  summonZone.classList.add('summon-animate');
   summonVeilEl?.classList.remove('on');
   oracleInput.value = '';
   oracleInput.blur();
   oracleSongs = [];
+  updateSummonWidth();
 }
 
 function isSortPopoverOpen(): boolean {
@@ -265,10 +301,13 @@ function toggleSortPopover(): void {
 }
 
 function wireBezel(): void {
-  const summonBtn = document.querySelector<HTMLButtonElement>('#search-summon');
-  summonBtn?.addEventListener('click', () => {
-    openOracle();
-    renderOracleResults();
+  summonZone.addEventListener('click', () => {
+    if (!summonZone.classList.contains('active')) {
+      openOracle();
+      renderOracleResults();
+    } else {
+      oracleInput.focus();
+    }
   });
   modeTabs.addEventListener(
     'click',
@@ -290,6 +329,8 @@ function wireBezel(): void {
 
 function wireSearch(): void {
   oracleInput.addEventListener('input', () => {
+    summonZone.classList.remove('summon-animate');
+    updateSummonWidth();
     window.clearTimeout(debounceHandle);
     debounceHandle = window.setTimeout(() => {
       renderOracleResults();
@@ -382,8 +423,14 @@ function wireGlobalKeys(): void {
       const start = oracleInput.selectionStart ?? oracleInput.value.length;
       const end = oracleInput.selectionEnd ?? oracleInput.value.length;
       oracleInput.setRangeText(e.key, start, end, 'end');
+      summonZone.classList.remove('summon-animate');
+      updateSummonWidth();
       renderOracleResults();
     }
+  });
+
+  window.addEventListener('resize', () => {
+    updateSummonWidth();
   });
 
   document.addEventListener(
@@ -392,6 +439,7 @@ function wireGlobalKeys(): void {
       if (!isOracleOpen()) return;
       const hit = e.target as HTMLElement | null;
       if (hit !== null && hit.closest('#search-oracle') !== null) return;
+      if (hit !== null && hit.closest('#summon-zone') !== null) return;
       closeOracle();
     },
     true,
@@ -415,32 +463,45 @@ function renderOracleResults(): void {
   let total = 0;
 
   const frag = document.createDocumentFragment();
+  let surfaceShift = 0;
   if (songHits.length > 0) {
-    frag.append(sectionHeader('Songs'));
+    frag.append(oracleSectionHeader('Songs'));
     oracleSongs = songHits.map((hit) => hit.item.track);
     for (const hit of songHits) {
-      frag.append(songRow(hit.item.track));
+      const row = songRow(hit.item.track);
+      applyArtSurface(row, hit.item.track.artFile, surfaceShift);
+      surfaceShift += 1;
+      frag.append(row);
       total += 1;
     }
   }
   if (albumHits.length > 0) {
-    frag.append(sectionHeader('Albums'));
+    frag.append(oracleSectionHeader('Albums'));
     for (const hit of albumHits) {
-      frag.append(oracleAlbumRow(hit.item));
+      const row = oracleAlbumRow(hit.item);
+      applyArtSurface(row, hit.item.artFile, surfaceShift);
+      surfaceShift += 1;
+      frag.append(row);
       total += 1;
     }
   }
   if (artistHits.length > 0) {
-    frag.append(sectionHeader('Artists'));
+    frag.append(oracleSectionHeader('Artists'));
     for (const hit of artistHits) {
-      frag.append(oracleArtistRow(hit.item));
+      const row = oracleArtistRow(hit.item);
+      applyArtSurface(row, hit.item.artFile, surfaceShift);
+      surfaceShift += 1;
+      frag.append(row);
       total += 1;
     }
   }
   if (playlistHits.length > 0) {
-    frag.append(sectionHeader('Playlists'));
+    frag.append(oracleSectionHeader('Playlists'));
     for (const hit of playlistHits) {
-      frag.append(oraclePlaylistRow(hit));
+      const row = oraclePlaylistRow(hit);
+      applyArtSurface(row, playlistCover(hit.playlist), surfaceShift);
+      surfaceShift += 1;
+      frag.append(row);
       total += 1;
     }
   }
@@ -491,6 +552,30 @@ function hintNode(text: string): HTMLElement {
   const node = el('div', 'oracle-hint mono dim');
   node.textContent = text;
   return node;
+}
+
+function oracleSectionHeader(label: string): HTMLElement {
+  const header = el('div', 'oracle-section');
+  const left = el('span', 'oracle-section-line left');
+  const text = el('span', 'oracle-section-label');
+  text.textContent = label;
+  const right = el('span', 'oracle-section-line right');
+  header.append(left, text, right);
+  return header;
+}
+
+function applyArtSurface(row: HTMLElement, artFile: string | null, shift: number): void {
+  if (artFile === null) return;
+  row.style.backgroundImage = `url("${mediaUrl(artFile)}")`;
+  row.style.backgroundPosition = `${(shift * 47) % 100}% center`;
+}
+
+function playlistCover(pl: Playlist): string | null {
+  return (
+    pl.tracks
+      .map((ref) => libraryStore.getTrackList().find((t) => t.id === ref.trackId))
+      .find((t) => t?.artFile !== null && t !== undefined)?.artFile ?? null
+  );
 }
 
 function oracleAlbumRow(album: AlbumEntry): HTMLElement {
