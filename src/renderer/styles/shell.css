@@ -3199,12 +3199,6 @@ body:has(#playlist-layer.open) #bottom-bar::before {
   opacity: 0.75;
 }
 
-#bottom-bar .icon-btn.vol-toggle,
-#overlay-bottom .icon-btn.vol-toggle,
-.transport .icon-btn.vol-toggle {
-  color: #ffffff;
-}
-
 .transport .icon-btn.loop-toggle svg {
   margin-left: 2.4px;
 }
