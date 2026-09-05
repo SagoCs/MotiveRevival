@@ -65,8 +65,8 @@ During the spike the Universe is a temporary tab. At graduation the tabs retire 
 
 All work on branch `spike/universe` until the verdict.
 
-1. **Spike v1 — the sky:** pan/zoom, deterministic artist stars, the black hole and its ring, the fall-into-artist transition, the artist view (shelf by year + tinted backdrop), album → river-in-context drill-through, the compass star, per-context shuffle. Then live with it.
-2. **Spike v2 — after the v1 feel-check:** playlist clusters (protostars, dominant-artist placement, the shallow band), label/LOD polish, focus states.
+1. **Spike v1 — the sky:** pan/zoom, deterministic artist stars, the black hole and its ring, the fall-into-artist transition, the artist view (shelf by year + tinted backdrop), album → river-in-context drill-through, the compass star. Then live with it.
+2. **Spike v2 — after the v1 feel-check:** playlist clusters (protostars, dominant-artist placement, the shallow band), per-context shuffle, label/LOD polish, focus states.
 3. **Graduation:** owner verdict. If the sky passes, the bezel diet and the retirements land.
 
 Explicitly out of scope: genre anything, artist-to-artist relationship lines, physics, search-moves-the-viewport (rider), playlist figure threads (retired by design), HUD geometry, frost.

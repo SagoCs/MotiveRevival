@@ -595,7 +595,7 @@ export function initSongRiver(): void {
       if (
         target !== null &&
         target.closest(
-          '#overlay, #detail-layer, #playlist-layer, #search-oracle, #settings-modal, #sort-popover, #queue-panel, #river-names',
+          '#overlay, #detail-layer, #playlist-layer, #search-oracle, #settings-modal, #sort-popover, #queue-panel, #river-names, #universe',
         ) !== null
       ) {
         return;
@@ -615,7 +615,7 @@ export function initSongRiver(): void {
     if (
       target !== null &&
       target.closest(
-        '.river-card, #river-names, #overlay, #detail-layer, #playlist-layer, #search-oracle, #settings-modal, #sort-popover, #queue-panel',
+        '.river-card, #river-names, #overlay, #detail-layer, #playlist-layer, #search-oracle, #settings-modal, #sort-popover, #queue-panel, #universe',
       ) !== null
     ) {
       return;

@@ -23,9 +23,10 @@ import { Viz } from './viz';
 import { createLyrics } from './lyrics';
 import { renderTabCards, searchPlaylists, closePlaylistLayer, isPlaylistLayerOpen, openDetail, attachContextMenu } from './playlistsView';
 import { songRiver } from './songRiver';
+import { setUniverseVisible } from './universe';
 import type { Playlist } from '../../shared/types';
 
-type Mode = 'albums' | 'artists' | 'songs' | 'playlists';
+type Mode = 'albums' | 'artists' | 'songs' | 'playlists' | 'universe';
 type SortKey = 'alpha' | 'duration' | 'artist';
 
 const SORT_LABELS: Record<Mode, [string, string, string]> = {
@@ -33,6 +34,7 @@ const SORT_LABELS: Record<Mode, [string, string, string]> = {
   artists: ['A–Z', 'Longest', 'Tracks'],
   songs: ['A–Z', 'Longest', 'Artist'],
   playlists: ['A–Z', 'Longest', 'Tracks'],
+  universe: ['A–Z', 'Longest', 'Artist'],
 };
 
 interface BrowserState {
@@ -198,6 +200,7 @@ function wireTabs(): void {
       }
       state.mode = mode;
       preview.enabled = mode === 'songs';
+      setUniverseVisible(mode === 'universe');
       if (mode !== 'albums') setArtistFilter(null);
       closeSortPopover();
       syncTabs();
@@ -645,12 +648,12 @@ function syncChips(): void {
   const labels = SORT_LABELS[state.mode];
   const chipsNav = document.querySelector<HTMLElement>('#sort-chips');
   if (chipsNav !== null) {
-    chipsNav.classList.toggle('is-disabled', state.mode === 'playlists');
+    chipsNav.classList.toggle('is-disabled', state.mode === 'playlists' || state.mode === 'universe');
   }
   let i = 0;
   for (const chip of document.querySelectorAll<HTMLButtonElement>('#sort-chips button')) {
     const key = chip.dataset.sort as SortKey | undefined;
-    chip.classList.toggle('active', key === state.sort && state.mode !== 'playlists');
+    chip.classList.toggle('active', key === state.sort && state.mode !== 'playlists' && state.mode !== 'universe');
     chip.textContent = labels[i] ?? '';
     i += 1;
   }

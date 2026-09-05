@@ -1,0 +1,58 @@
+#universe {
+  position: fixed;
+  inset: var(--topbar-h) 0 var(--bottom-h) 0;
+  z-index: 25;
+  display: none;
+  overflow: hidden;
+  background:
+    radial-gradient(1100px 700px at 78% 4%, color-mix(in srgb, var(--acc-b) 9%, transparent), transparent 64%),
+    radial-gradient(900px 640px at 12% 96%, color-mix(in srgb, var(--acc-a) 8%, transparent), transparent 62%),
+    linear-gradient(180deg, transparent 62%, color-mix(in srgb, var(--hz-glow) 7%, transparent) 100%);
+  touch-action: none;
+}
+
+#universe.on {
+  display: block;
+  animation: uni-in 520ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.no-motion #universe.on {
+  animation: none;
+}
+
+@keyframes uni-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.uni-field {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.uni-layer {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 3600px;
+  height: 2200px;
+  margin-left: -1800px;
+  margin-top: -1100px;
+  will-change: transform;
+  pointer-events: none;
+}
+
+.uni-speck {
+  position: absolute;
+  width: calc(var(--s, 1.5) * 1px);
+  height: calc(var(--s, 1.5) * 1px);
+  border-radius: 50%;
+  background: var(--moon);
+  opacity: var(--o, 0.4);
+}
+
+.uni-speck.uni-bright {
+  background: color-mix(in srgb, var(--acc-a) 55%, var(--moon));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--acc-glow) 60%, transparent);
+}
