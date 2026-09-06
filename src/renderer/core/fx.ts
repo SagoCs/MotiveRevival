@@ -15,6 +15,12 @@ const LYRIC_SCALE: Record<LyricSize, string> = {
   l: '1.18',
 };
 
+const TIMELINE_SCALE: Record<LyricSize, string> = {
+  s: '1.25',
+  m: '1.55',
+  l: '1.95',
+};
+
 export function applyMotionFlags(settings: {
   motionEffects?: boolean;
   motionCarousel?: boolean;
@@ -39,5 +45,5 @@ export function applyLyricSize(size: LyricSize | undefined): void {
 }
 
 export function applyTimelineLyricSize(size: LyricSize | undefined): void {
-  document.documentElement.style.setProperty('--timeline-lyric-scale', LYRIC_SCALE[size ?? 'm']);
+  document.documentElement.style.setProperty('--timeline-lyric-scale', TIMELINE_SCALE[size ?? 'm']);
 }

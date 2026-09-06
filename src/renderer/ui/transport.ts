@@ -43,6 +43,8 @@ export function createTransport(host: HTMLElement): TransportHandle {
   const fill = el('div', 'scrub-fill');
   const knob = el('div', 'scrub-knob');
   const lyric = el('div', 'transport-lyric');
+  const lyricText = el('span', 'transport-lyric-text');
+  lyric.append(lyricText);
   lyric.hidden = true;
   scrub.append(fill, knob);
 
@@ -253,7 +255,7 @@ export function createTransport(host: HTMLElement): TransportHandle {
   return {
     setInteractivity: (enabled) => host.classList.toggle('is-disabled', !enabled),
     setCompactLyric: (text, upcoming) => {
-      lyric.textContent = text ?? '';
+      lyricText.textContent = text ?? '';
       lyric.hidden = text === null || text === '';
       lyric.classList.toggle('upcoming', upcoming);
     },

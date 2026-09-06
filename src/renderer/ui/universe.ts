@@ -28,7 +28,7 @@ const PIN_CAP = 8;
 const PINS_KEY = 'universe:pins:v1';
 const NEBULA_CAP = 6;
 
-const DUST_HUES = [46, 217, 335, 268, 174, 210];
+const DUST_HUES = [46, 268, 335, 24, 8, 288];
 
 interface LayerSpec {
   factor: number;
@@ -273,7 +273,7 @@ function buildSpecks(layer: HTMLElement, spec: LayerSpec): void {
     const h = (hue + (rand() - 0.5) * 16).toFixed(0);
     speck.style.setProperty(
       '--c',
-      `hsl(${h} ${Math.round(48 + rand() * 18)}% ${Math.round(66 + rand() * 14)}%)`,
+      `hsl(${h} ${Math.round(38 + rand() * 16)}% ${Math.round(68 + rand() * 14)}%)`,
     );
     frag.append(speck);
   }
@@ -874,6 +874,7 @@ export function setUniverseVisible(on: boolean): void {
   active = on;
   surface.hidden = !on;
   surface.classList.toggle('on', on);
+  document.body.classList.toggle('universe-active', on);
   if (on) {
     refreshRect();
     updateLabels();

@@ -9,10 +9,10 @@
   flex-direction: column;
   overflow: hidden;
   border-radius: 9px;
-  border: 1px solid rgba(199, 205, 244, 0.14);
+  border: 1px solid rgba(212, 214, 226, 0.14);
   background:
     radial-gradient(300px 170px at 18% -50px, color-mix(in srgb, var(--acc-a) 10%, transparent), transparent 70%),
-    linear-gradient(180deg, rgba(11, 16, 30, 0.985), rgba(6, 9, 18, 0.995));
+    linear-gradient(180deg, color-mix(in srgb, var(--void-1) 98.5%, transparent), color-mix(in srgb, var(--void-0) 99.5%, transparent));
   box-shadow:
     inset 0 1px 0 rgba(238, 240, 255, 0.04),
     0 30px 80px rgba(2, 3, 8, 0.72);
@@ -50,7 +50,7 @@
 .queue-now-body {
   box-sizing: border-box;
   margin: 0 10px 8px;
-  border: 1px solid color-mix(in srgb, var(--acc-b) 16%, rgba(199, 205, 244, 0.08));
+  border: 1px solid color-mix(in srgb, var(--acc-b) 16%, rgba(212, 214, 226, 0.08));
   border-radius: 5px;
   background: color-mix(in srgb, var(--acc-a) 4%, transparent);
   transition:
@@ -103,7 +103,7 @@
 .queue-divider-rule {
   flex: 1;
   height: 1px;
-  background: color-mix(in srgb, var(--acc-b) 18%, rgba(199, 205, 244, 0.06));
+  background: color-mix(in srgb, var(--acc-b) 18%, rgba(212, 214, 226, 0.06));
 }
 
 .queue-divider-motif {
@@ -313,7 +313,7 @@
   align-items: center;
   justify-content: center;
   background: var(--moon-ghost);
-  border: 1px solid color-mix(in srgb, var(--acc-b) 25%, rgba(199, 205, 244, 0.08));
+  border: 1px solid color-mix(in srgb, var(--acc-b) 25%, rgba(212, 214, 226, 0.08));
 }
 
 .queue-thumb img {
@@ -377,9 +377,9 @@
   gap: 9px;
   width: min(232px, calc(100vw - 24px));
   padding: 7px 10px 7px 7px;
-  border: 1px solid color-mix(in srgb, var(--acc-b) 42%, rgba(199, 205, 244, 0.14));
+  border: 1px solid color-mix(in srgb, var(--acc-b) 42%, rgba(212, 214, 226, 0.14));
   border-radius: 5px;
-  background: linear-gradient(135deg, rgba(18, 24, 44, 0.96), rgba(7, 11, 22, 0.96));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--void-2) 96%, transparent), rgba(7, 11, 22, 0.96));
   box-shadow: 0 12px 30px rgba(2, 3, 8, 0.48), 0 0 18px color-mix(in srgb, var(--acc-glow) 20%, transparent);
   opacity: 0.94;
   pointer-events: none;
@@ -392,7 +392,7 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--acc-b) 30%, rgba(199, 205, 244, 0.1));
+  border: 1px solid color-mix(in srgb, var(--acc-b) 30%, rgba(212, 214, 226, 0.1));
   border-radius: 4px;
 }
 

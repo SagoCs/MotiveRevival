@@ -59,7 +59,12 @@ function loadWindowState(): SavedWindowState | null {
       b.y < display.bounds.y + display.bounds.height &&
       b.y + b.height > display.bounds.y;
     if (!intersects) return null;
-    return { bounds: { x: b.x, y: b.y, width: b.width, height: b.height }, maximized: raw.maximized === true };
+    const work = display.workArea;
+    const width = Math.min(b.width, work.width);
+    const height = Math.min(b.height, work.height);
+    const x = Math.max(work.x, Math.min(b.x, work.x + work.width - width));
+    const y = Math.max(work.y, Math.min(b.y, work.y + work.height - height));
+    return { bounds: { x, y, width, height }, maximized: raw.maximized === true };
   } catch {
     return null;
   }
