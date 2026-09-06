@@ -23,7 +23,8 @@ import { Viz } from './viz';
 import { createLyrics } from './lyrics';
 import { renderTabCards, searchPlaylists, closePlaylistLayer, isPlaylistLayerOpen, openDetail, attachContextMenu } from './playlistsView';
 import { songRiver } from './songRiver';
-import { setUniverseVisible } from './universe';
+import { setUniverseVisible, isAlbumPinned, toggleAlbumPin } from './universe';
+import { toast } from '../core/toast';
 import type { Playlist } from '../../shared/types';
 
 type Mode = 'albums' | 'artists' | 'songs' | 'playlists' | 'universe';
@@ -60,6 +61,20 @@ let detailLayer: HTMLElement;
 let detailOpen = false;
 let activeDetailKey: string | null = null;
 let debounceHandle = 0;
+let stagePin: HTMLButtonElement | null = null;
+let pinTarget: { artist: string; album: string } | null = null;
+
+function syncPinButton(): void {
+  if (stagePin === null) return;
+  if (pinTarget === null) {
+    stagePin.hidden = true;
+    return;
+  }
+  stagePin.hidden = false;
+  const on = isAlbumPinned(pinTarget.artist, pinTarget.album);
+  stagePin.classList.toggle('on', on);
+  stagePin.textContent = on ? 'In your constellation' : 'Pin to constellation';
+}
 let stageViz: Viz | null = null;
 let stageLyrics: ReturnType<typeof createLyrics> | null = null;
 let lastSongList: import('../../shared/types').IndexedTrack[] = [];
@@ -169,6 +184,40 @@ export function initBrowser(onCompactLyric?: (text: string | null, upcoming: boo
     appBus.on('track-selected', ({ track }) => stageLyrics?.setTrack(track));
   }
 
+  const pinHost = document.querySelector<HTMLElement>('#detail-sub');
+  if (pinHost !== null) {
+    stagePin = el('button', 'stage-pin');
+    stagePin.type = 'button';
+    pinHost.after(stagePin);
+    stagePin.addEventListener('click', () => {
+      if (pinTarget === null) return;
+      const res = toggleAlbumPin(pinTarget.artist, pinTarget.album);
+      if (res === 'full') toast('The ring holds eight');
+      syncPinButton();
+    });
+  }
+  syncPinButton();
+
+  appBus.on('universe-open-album', ({ artist, album }) => {
+    const found = idx.albums.find((a) => a.artist === artist && a.name === album);
+    if (found !== undefined) openAlbum(found);
+  });
+  appBus.on('universe-open-artist', ({ name }) => {
+    const artist = idx.artists.find((a) => a.name === name);
+    if (artist === undefined) return;
+    if (detailOpen) closeDetail();
+    state.mode = 'albums';
+    preview.enabled = false;
+    setUniverseVisible(false);
+    setArtistFilter(artist.key);
+    syncTabs();
+    syncChips();
+    render();
+  });
+  appBus.on('universe-open-playlist', ({ id }) => {
+    openDetail(id);
+  });
+
   preview.enabled = state.mode === 'songs';
   wireTabs();
   wireSortChips();
@@ -200,6 +249,7 @@ function wireTabs(): void {
       }
       state.mode = mode;
       preview.enabled = mode === 'songs';
+      if (mode === 'universe' && detailOpen) closeDetail();
       setUniverseVisible(mode === 'universe');
       if (mode !== 'albums') setArtistFilter(null);
       closeSortPopover();
@@ -1139,9 +1189,11 @@ function openAlbum(album: AlbumEntry): void {
   applyLyricsInk(detailLayer, album.palette);
   artInto(art, album.artFile, 'detail-img');
   titleEl.textContent = album.name;
-  subEl.textContent = `${album.artist}${
+  subEl.textContent = `${album.credit ?? album.artist}${
     album.year !== null ? ` · ${album.year}` : ''
   } · ${album.tracks.length} tracks · ${fmtTotal(album.totalDuration)}`;
+  pinTarget = { artist: album.artist, album: album.name };
+  syncPinButton();
 
   list.replaceChildren();
   const frag = document.createDocumentFragment();
@@ -1205,6 +1257,8 @@ function miniCell(
 function closeDetail(): void {
   detailOpen = false;
   activeDetailKey = null;
+  pinTarget = null;
+  syncPinButton();
   detailLayer.classList.remove('open');
   stopBands();
   window.setTimeout(() => {

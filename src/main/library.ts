@@ -7,7 +7,27 @@ import type { IndexedTrack, LibraryResult } from '../shared/types';
 const AUDIO_EXTS = new Set(['.mp3', '.flac', '.ogg', '.oga', '.wav', '.m4a', '.aac', '.opus']);
 const MAX_DEPTH = 12;
 const CONCURRENCY = 8;
-const INDEX_VERSION = 5;
+const INDEX_VERSION = 6;
+
+const CREDIT_SPLIT = /\s*[;,]\s*|\s+feat\.?\s+|\s+ft\.\s*|\s+featuring\s+/i;
+
+function splitCredit(credit: string): string[] {
+  return credit
+    .split(CREDIT_SPLIT)
+    .map((p) => p.trim())
+    .filter((p) => p !== '');
+}
+
+function hasCreditSeparator(credit: string): boolean {
+  return splitCredit(credit).length > 1;
+}
+
+function primaryFromCredit(credit: string): string | null {
+  const parts = splitCredit(credit);
+  const first = parts[0];
+  if (first === undefined || parts.length < 2) return null;
+  return first;
+}
 
 const THUMB_WIDTH = 128;
 const THUMB_JPEG_QUALITY = 82;
@@ -105,6 +125,23 @@ export async function scanLibrary(ctx: ScanContext): Promise<LibraryResult> {
 
   await Promise.all(Array.from({ length: Math.min(CONCURRENCY, total) }, () => worker()));
 
+  const known = new Set<string>();
+  for (const t of tracks) {
+    if (t.artist !== null && !hasCreditSeparator(t.artist)) known.add(t.artist.toLowerCase());
+    const p = t.primaryArtist;
+    if (p != null) known.add(p.toLowerCase());
+  }
+  for (const t of tracks) {
+    if (t.artist === null || t.primaryArtist == null) continue;
+    if (known.has(t.primaryArtist.toLowerCase())) continue;
+    for (const part of splitCredit(t.artist).slice(1)) {
+      if (known.has(part.toLowerCase())) {
+        t.primaryArtist = part;
+        break;
+      }
+    }
+  }
+
   tracks.sort((a, b) => a.relPath.localeCompare(b.relPath));
   saveIndex({
     version: INDEX_VERSION,
@@ -162,10 +199,12 @@ async function indexFile(
     const palette = artFile !== null ? extractPalette(artFile) : null;
 
     const duration = meta.format.duration;
+    const artistCredit = clean(common.artist);
     return {
       ...base,
       title: clean(common.title) ?? stripExt(base.fileName),
-      artist: clean(common.artist),
+      artist: artistCredit,
+      primaryArtist: artistCredit !== null ? primaryFromCredit(artistCredit) : null,
       albumArtist: clean(common.albumartist) ?? clean(common.artist),
       album: clean(common.album),
       trackNo: common.track?.no ?? null,
@@ -181,6 +220,7 @@ async function indexFile(
       ...base,
       title: stripExt(base.fileName),
       artist: null,
+      primaryArtist: null,
       albumArtist: null,
       album: null,
       trackNo: null,

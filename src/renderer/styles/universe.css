@@ -1,13 +1,10 @@
 #universe {
   position: fixed;
-  inset: var(--topbar-h) 0 var(--bottom-h) 0;
+  inset: 0;
   z-index: 25;
   display: none;
   overflow: hidden;
-  background:
-    radial-gradient(1100px 700px at 78% 4%, color-mix(in srgb, var(--acc-b) 9%, transparent), transparent 64%),
-    radial-gradient(900px 640px at 12% 96%, color-mix(in srgb, var(--acc-a) 8%, transparent), transparent 62%),
-    linear-gradient(180deg, transparent 62%, color-mix(in srgb, var(--hz-glow) 7%, transparent) 100%);
+  background: linear-gradient(180deg, transparent 72%, color-mix(in srgb, var(--hz-glow) 6%, transparent) 100%);
   touch-action: none;
 }
 
@@ -43,16 +40,207 @@
   pointer-events: none;
 }
 
+.uni-labels {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
 .uni-speck {
   position: absolute;
   width: calc(var(--s, 1.5) * 1px);
   height: calc(var(--s, 1.5) * 1px);
   border-radius: 50%;
-  background: var(--moon);
+  background: var(--c, var(--moon));
   opacity: var(--o, 0.4);
 }
 
 .uni-speck.uni-bright {
-  background: color-mix(in srgb, var(--acc-a) 55%, var(--moon));
-  box-shadow: 0 0 10px color-mix(in srgb, var(--acc-glow) 60%, transparent);
+  box-shadow: 0 0 12px var(--c, transparent);
+}
+
+.uni-nebula {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.uni-orbit-line {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  border: 1px solid color-mix(in srgb, var(--moon) 9%, transparent);
+  border-radius: 50%;
+}
+
+.uni-star {
+  position: absolute;
+  width: calc(var(--d, 24) * 1px);
+  height: calc(var(--d, 24) * 1px);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    var(--hot, #fff) 0%,
+    var(--body, var(--moon)) 38%,
+    var(--rim, #fff) 62%,
+    transparent 72%
+  );
+  box-shadow:
+    0 0 calc(var(--d, 24) * 0.7px) var(--body, transparent),
+    0 0 calc(var(--d, 24) * 2.2px) color-mix(in srgb, var(--body, transparent) 42%, transparent);
+  pointer-events: auto;
+  transition: transform 320ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.uni-star::after {
+  content: '';
+  position: absolute;
+  inset: -34%;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--hot, #fff) 80%, transparent) 0%, transparent 66%);
+  opacity: 0;
+  transition: opacity 300ms cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+}
+
+.uni-star:hover::after {
+  opacity: 0.85;
+}
+
+.uni-star:hover {
+  transform: translate(-50%, -50%) scale(1.1);
+}
+
+.uni-star.now {
+  box-shadow:
+    0 0 calc(var(--d, 24) * 0.7px) var(--body, transparent),
+    0 0 calc(var(--d, 24) * 2.2px) color-mix(in srgb, var(--body, transparent) 42%, transparent),
+    0 0 calc(var(--d, 24) * 1.4px) var(--acc-glow),
+    0 0 calc(var(--d, 24) * 3.4px) color-mix(in srgb, var(--acc-glow) 55%, transparent);
+}
+
+.uni-ring {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  border: 1px solid;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.uni-sat {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--hot, #fff) 0%, var(--body, var(--moon)) 48%, transparent 78%);
+  box-shadow: 0 0 9px var(--body, transparent);
+  pointer-events: auto;
+}
+
+.uni-sat::after {
+  content: '';
+  position: absolute;
+  inset: -9px;
+  border-radius: 50%;
+}
+
+.uni-spark {
+  position: absolute;
+  width: calc(var(--d, 20) * 1px);
+  height: calc(var(--d, 20) * 1px);
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+}
+
+.uni-spark::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, var(--a, #fff), var(--b, #fff));
+  clip-path: polygon(50% 0%, 59% 41%, 100% 50%, 59% 59%, 50% 100%, 41% 59%, 0% 50%, 41% 41%);
+  filter: drop-shadow(0 0 calc(var(--d, 20) * 0.28px) var(--a, transparent))
+    drop-shadow(0 0 calc(var(--d, 20) * 0.75px) color-mix(in srgb, var(--a, transparent) 45%, transparent));
+}
+
+.uni-spark::after {
+  content: '';
+  position: absolute;
+  inset: -70%;
+}
+
+.uni-spark:hover::before {
+  filter: drop-shadow(0 0 12px var(--a, #fff)) brightness(1.6);
+}
+
+.uni-spark.ghost::before {
+  clip-path: none;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--moon) 28%, transparent);
+  filter: none;
+}
+
+.uni-spark.ghost {
+  opacity: 0.6;
+}
+
+.uni-star-label {
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-family: 'Sora', sans-serif;
+  font-weight: 400;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  color: color-mix(in srgb, var(--moon) 90%, transparent);
+  text-shadow: 0 1px 10px rgba(8, 10, 18, 0.9);
+  visibility: hidden;
+  opacity: clamp(0, calc((var(--uni-zoom, 1) - 1.12) * 2.4), 0.62);
+  pointer-events: none;
+}
+
+.uni-star-label.major {
+  opacity: 0.6;
+}
+
+.uni-star-label.sat {
+  font-size: 11px;
+  font-weight: 300;
+  color: color-mix(in srgb, var(--moon) 78%, transparent);
+  opacity: clamp(0, calc((var(--uni-zoom, 1) - 1.12) * 2.4), 0.6);
+}
+
+.uni-star-label.hot {
+  opacity: 0.95;
+}
+
+.stage-pin {
+  align-self: flex-start;
+  margin: 2px 0 10px;
+  padding: 5px 14px;
+  border: 1px solid color-mix(in srgb, var(--acc-a) 26%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  color: color-mix(in srgb, var(--moon) 82%, transparent);
+  font-family: 'Sora', sans-serif;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  transition: border-color 280ms cubic-bezier(0.16, 1, 0.3, 1), background 280ms cubic-bezier(0.16, 1, 0.3, 1), color 280ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.stage-pin:hover {
+  background: color-mix(in srgb, var(--acc-a) 12%, transparent);
+}
+
+.stage-pin.on {
+  border-color: color-mix(in srgb, var(--acc-a) 70%, transparent);
+  background: color-mix(in srgb, var(--acc-a) 16%, transparent);
+  color: var(--acc-a);
 }

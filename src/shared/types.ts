@@ -8,6 +8,7 @@ export interface IndexedTrack {
 
   title: string;
   artist: string | null;
+  primaryArtist?: string | null;
   albumArtist: string | null;
   album: string | null;
   trackNo: number | null;

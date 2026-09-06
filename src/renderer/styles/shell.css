@@ -13,13 +13,14 @@
 
 #topbar {
   position: relative;
-  z-index: 5;
+  z-index: 26;
   display: flex;
   align-items: center;
   justify-content: space-between;
   height: var(--topbar-h);
   padding: 0 16px 0 28px;
   background:
+    linear-gradient(180deg, color-mix(in srgb, var(--void-0) 66%, transparent), color-mix(in srgb, var(--void-0) 30%, transparent)),
     radial-gradient(46% 220% at 16% 0%, color-mix(in srgb, var(--hz-a) 20%, transparent), transparent 72%),
     linear-gradient(180deg, color-mix(in srgb, var(--hz-glow) 14%, transparent), transparent 85%);
   border-bottom: 1px solid color-mix(in srgb, var(--acc-a) 12%, rgba(199, 205, 244, 0.06));
@@ -892,11 +893,13 @@ html.song-marker-surface .song-row.playing::after {
 #bottom-bar {
   --horizon-h: clamp(112px, 16vh, 172px);
   position: relative;
+  z-index: 26;
   display: flex;
   align-items: center;
   gap: 16px;
   height: var(--bottom-h);
   padding: 0 22px;
+  background: linear-gradient(0deg, color-mix(in srgb, var(--void-0) 58%, transparent), transparent 90%);
 }
 
 #bottom-bar::before {
@@ -1555,16 +1558,7 @@ body:has(#playlist-layer.open) #bottom-bar::before {
   inset: -4%;
   z-index: -1;
   pointer-events: none;
-  background:
-    radial-gradient(900px 620px at 82% 8%, color-mix(in srgb, var(--acc-b) 17%, transparent), transparent 62%),
-    radial-gradient(820px 600px at 10% 88%, color-mix(in srgb, var(--acc-a) 15%, transparent), transparent 64%);
-  opacity: calc(0.45 + var(--mid) * 0.7);
-  animation: ambient-breathe 9s ease-in-out infinite;
-}
-
-@keyframes ambient-breathe {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.035); }
+  background: none;
 }
 
 #search-oracle {

@@ -6,6 +6,7 @@ export interface AlbumEntry {
   key: string;
   name: string;
   artist: string;
+  credit: string | null;
   artFile: string | null;
   palette: string[] | null;
   tracks: IndexedTrack[];
@@ -38,18 +39,22 @@ export interface SearchIndexes {
 const UNKNOWN_ARTIST = 'Unknown Artist';
 const UNKNOWN_ALBUM = 'Unknown Album';
 
+export function primaryOf(track: IndexedTrack): string | null {
+  return track.primaryArtist ?? track.artist;
+}
+
 export function buildSearchIndexes(tracks: readonly IndexedTrack[]): SearchIndexes {
   const albumMap = new Map<string, AlbumEntry>();
 
   const songs: SongEntry[] = tracks.map((track) => ({
     track,
     hay: fold(
-      `${track.title} ${track.artist ?? ''} ${track.album ?? ''} ${track.fileName}`,
+      `${track.title} ${track.artist ?? ''} ${track.primaryArtist ?? ''} ${track.album ?? ''} ${track.fileName}`,
     ),
   }));
 
   for (const track of tracks) {
-    const artistName = track.albumArtist ?? track.artist ?? UNKNOWN_ARTIST;
+    const artistName = track.primaryArtist ?? track.albumArtist ?? track.artist ?? UNKNOWN_ARTIST;
     const albumName = track.album ?? folderHint(track.relPath) ?? UNKNOWN_ALBUM;
     const key = `${artistName.toLowerCase()}::${albumName.toLowerCase()}`;
 
@@ -59,6 +64,7 @@ export function buildSearchIndexes(tracks: readonly IndexedTrack[]): SearchIndex
         key,
         name: albumName,
         artist: artistName,
+        credit: null,
         artFile: null,
         palette: null,
         tracks: [],
@@ -79,7 +85,9 @@ export function buildSearchIndexes(tracks: readonly IndexedTrack[]): SearchIndex
   for (const album of albumMap.values()) {
     album.tracks.sort((a, b) => compareNullable(a.discNo, b.discNo) || compareNullable(a.trackNo, b.trackNo) || a.title.localeCompare(b.title));
     const trackTitles = album.tracks.map((t) => t.title).join(' ');
-    album.hay = fold(`${album.name} ${album.artist} ${trackTitles}`);
+    const credit = album.tracks.find((t) => t.albumArtist !== null)?.albumArtist ?? null;
+    album.credit = credit;
+    album.hay = fold(`${album.name} ${album.artist} ${credit ?? ''} ${trackTitles}`);
   }
 
   const albums = Array.from(albumMap.values());
