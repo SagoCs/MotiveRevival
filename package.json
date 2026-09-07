@@ -10,7 +10,10 @@
     "start": "npm run build && electron .",
     "start:fresh": "npm run build && node scripts/start-fresh.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "node scripts/test.mjs"
+    "test": "node scripts/test.mjs",
+    "build:sandbox": "tsc -p sandbox/universe --noEmit && node scripts/build-sandbox.mjs",
+    "sandbox": "npm run build:sandbox && electron sandbox/dist/main.js",
+    "probe:sandbox": "node scripts/probe-sandbox.mjs"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.0.0",

@@ -1,0 +1,99 @@
+:root {
+  --void-0: #08090b;
+  --void-1: #0b0c0f;
+  --void-2: #111318;
+  --moon: #d4d6e2;
+  --moon-dim: rgba(212, 214, 226, 0.5);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--void-0);
+}
+
+#stage {
+  position: fixed;
+  inset: 0;
+}
+
+.boot-card {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+  text-align: center;
+  color: var(--moon);
+  font-family: 'Sora', sans-serif;
+  user-select: none;
+  animation: boot-in 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.boot-title {
+  font-size: 21px;
+  font-weight: 300;
+  letter-spacing: 0.46em;
+  text-indent: 0.46em;
+  text-shadow: 0 0 22px rgba(212, 214, 226, 0.35);
+}
+
+.boot-hair {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.boot-hair span {
+  width: 74px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(212, 214, 226, 0.34));
+}
+
+.boot-hair span:last-child {
+  background: linear-gradient(270deg, transparent, rgba(212, 214, 226, 0.34));
+}
+
+.boot-hair i {
+  width: 5px;
+  height: 5px;
+  rotate: 45deg;
+  background: rgba(212, 214, 226, 0.62);
+}
+
+.boot-sub {
+  margin-top: 16px;
+  font-size: 11.5px;
+  font-weight: 300;
+  letter-spacing: 0.34em;
+  text-indent: 0.34em;
+  color: var(--moon-dim);
+}
+
+.boot-keys {
+  margin-top: 30px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+  color: var(--moon-dim);
+}
+
+@keyframes boot-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
