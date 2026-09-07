@@ -4,6 +4,7 @@ import { playlistsStore } from '../core/playlistsStore';
 import { player } from '../core/player';
 import { appBus } from '../core/appBus';
 import { primaryOf } from '../core/searchIndex';
+import { onMoment } from '../core/moments';
 import type { LibraryResult, Playlist } from '../../shared/types';
 
 const WORLD_W = 3600;
@@ -17,40 +18,37 @@ const SEED = 20260905;
 const ORBIT_MIN = 340;
 const ORBIT_MAX = 700;
 const ABS_WEIGHT_MAX = 300;
-const WEIGHT_BANDS = [1, 8, 40, 300];
 const WORLD_SQUASH = 0.85;
-const RADIAL_JITTER = 0.22;
+const OVAL_TILT = 0.35;
+const ANGLE_NOISE = 0.3;
+const SCATTER = 0.8;
 const GROWTH_CAP = 1.6;
 const ARC_JITTER = 0.7;
 const LABEL_MAX_SCALE = 1.5;
 const MAJOR_CAP = 8;
-const PIN_CAP = 8;
-const PINS_KEY = 'universe:pins:v1';
-const NEBULA_CAP = 6;
-
-const DUST_HUES = [46, 268, 335, 24, 8, 288];
-
-interface LayerSpec {
-  factor: number;
-  count: number;
-  bright: number;
-  cls: string;
-}
-
-const LAYERS: LayerSpec[] = [
-  { factor: 0.35, count: 64, bright: 5, cls: 'uni-far' },
-  { factor: 0.65, count: 96, bright: 7, cls: 'uni-mid' },
-  { factor: 1, count: 64, bright: 6, cls: 'uni-near' },
-];
-
-interface Layer {
-  el: HTMLElement;
-  factor: number;
-}
+const HOLE_D = 170;
+const HALO_MIN = 340;
+const HALO_MAX = 560;
+const COURT_KEEP = 640;
+const HALO_W = 1800;
+const HALO_H = 1100;
+const SWIRL_BMP = 1120;
+const SWIRL_PX = 560;
+const NEB_W = 1080;
+const NEB_H = 660;
+const POOL_W = 900;
+const POOL_H = 550;
+const NEBULAE = false;
+const SVG_NS = 'http://www.w3.org/2000/svg';
 
 interface Tone {
   h: number;
   s: number;
+}
+
+interface Layer {
+  el: HTMLElement;
+  factor: number;
 }
 
 interface ArtistStar {
@@ -71,12 +69,18 @@ interface LabelRef {
   d: number;
   base: string;
   hot: string | null;
+  center: boolean;
 }
 
 interface LayoutNode {
   x: number;
   y: number;
   er: number;
+}
+
+interface SparkSource {
+  name: string;
+  w: number;
 }
 
 interface SparkData {
@@ -86,16 +90,34 @@ interface SparkData {
   node: LayoutNode;
   t1: Tone;
   t2: Tone;
+  sources: SparkSource[];
+}
+
+interface FieldSpec {
+  count: number;
+  minSize: number;
+  maxSize: number;
+  minAlpha: number;
+  maxAlpha: number;
+  twinkles: number;
+  seed: number;
 }
 
 let surface: HTMLElement | null = null;
 let layers: Layer[] = [];
 let starsLayer: HTMLElement | null = null;
-let satsLayer: HTMLElement | null = null;
 let sparksLayer: HTMLElement | null = null;
-let nebLayer: HTMLElement | null = null;
-let orbitLayer: HTMLElement | null = null;
+let heartLayer: HTMLElement | null = null;
+let deepPlane: HTMLElement | null = null;
+let nearPlane: HTMLElement | null = null;
 let labelLayer: HTMLElement | null = null;
+let threadSvg: SVGSVGElement | null = null;
+let holeEl: HTMLElement | null = null;
+let haloCtx: CanvasRenderingContext2D | null = null;
+let swirlCtx: CanvasRenderingContext2D | null = null;
+let nebCtx: CanvasRenderingContext2D | null = null;
+let nebMask: HTMLCanvasElement | null = null;
+let poolsCtx: CanvasRenderingContext2D | null = null;
 let active = false;
 let raf = 0;
 let dragging = false;
@@ -104,13 +126,21 @@ let lastZoomVar = '';
 let viewRect: { width: number; height: number } | null = null;
 let labels: LabelRef[] = [];
 let hotIdx: string | null = null;
-let framed = false;
+let threadsFor: HTMLElement | null = null;
 let userMoved = false;
+let painted = false;
+let lastHue = -99;
+let chaseRaf = 0;
+let rasterZ = 1;
+let settleTimer = 0;
+let lastPulse = 0;
 const starsByName = new Map<string, ArtistStar>();
 const starEls = new Map<string, HTMLElement>();
+const sparksByEl = new Map<HTMLElement, SparkData>();
 
 const cam = { x: 0, y: 0, z: 1 };
 const target = { x: 0, y: 0, z: 1 };
+let lastStars: ArtistStar[] = [];
 
 function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
@@ -150,6 +180,61 @@ function hexToHsl(hex: string): Tone & { l: number } | null {
   else if (max === g) h = ((b - r) / d + 2) * 60;
   else h = ((r - g) / d + 4) * 60;
   return { h, s, l };
+}
+
+function rgbToHue(r: number, g: number, b: number): number {
+  const rn = r / 255;
+  const gn = g / 255;
+  const bn = b / 255;
+  const max = Math.max(rn, gn, bn);
+  const min = Math.min(rn, gn, bn);
+  if (max === min) return 0;
+  const d = max - min;
+  let h: number;
+  if (max === rn) h = ((gn - bn) / d + (gn < bn ? 6 : 0)) * 60;
+  else if (max === gn) h = ((bn - rn) / d + 2) * 60;
+  else h = ((rn - gn) / d + 4) * 60;
+  return (h + 360) % 360;
+}
+
+function oklchHue(l: number, c: number, hDeg: number): number {
+  const hr = (hDeg * Math.PI) / 180;
+  const a = c * Math.cos(hr);
+  const b = c * Math.sin(hr);
+  const lp = l + 0.3963377774 * a + 0.2158037573 * b;
+  const mp = l - 0.1055613458 * a - 0.0638541728 * b;
+  const sp = l - 0.0894841775 * a - 1.291485548 * b;
+  const lw = lp * lp * lp;
+  const mw = mp * mp * mp;
+  const sw = sp * sp * sp;
+  const r = 4.0767416621 * lw - 3.3077115913 * mw + 0.2309699292 * sw;
+  const g = -1.2684380046 * lw + 2.6097574011 * mw - 0.3413193965 * sw;
+  const bl = -0.0041960863 * lw - 0.7034186147 * mw + 1.707614701 * sw;
+  const gamma = (v: number): number => {
+    const x = Math.max(0, Math.min(1, v));
+    return x <= 0.0031308 ? x * 12.92 : 1.055 * Math.pow(x, 1 / 2.4) - 0.055;
+  };
+  return rgbToHue(gamma(r) * 255, gamma(g) * 255, gamma(bl) * 255);
+}
+
+function parseHue(value: string): number | null {
+  const hslM = /hsl\(\s*([\d.eE+-]+)[\s,]+([\d.]+)%?[\s,]+([\d.]+)%?/.exec(value);
+  if (hslM !== null && hslM[1] !== undefined) return ((parseFloat(hslM[1]) % 360) + 360) % 360;
+  const rgbC = /rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/.exec(value);
+  if (rgbC !== null && rgbC[1] !== undefined && rgbC[2] !== undefined && rgbC[3] !== undefined) {
+    return rgbToHue(parseFloat(rgbC[1]), parseFloat(rgbC[2]), parseFloat(rgbC[3]));
+  }
+  const rgbS = /rgba?\(\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)/.exec(value);
+  if (rgbS !== null && rgbS[1] !== undefined && rgbS[2] !== undefined && rgbS[3] !== undefined) {
+    return rgbToHue(parseFloat(rgbS[1]), parseFloat(rgbS[2]), parseFloat(rgbS[3]));
+  }
+  const ok = /oklch\(\s*([\d.]+)%?\s+([\d.]+)%?\s+([\d.]+)/.exec(value);
+  if (ok !== null && ok[1] !== undefined && ok[2] !== undefined && ok[3] !== undefined) {
+    const l = parseFloat(ok[1]);
+    const c = parseFloat(ok[2]);
+    return oklchHue(l > 1 ? l / 100 : l, c > 1 ? c / 100 : c, parseFloat(ok[3]));
+  }
+  return null;
 }
 
 function toneOf(colors: Iterable<string>): Tone {
@@ -204,8 +289,12 @@ function updateLabels(): void {
       continue;
     }
     if (l.el.style.visibility !== 'visible') l.el.style.visibility = 'visible';
-    const tx = sx + (l.d * z) / 2 + 12;
-    l.el.style.transform = `translate3d(${tx.toFixed(1)}px, ${sy.toFixed(1)}px, 0) translateY(-50%) scale(${s.toFixed(3)})`;
+    if (l.center) {
+      l.el.style.transform = `translate3d(${sx.toFixed(1)}px, ${sy.toFixed(1)}px, 0) translate(-50%, -50%) scale(${s.toFixed(3)})`;
+    } else {
+      const tx = sx + (l.d * z) / 2 + 12;
+      l.el.style.transform = `translate3d(${tx.toFixed(1)}px, ${sy.toFixed(1)}px, 0) translateY(-50%) scale(${s.toFixed(3)})`;
+    }
   }
 }
 
@@ -225,6 +314,7 @@ function tick(): void {
     cam.z = target.z;
     applyTransforms();
     updateLabels();
+    parkRaster();
     raf = 0;
     return;
   }
@@ -232,7 +322,30 @@ function tick(): void {
 }
 
 function wake(): void {
+  liftRaster();
   if (raf === 0) raf = window.requestAnimationFrame(tick);
+}
+
+function parkRaster(): void {
+  if (settleTimer !== 0) return;
+  settleTimer = window.setTimeout(() => {
+    settleTimer = 0;
+    if (Math.abs(cam.z - rasterZ) / rasterZ < 0.05) return;
+    rasterZ = cam.z;
+    for (const el of [starsLayer, sparksLayer, heartLayer, deepPlane, nearPlane]) {
+      if (el !== null) el.style.willChange = 'auto';
+    }
+  }, 140);
+}
+
+function liftRaster(): void {
+  if (settleTimer !== 0) {
+    window.clearTimeout(settleTimer);
+    settleTimer = 0;
+  }
+  for (const el of [starsLayer, sparksLayer, heartLayer, deepPlane, nearPlane]) {
+    if (el !== null && el.style.willChange !== '') el.style.willChange = '';
+  }
 }
 
 function zoomAt(localX: number, localY: number, nextZoom: number): void {
@@ -257,27 +370,322 @@ function refreshRect(): void {
   viewRect = { width: r.width, height: r.height };
 }
 
-function buildSpecks(layer: HTMLElement, spec: LayerSpec): void {
-  const rand = mulberry32(SEED + Math.round(spec.factor * 100));
+function makeCanvas(w: number, h: number): HTMLCanvasElement {
+  const cv = document.createElement('canvas');
+  cv.width = w;
+  cv.height = h;
+  return cv;
+}
+
+function buildFieldStars(layer: HTMLElement, spec: FieldSpec): void {
+  const rand = mulberry32(spec.seed);
   const frag = document.createDocumentFragment();
   for (let i = 0; i < spec.count; i += 1) {
-    const speck = document.createElement('span');
-    speck.className = 'uni-speck';
-    const bright = i < spec.bright;
-    speck.classList.toggle('uni-bright', bright);
-    speck.style.left = `${(rand() * 100).toFixed(2)}%`;
-    speck.style.top = `${(rand() * 100).toFixed(2)}%`;
-    speck.style.setProperty('--s', (bright ? 4.5 + rand() * 2.5 : 1.6 + rand() * 2.4).toFixed(2));
-    speck.style.setProperty('--o', (0.24 + rand() * 0.58).toFixed(2));
-    const hue = DUST_HUES[Math.floor(rand() * DUST_HUES.length)] ?? 217;
-    const h = (hue + (rand() - 0.5) * 16).toFixed(0);
-    speck.style.setProperty(
-      '--c',
-      `hsl(${h} ${Math.round(38 + rand() * 16)}% ${Math.round(68 + rand() * 14)}%)`,
-    );
-    frag.append(speck);
+    const wx0 = (rand() * 2 - 1) * (WORLD_W / 2);
+    const wy0 = (rand() * 2 - 1) * (WORLD_H / 2);
+    const dist = Math.hypot(wx0, wy0);
+    if (dist < 200) continue;
+    let wx = wx0;
+    let wy = wy0;
+    if (dist < 450) {
+      const pull = Math.pow(1 - dist / 450, 2);
+      const ang = Math.atan2(wy, wx) + pull * 0.35;
+      const nd = dist * (1 - 0.45 * pull);
+      wx = Math.cos(ang) * nd;
+      wy = Math.sin(ang) * nd;
+    }
+    const star = document.createElement('span');
+    star.className = 'uni-fstar';
+    if (i < spec.twinkles) star.classList.add('twink');
+    star.style.left = `${(((wx + WORLD_W / 2) / WORLD_W) * 100).toFixed(2)}%`;
+    star.style.top = `${(((wy + WORLD_H / 2) / WORLD_H) * 100).toFixed(2)}%`;
+    const hue = rand() < 0.5 ? 42 : 216;
+    star.style.setProperty('--c', `hsl(${hue} ${Math.round(6 + rand() * 8)}% ${Math.round(90 + rand() * 7)}%)`);
+    const t = Math.pow(rand(), 2.2);
+    const size = spec.minSize + (spec.maxSize - spec.minSize) * t;
+    star.style.width = `${(size * 2.2).toFixed(2)}px`;
+    star.style.height = `${(size * 2.2).toFixed(2)}px`;
+    star.style.opacity = (spec.minAlpha + (spec.maxAlpha - spec.minAlpha) * t).toFixed(2);
+    if (i < spec.twinkles) {
+      star.style.setProperty('--tdur', `${(3 + rand() * 4).toFixed(2)}s`);
+      star.style.setProperty('--tdel', `${(-rand() * 6).toFixed(2)}s`);
+    }
+    frag.append(star);
   }
   layer.append(frag);
+}
+
+function makeNoise(seed: number, gw: number, gh: number): (x: number, y: number) => number {
+  const g = new Float32Array((gw + 1) * (gh + 1));
+  const rand = mulberry32(seed);
+  for (let i = 0; i < g.length; i += 1) g[i] = rand();
+  const at = (ix: number, iy: number): number => {
+    const cx = ix < 0 ? 0 : ix > gw ? gw : ix;
+    const cy = iy < 0 ? 0 : iy > gh ? gh : iy;
+    return g[cy * (gw + 1) + cx] ?? 0;
+  };
+  return (x, y) => {
+    const gx = Math.max(0, Math.min(gw, x * gw));
+    const gy = Math.max(0, Math.min(gh, y * gh));
+    const ix = Math.floor(gx);
+    const iy = Math.floor(gy);
+    const fx = gx - ix;
+    const fy = gy - iy;
+    const ux = fx * fx * (3 - 2 * fx);
+    const uy = fy * fy * (3 - 2 * fy);
+    const a = at(ix, iy) * (1 - ux) + at(ix + 1, iy) * ux;
+    const b = at(ix, iy + 1) * (1 - ux) + at(ix + 1, iy + 1) * ux;
+    return a * (1 - uy) + b * uy;
+  };
+}
+
+function fbmOf(noise: (x: number, y: number) => number): (x: number, y: number) => number {
+  return (x, y) =>
+    (noise(x, y) * 4 + noise(x * 2.03 + 7.3, y * 2.01 + 1.9) * 2 + noise(x * 4.01 + 3.1, y * 3.97 + 8.4)) / 7;
+}
+
+function buildNebulaMask(): HTMLCanvasElement {
+  const mask = makeCanvas(NEB_W, NEB_H);
+  const ctx = mask.getContext('2d');
+  if (ctx === null) return mask;
+  const rw = 540;
+  const rh = 330;
+  const warpX = fbmOf(makeNoise(SEED ^ 0x1f2e3d, 8, 8));
+  const warpY = fbmOf(makeNoise(SEED ^ 0x2e3d4c, 8, 8));
+  const value = fbmOf(makeNoise(SEED ^ 0x3d4c5b, 6, 6));
+  const lane = fbmOf(makeNoise(SEED ^ 0x4c5b6a, 7, 7));
+  const rand = mulberry32(SEED ^ 0x5b6a79);
+  const regions: Array<{ x: number; y: number; r: number }> = [];
+  for (let i = 0; i < 4; i += 1) {
+    const ang = rand() * Math.PI * 2;
+    const dist = 480 + rand() * 620;
+    regions.push({
+      x: WORLD_W / 2 + Math.cos(ang) * dist,
+      y: WORLD_H / 2 + Math.sin(ang) * dist * 0.9,
+      r: 380 + rand() * 260,
+    });
+  }
+  const sx = rw / WORLD_W;
+  const sy = rh / WORLD_H;
+  const img = ctx.createImageData(rw, rh);
+  const grain = mulberry32(SEED ^ 0x6a7b88);
+  for (let py = 0; py < rh; py += 1) {
+    for (let px = 0; px < rw; px += 1) {
+      const wx = px / rw;
+      const wy = py / rh;
+      const ax = wx + (warpX(wx + 4.1, wy + 2.7) - 0.5) * 0.55;
+      const ay = wy + (warpY(wx + 1.3, wy + 5.2) - 0.5) * 0.55;
+      const v = value(ax, ay);
+      const worldX = px / sx;
+      const worldY = py / sy;
+      let fall = 0;
+      for (const rg of regions) {
+        const d = Math.hypot(worldX - rg.x, worldY - rg.y) / rg.r;
+        if (d < 1) fall = Math.max(fall, 1 - d * d);
+      }
+      const cdx = worldX - WORLD_W / 2;
+      const cdy = worldY - WORLD_H / 2;
+      const along = cdx * 0.868 - cdy * 0.497;
+      const perp = cdx * 0.497 + cdy * 0.868;
+      const cl =
+        Math.exp(-(perp * perp) / 204800) * Math.exp(-(along * along) / 5120000);
+      let a = Math.max(0, (v - 0.4) * 2.1) * fall;
+      const lv = lane(wx * 1.7 + 3.3, wy * 1.7 + 6.6);
+      a *= 1 - 0.72 * Math.exp(-((lv - 0.5) * (lv - 0.5)) / 0.005) * fall;
+      a += cl * Math.max(0, v - 0.35) * 0.5;
+      a = Math.min(1, a);
+      const lum = 150 + v * 105 + (grain() - 0.5) * 9;
+      const idx = (py * rw + px) * 4;
+      img.data[idx] = lum;
+      img.data[idx + 1] = lum;
+      img.data[idx + 2] = lum;
+      img.data[idx + 3] = Math.round(a * 255);
+    }
+  }
+  const buf = makeCanvas(rw, rh);
+  const bctx = buf.getContext('2d');
+  if (bctx === null) return mask;
+  bctx.putImageData(img, 0, 0);
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(buf, 0, 0, NEB_W, NEB_H);
+  return mask;
+}
+
+function tintNebula(hue: number): void {
+  if (nebCtx === null || nebMask === null) return;
+  nebCtx.globalCompositeOperation = 'copy';
+  nebCtx.drawImage(nebMask, 0, 0);
+  nebCtx.globalCompositeOperation = 'multiply';
+  nebCtx.fillStyle = `hsl(${hue.toFixed(0)} 48% 58%)`;
+  nebCtx.fillRect(0, 0, NEB_W, NEB_H);
+  nebCtx.globalCompositeOperation = 'destination-in';
+  nebCtx.drawImage(nebMask, 0, 0);
+  nebCtx.globalCompositeOperation = 'source-over';
+}
+
+function chaseAccent(): void {
+  if (chaseRaf !== 0) return;
+  const start = performance.now();
+  const step = (): void => {
+    chaseRaf = 0;
+    const raw = getComputedStyle(document.documentElement).getPropertyValue('--acc-a').trim();
+    const hue = parseHue(raw);
+    if (hue !== null && Math.abs(hue - lastHue) > 0.8) {
+      lastHue = hue;
+      tintNebula(hue);
+    }
+    if (performance.now() - start < 820) {
+      chaseRaf = window.requestAnimationFrame(step);
+    }
+  };
+  chaseRaf = window.requestAnimationFrame(step);
+}
+
+function paintSwirl(): void {
+  const ctx = swirlCtx;
+  if (ctx === null) return;
+  const scale = SWIRL_BMP / SWIRL_PX;
+  const c = SWIRL_BMP / 2;
+  const r0 = (HOLE_D / 2 + 3) * scale;
+  const R = 145 * scale;
+  const rand = mulberry32(SEED ^ 0x51ade);
+  const bright = -0.35;
+  ctx.clearRect(0, 0, SWIRL_BMP, SWIRL_BMP);
+  ctx.globalCompositeOperation = 'lighter';
+  const envStart = 70 * scale;
+  const env = ctx.createRadialGradient(c, c, envStart, c, c, R);
+  env.addColorStop(0, 'rgba(238, 241, 247, 0.1)');
+  env.addColorStop(0.14, 'rgba(238, 241, 247, 0.075)');
+  env.addColorStop(0.45, 'rgba(238, 241, 247, 0.032)');
+  env.addColorStop(1, 'rgba(238, 241, 247, 0)');
+  ctx.fillStyle = env;
+  ctx.fillRect(0, 0, SWIRL_BMP, SWIRL_BMP);
+  for (let i = 0; i < 240; i += 1) {
+    const t = Math.pow(rand(), 1.2);
+    const rr = r0 + t * (R - r0);
+    const a = rand() * Math.PI * 2;
+    const sweep = (0.12 + rand() * 0.38) * (1 - t * 0.4);
+    const grow = Math.min((10 + rand() * 35) * scale, R - rr);
+    const width = (0.5 + rand() * 1.6) * scale;
+    const asym = Math.max(0.12, 1 + 0.85 * Math.cos(a - bright));
+    const fade = Math.pow(1 - t, 1.15);
+    const alpha = (0.02 + rand() * 0.15) * fade * asym;
+    ctx.strokeStyle = `rgba(236, 239, 246, ${alpha.toFixed(3)})`;
+    ctx.lineWidth = width;
+    ctx.beginPath();
+    const segs = 7;
+    for (let k = 0; k <= segs; k += 1) {
+      const u = k / segs;
+      const ang = a + u * sweep;
+      const rad = rr + u * grow;
+      const px = c + Math.cos(ang) * rad;
+      const py = c + Math.sin(ang) * rad;
+      if (k === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+function paintSky(): void {
+  if (!NEBULAE) return;
+  nebMask = buildNebulaMask();
+  const raw = getComputedStyle(document.documentElement).getPropertyValue('--acc-a').trim();
+  const hue = parseHue(raw);
+  lastHue = hue ?? 226;
+  tintNebula(lastHue);
+}
+
+function paintSparkGlow(ctx: CanvasRenderingContext2D, sx: number, sp: SparkData): void {
+  const x = (sp.node.x + WORLD_W / 2) * sx;
+  const y = (sp.node.y + WORLD_H / 2) * sx;
+  const core = Math.max(4, sp.d * 0.5 * sx);
+  const h = sp.t1.h.toFixed(0);
+  const sat = Math.round(Math.max(60, sp.t1.s * 100));
+  const coreG = ctx.createRadialGradient(x, y, 0, x, y, core * 1.6);
+  coreG.addColorStop(0, `hsla(${h}, ${sat}%, 68%, 0.5)`);
+  coreG.addColorStop(0.5, `hsla(${h}, ${sat}%, 62%, 0.2)`);
+  coreG.addColorStop(1, `hsla(${h}, ${sat}%, 55%, 0)`);
+  ctx.fillStyle = coreG;
+  ctx.fillRect(x - core * 1.6, y - core * 1.6, core * 3.2, core * 3.2);
+  const reach = sp.d * 1.9 * sx;
+  const w = Math.max(2, sp.d * 0.16 * sx);
+  const tiers: Array<{ scale: number; wide: number; alpha: number[] }> = [
+    { scale: 0.62, wide: 2, alpha: [0.3, 0.12, 0] },
+    { scale: 0.36, wide: 3, alpha: [0.13, 0, 0] },
+  ];
+  for (let i = 0; i < 4; i += 1) {
+    const ang = (i * Math.PI) / 2;
+    for (const tier of tiers) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(ang);
+      ctx.scale(reach * tier.scale, w * tier.wide);
+      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+      g.addColorStop(0, `hsla(${h}, ${sat}%, 66%, ${tier.alpha[0]})`);
+      g.addColorStop(0.4, `hsla(${h}, ${sat}%, 60%, ${tier.alpha[1]})`);
+      g.addColorStop(0.75, `hsla(${h}, ${sat}%, 56%, ${tier.alpha[2]})`);
+      g.addColorStop(1, `hsla(${h}, ${sat}%, 55%, 0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(0, 0, 1, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+}
+
+function paintHalos(stars: ArtistStar[], sparks: SparkData[]): void {
+  const ctx = haloCtx;
+  if (ctx === null) return;
+  ctx.clearRect(0, 0, HALO_W, HALO_H);
+  const sx = HALO_W / WORLD_W;
+  for (const s of stars) {
+    const reach = (s.major ? 0.75 : 0.55) + randStop(s.name, 7) * 0.2;
+    const inten = 0.7 + randStop(s.name, 8) * 0.4;
+    const x = (s.x + WORLD_W / 2) * sx;
+    const y = (s.y + WORLD_H / 2) * sx;
+    const r = Math.max(5, s.d * 0.5 * (1 + reach) * sx);
+    const h = s.tone.h.toFixed(0);
+    const sat = Math.round(Math.max(55, s.tone.s * 100));
+    const lobes: Array<{ ox: number; oy: number; a: number }> = [
+      { ox: 0, oy: 0, a: 1 },
+      { ox: Math.cos(randStop(s.name, 9) * 6.283) * 0.3, oy: Math.sin(randStop(s.name, 9) * 6.283) * 0.3, a: 0.5 },
+      { ox: Math.cos(randStop(s.name, 10) * 6.283) * 0.3, oy: Math.sin(randStop(s.name, 10) * 6.283) * 0.3, a: 0.4 },
+    ];
+    for (const lobe of lobes) {
+      const lx = x + lobe.ox * r;
+      const ly = y + lobe.oy * r;
+      const g = ctx.createRadialGradient(lx, ly, 0, lx, ly, r);
+      g.addColorStop(0, `hsla(${h}, ${sat}%, 66%, ${(0.4 * inten * lobe.a).toFixed(3)})`);
+      g.addColorStop(0.4, `hsla(${h}, ${sat}%, 60%, ${(0.2 * inten * lobe.a).toFixed(3)})`);
+      g.addColorStop(0.75, `hsla(${h}, ${sat}%, 54%, ${(0.07 * inten * lobe.a).toFixed(3)})`);
+      g.addColorStop(1, `hsla(${h}, ${sat}%, 50%, 0)`);
+      ctx.fillStyle = g;
+      ctx.fillRect(lx - r, ly - r, r * 2, r * 2);
+    }
+  }
+  for (const sp of sparks) paintSparkGlow(ctx, sx, sp);
+}
+
+function paintPools(stars: ArtistStar[]): void {
+  const ctx = poolsCtx;
+  if (ctx === null) return;
+  ctx.clearRect(0, 0, POOL_W, POOL_H);
+  const sx = POOL_W / WORLD_W;
+  const sy = POOL_H / WORLD_H;
+  for (const s of stars) {
+    if (!s.major) continue;
+    const x = (s.x + WORLD_W / 2) * sx;
+    const y = (s.y + WORLD_H / 2) * sy;
+    const r = Math.max(14, s.d * 3.4 * sx);
+    const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
+    grad.addColorStop(0, `hsla(${s.tone.h.toFixed(0)}, ${Math.round(s.tone.s * 70)}%, 60%, 0.08)`);
+    grad.addColorStop(1, 'hsla(0, 0%, 0%, 0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x - r, y - r, r * 2, r * 2);
+  }
 }
 
 function setHot(idx: string | null): void {
@@ -299,9 +707,42 @@ function setHot(idx: string | null): void {
   }
 }
 
-function setHotFromEvent(e: Event): void {
-  const node = (e.target as HTMLElement | null)?.closest?.('.uni-star, .uni-sat, .uni-spark');
-  setHot(node instanceof HTMLElement ? (node.dataset.label ?? null) : null);
+function showThreads(el: HTMLElement): void {
+  if (threadsFor === el) return;
+  const sp = sparksByEl.get(el);
+  if (threadSvg === null || sp === undefined || surface === null) return;
+  clearThreads();
+  threadsFor = el;
+  let rank = 0;
+  for (const src of sp.sources) {
+    if (rank >= 3) break;
+    const star = starsByName.get(src.name);
+    if (star === undefined) continue;
+    const line = document.createElementNS(SVG_NS, 'line');
+    line.setAttribute('x1', (sp.node.x + WORLD_W / 2).toFixed(1));
+    line.setAttribute('y1', (sp.node.y + WORLD_H / 2).toFixed(1));
+    line.setAttribute('x2', (star.x + WORLD_W / 2).toFixed(1));
+    line.setAttribute('y2', (star.y + WORLD_H / 2).toFixed(1));
+    line.setAttribute('class', rank === 0 ? 'thread primary' : 'thread');
+    threadSvg.append(line);
+    const sel = starEls.get(src.name);
+    if (sel !== undefined) sel.classList.add('lit');
+    rank += 1;
+  }
+  if (rank > 0) {
+    threadSvg.classList.add('on');
+    surface.classList.add('constellating');
+  }
+}
+
+function clearThreads(): void {
+  threadsFor = null;
+  if (threadSvg !== null) {
+    threadSvg.classList.remove('on');
+    threadSvg.textContent = '';
+  }
+  if (surface !== null) surface.classList.remove('constellating');
+  for (const el of starEls.values()) el.classList.remove('lit');
 }
 
 function attachLabel(
@@ -312,72 +753,18 @@ function attachLabel(
   base: string,
   hot: string | null,
   cls: string,
+  center = false,
 ): void {
   const label = document.createElement('span');
   label.className = cls === '' ? 'uni-star-label' : `uni-star-label ${cls}`;
   label.textContent = base;
   if (labelLayer !== null) labelLayer.append(label);
   node.dataset.label = String(labels.length);
-  labels.push({ el: label, wx, wy, d, base, hot });
-}
-
-const pinsByArtist = new Map<string, string[]>();
-
-function loadPins(): void {
-  void window.mr.storageGet(PINS_KEY).then((raw) => {
-    if (raw !== null && typeof raw === 'object') {
-      for (const [artist, albums] of Object.entries(raw as Record<string, unknown>)) {
-        if (Array.isArray(albums)) {
-          pinsByArtist.set(
-            artist,
-            albums.filter((a): a is string => typeof a === 'string').slice(0, PIN_CAP),
-          );
-        }
-      }
-    }
-    rebuildSky();
-  });
-}
-
-function savePins(): void {
-  const out: Record<string, string[]> = {};
-  for (const [k, v] of pinsByArtist) if (v.length > 0) out[k] = [...v];
-  void window.mr.storageSet(PINS_KEY, out);
-}
-
-export function isAlbumPinned(artist: string, album: string): boolean {
-  return pinsByArtist.get(artist)?.includes(album) ?? false;
-}
-
-export function albumPinCount(artist: string): number {
-  return pinsByArtist.get(artist)?.length ?? 0;
-}
-
-export function toggleAlbumPin(artist: string, album: string): 'pinned' | 'unpinned' | 'full' {
-  const list = pinsByArtist.get(artist) ?? [];
-  if (list.includes(album)) {
-    pinsByArtist.set(artist, list.filter((a) => a !== album));
-    savePins();
-    rebuildSky();
-    return 'unpinned';
-  }
-  if (list.length >= PIN_CAP) return 'full';
-  list.push(album);
-  pinsByArtist.set(artist, list);
-  savePins();
-  rebuildSky();
-  return 'pinned';
+  labels.push({ el: label, wx, wy, d, base, hot, center });
 }
 
 function weightAt(count: number): number {
   return ORBIT_MAX - (Math.log10(Math.max(1, count)) / Math.log10(ABS_WEIGHT_MAX)) * (ORBIT_MAX - ORBIT_MIN);
-}
-
-function weightBand(count: number): { lo: number; hi: number } {
-  if (count <= 8) return { lo: weightAt(8), hi: ORBIT_MAX };
-  if (count <= 40) return { lo: weightAt(40), hi: weightAt(8) };
-  if (count <= 300) return { lo: weightAt(300), hi: weightAt(40) };
-  return { lo: ORBIT_MIN, hi: ORBIT_MIN };
 }
 
 function alphabeticalAngles(names: string[]): Map<string, number> {
@@ -405,7 +792,7 @@ function alphabeticalAngles(names: string[]): Map<string, number> {
   return map;
 }
 
-function resolveLayout(nodes: LayoutNode[]): void {
+function resolveLayout(nodes: LayoutNode[], keepBase: number): void {
   for (let iter = 0; iter < 42; iter += 1) {
     for (let i = 0; i < nodes.length; i += 1) {
       const a = nodes[i];
@@ -436,7 +823,7 @@ function resolveLayout(nodes: LayoutNode[]): void {
     for (const s of nodes) {
       if (s === undefined) continue;
       const dist = Math.hypot(s.x, s.y);
-      const keep = 300 + s.er;
+      const keep = keepBase + s.er;
       if (dist < keep) {
         const f = dist === 0 ? 0 : keep / dist;
         s.x = dist === 0 ? keep : s.x * f;
@@ -451,7 +838,6 @@ function resolveLayout(nodes: LayoutNode[]): void {
 }
 
 function frameOnce(stars: ArtistStar[]): void {
-  framed = true;
   if (userMoved || stars.length === 0 || viewRect === null) return;
   const byRadius = [...stars].sort((a, b) => Math.hypot(a.x, a.y) - Math.hypot(b.x, b.y));
   const total = stars.reduce((n, s) => n + s.count, 0);
@@ -476,24 +862,30 @@ function frameOnce(stars: ArtistStar[]): void {
 function applyNow(): void {
   const artist = player.currentTrack !== null ? primaryOf(player.currentTrack) : null;
   for (const [name, el] of starEls) el.classList.toggle('now', name === artist);
+  chaseAccent();
 }
 
 function rebuildSky(): void {
   if (starsLayer === null || labelLayer === null) return;
-  if (satsLayer !== null) satsLayer.textContent = '';
   if (sparksLayer !== null) sparksLayer.textContent = '';
-  if (nebLayer !== null) nebLayer.textContent = '';
-  if (orbitLayer !== null) orbitLayer.textContent = '';
+  if (threadSvg !== null) {
+    threadSvg.classList.remove('on');
+    threadSvg.textContent = '';
+  }
+  if (surface !== null) surface.classList.remove('constellating');
+  threadsFor = null;
   starsLayer.textContent = '';
   labelLayer.textContent = '';
   starsByName.clear();
   starEls.clear();
+  sparksByEl.clear();
   labels = [];
   setHot(null);
   const result = libraryStore.result;
   const groups = new Map<string, { count: number; colors: Set<string> }>();
-  const albumColors = new Map<string, Map<string, Set<string>>>();
+  let totalSongs = 0;
   if (result !== null && result.ok) {
+    totalSongs = result.tracks.length;
     for (const t of result.tracks) {
       const name = primaryOf(t);
       if (name === null || name.trim() === '') continue;
@@ -504,20 +896,6 @@ function rebuildSky(): void {
       }
       g.count += 1;
       if (t.palette !== null) for (const c of t.palette) g.colors.add(c);
-      const album = t.album;
-      if (album !== null && album.trim() !== '') {
-        let albumMap = albumColors.get(name);
-        if (albumMap === undefined) {
-          albumMap = new Map<string, Set<string>>();
-          albumColors.set(name, albumMap);
-        }
-        let colors = albumMap.get(album);
-        if (colors === undefined) {
-          colors = new Set<string>();
-          albumMap.set(album, colors);
-        }
-        if (t.palette !== null) for (const c of t.palette) colors.add(c);
-      }
     }
   }
   const names = [...groups.keys()].sort((a, b) => {
@@ -527,39 +905,27 @@ function rebuildSky(): void {
   });
   const angles = alphabeticalAngles(names);
   const growth = Math.min(GROWTH_CAP, Math.max(1, Math.sqrt(names.length / 12)));
+  const tiltC = Math.cos(OVAL_TILT);
+  const tiltS = Math.sin(OVAL_TILT);
   const stars: ArtistStar[] = [];
   for (const name of names) {
     const g = groups.get(name);
     const count = g !== undefined ? g.count : 1;
-    const angle = angles.get(name) ?? 0;
-    const band = weightBand(count);
     const rand = mulberry32((hashName(name) ^ 0x9e3779b9) >>> 0);
-    const rJittered = weightAt(count) * (1 + (rand() - 0.5) * RADIAL_JITTER);
-    const orbit =
-      band.hi - band.lo < 24
-        ? (band.lo + band.hi) / 2
-        : Math.max(band.lo + 10, Math.min(band.hi - 10, rJittered)) * growth;
+    const angle = (angles.get(name) ?? 0) + (rand() - 0.5) * 2 * ANGLE_NOISE;
+    const orbit = weightAt(count) * growth * (1 + (rand() - 0.5) * SCATTER);
+    const ex = Math.cos(angle) * orbit;
+    const ey = Math.sin(angle) * orbit * WORLD_SQUASH;
     stars.push({
       name,
       count,
-      x: Math.cos(angle) * orbit,
-      y: Math.sin(angle) * orbit * WORLD_SQUASH,
+      x: ex * tiltC - ey * tiltS,
+      y: ex * tiltS + ey * tiltC,
       d: Math.min(64, 20 + Math.sqrt(count) * 4.4),
       tone: toneOf(g !== undefined ? g.colors : []),
       major: false,
       er: 0,
     });
-  }
-
-  if (orbitLayer !== null) {
-    for (const c of WEIGHT_BANDS) {
-      const r = weightAt(c) * growth;
-      const ring = document.createElement('span');
-      ring.className = 'uni-orbit-line';
-      ring.style.width = `${(r * 2).toFixed(1)}px`;
-      ring.style.height = `${(r * 2 * WORLD_SQUASH).toFixed(1)}px`;
-      orbitLayer.append(ring);
-    }
   }
 
   const byMass = [...stars].sort((a, b) => b.count - a.count);
@@ -570,67 +936,87 @@ function rebuildSky(): void {
   }
 
   for (const s of stars) {
-    const pins = pinsByArtist.get(s.name) ?? [];
-    if (pins.length === 0) {
-      s.er = s.d / 2;
-      continue;
-    }
-    const inner = s.d / 2 + 30;
-    const outer = s.d / 2 + 56;
-    s.er = (pins.length > 4 ? outer : inner) + 10;
+    s.er = s.d / 2;
+    starsByName.set(s.name, s);
   }
 
   const sparks: SparkData[] = [];
-  if (sparksLayer !== null && playlistsStore.ready) {
+  let maxCount = 0;
+  if (playlistsStore.ready) {
     for (const pl of playlistsStore.list()) {
       const tracks = playlistsStore.liveTracks(pl.tracks);
       const count = tracks.length;
+      if (count > maxCount) maxCount = count;
       const weights = new Map<string, number>();
       for (const t of tracks) {
         const a = primaryOf(t);
         if (a === null) continue;
         weights.set(a, (weights.get(a) ?? 0) + 1);
       }
-      let cx = 0;
-      let cy = 0;
-      let wsum = 0;
+      const sources: SparkSource[] = [...weights.entries()]
+        .map(([name, w]) => ({ name, w }))
+        .sort((a, b) => b.w - a.w);
       let primary: Tone | null = null;
       let secondary: Tone | null = null;
-      let pW = -1;
-      let sW = -1;
-      for (const [artist, w] of weights) {
-        const star = starsByName.get(artist);
+      for (const src of sources) {
+        const star = starsByName.get(src.name);
         if (star === undefined) continue;
-        cx += star.x * w;
-        cy += star.y * w;
-        wsum += w;
-        if (w > pW) {
-          secondary = primary;
-          sW = pW;
-          primary = star.tone;
-          pW = w;
-        } else if (w > sW) {
-          secondary = star.tone;
-          sW = w;
-        }
-      }
-      if (primary === null || wsum === 0) {
-        const rand = mulberry32(hashName(`pl\u0000${pl.id}`));
-        const angle = rand() * Math.PI * 2;
-        cx = Math.cos(angle) * 760;
-        cy = Math.sin(angle) * 760 * WORLD_SQUASH;
-      } else {
-        cx /= wsum;
-        cy /= wsum;
+        if (primary === null) primary = star.tone;
+        else if (secondary === null) secondary = star.tone;
+        if (primary !== null && secondary !== null) break;
       }
       const t1 = primary ?? { h: 226, s: 0.55 };
       const t2 = secondary ?? t1;
       const d = count === 0 ? 15 : Math.min(60, 18 + Math.log2(1 + count) * 7);
-      sparks.push({ pl, count, d, node: { x: cx, y: cy, er: d / 2 + 8 }, t1, t2 });
+      sparks.push({ pl, count, d, node: { x: 0, y: 0, er: d / 2 + 8 }, t1, t2, sources });
     }
   }
+  const maxSqrt = Math.sqrt(maxCount);
+  for (const sp of sparks) {
+    const rand = mulberry32(hashName(`halo\0${sp.pl.id}`));
+    const n = sp.count === 0 || maxCount === 0 ? 0 : Math.sqrt(sp.count) / maxSqrt;
+    let dist = HALO_MIN + (HALO_MAX - HALO_MIN) * (1 - n);
+    let ang: number;
+    const top = sp.sources[0];
+    const totalW = sp.sources.reduce((s2, x) => s2 + x.w, 0);
+    const domStar = top !== undefined && top.w * 2 >= totalW ? starsByName.get(top.name) : undefined;
+    if (domStar !== undefined) ang = Math.atan2(domStar.y, domStar.x);
+    else ang = rand() * Math.PI * 2;
+    ang += (rand() - 0.5) * 0.075;
+    dist *= 1 + (rand() - 0.5) * 0.11;
+    sp.node.x = Math.cos(ang) * dist;
+    sp.node.y = Math.sin(ang) * dist * WORLD_SQUASH;
+  }
+  resolveLayout(
+    sparks.map((s) => s.node),
+    0,
+  );
+  for (const sp of sparks) {
+    const r = Math.hypot(sp.node.x, sp.node.y);
+    const lo = HALO_MIN - 14;
+    const hi = HALO_MAX + 40;
+    if (r >= lo && r <= hi) continue;
+    const f = (r < lo ? lo : hi) / (r || 1);
+    sp.node.x *= f;
+    sp.node.y *= f;
+  }
 
-  resolveLayout([...stars, ...sparks.map((s) => s.node)]);
+  resolveLayout(stars, COURT_KEEP);
+  paintPools(stars);
+  paintHalos(stars, sparks);
+
+  if (holeEl !== null) {
+    attachLabel(
+      holeEl,
+      0,
+      0,
+      HOLE_D,
+      'All songs',
+      String(totalSongs),
+      'hole',
+      true,
+    );
+  }
 
   const starFrag = document.createDocumentFragment();
   for (const s of stars) {
@@ -638,14 +1024,23 @@ function rebuildSky(): void {
     const h = s.tone.h.toFixed(0);
     const sat = Math.round(s.tone.s * 100);
     const star = document.createElement('span');
-    star.className = 'uni-star';
+    star.className = s.major ? 'uni-star major' : 'uni-star';
     star.dataset.name = s.name;
     star.style.left = `${(s.x + WORLD_W / 2).toFixed(1)}px`;
     star.style.top = `${(s.y + WORLD_H / 2).toFixed(1)}px`;
     star.style.setProperty('--d', s.d.toFixed(1));
-    star.style.setProperty('--hot', `hsl(${h} ${Math.round(sat * 0.45)}% 97%)`);
+    const coreStop = 34 + randStop(s.name, 0) * 10;
+    const rimStop = 58 + randStop(s.name, 1) * 8;
+    const hotS = 28 + randStop(s.name, 4) * 26;
+    const hotL = (s.major ? 96 : 92) + randStop(s.name, 5) * (s.major ? 3 : 5);
+    star.style.setProperty('--corestop', coreStop.toFixed(1));
+    star.style.setProperty('--rimstop', rimStop.toFixed(1));
+    star.style.setProperty('--hot', `hsl(${h} ${Math.round(hotS)}% ${hotL.toFixed(0)}%)`);
     star.style.setProperty('--body', `hsl(${h} ${sat}% 64%)`);
     star.style.setProperty('--rim', `hsl(${h} ${Math.min(100, sat + 12)}% 78%)`);
+    star.classList.add('breathe');
+    star.style.setProperty('--bdur', `${(4.5 + randStop(s.name, 11) * 4).toFixed(2)}s`);
+    star.style.setProperty('--bdel', `${(-randStop(s.name, 12) * 9).toFixed(2)}s`);
     starFrag.append(star);
     starEls.set(s.name, star);
     attachLabel(star, s.x, s.y, s.d, s.name, null, s.major ? 'major' : '');
@@ -656,55 +1051,6 @@ function rebuildSky(): void {
   }
   starsLayer.append(starFrag);
 
-  if (satsLayer !== null) {
-    const satFrag = document.createDocumentFragment();
-    for (const s of stars) {
-      const pins = pinsByArtist.get(s.name) ?? [];
-      if (pins.length === 0) continue;
-      const albumTones = albumColors.get(s.name);
-      const inner = s.d / 2 + 30;
-      const outer = s.d / 2 + 56;
-      const ringCount = pins.length > 4 ? 2 : 1;
-      const h = s.tone.h.toFixed(0);
-      for (let r = 0; r < ringCount; r += 1) {
-        const radius = r === 0 ? inner : outer;
-        const ring = document.createElement('span');
-        ring.className = 'uni-ring';
-        ring.style.width = `${(radius * 2).toFixed(1)}px`;
-        ring.style.height = `${(radius * 2).toFixed(1)}px`;
-        ring.style.left = `${(s.x + WORLD_W / 2).toFixed(1)}px`;
-        ring.style.top = `${(s.y + WORLD_H / 2).toFixed(1)}px`;
-        ring.style.borderColor = `hsl(${h} 45% 74% / 0.16)`;
-        satFrag.append(ring);
-      }
-      for (let i = 0; i < pins.length && i < PIN_CAP; i += 1) {
-        const album = pins[i];
-        if (album === undefined) continue;
-        const colors = albumTones?.get(album);
-        const tone = colors !== undefined ? toneOf(colors) : s.tone;
-        const radius = i < 4 ? inner : outer;
-        const rand = mulberry32(hashName(`${s.name}\u0000${album}`));
-        const angle = rand() * Math.PI * 2;
-        const nx = s.x + Math.cos(angle) * radius;
-        const ny = s.y + Math.sin(angle) * radius;
-        const node = document.createElement('span');
-        node.className = 'uni-sat';
-        node.dataset.name = album;
-        node.style.left = `${(nx + WORLD_W / 2).toFixed(1)}px`;
-        node.style.top = `${(ny + WORLD_H / 2).toFixed(1)}px`;
-        node.style.setProperty('--hot', `hsl(${tone.h.toFixed(0)} 50% 96%)`);
-        node.style.setProperty('--body', `hsl(${tone.h.toFixed(0)} ${Math.round(tone.s * 100)}% 64%)`);
-        node.addEventListener('click', (e) => {
-          e.stopPropagation();
-          appBus.emit('universe-open-album', { artist: s.name, album });
-        });
-        satFrag.append(node);
-        attachLabel(node, nx, ny, 10, album, null, 'sat');
-      }
-    }
-    satsLayer.append(satFrag);
-  }
-
   if (sparksLayer !== null) {
     const sparkFrag = document.createDocumentFragment();
     for (const sp of sparks) {
@@ -713,13 +1059,14 @@ function rebuildSky(): void {
       spark.style.left = `${(sp.node.x + WORLD_W / 2).toFixed(1)}px`;
       spark.style.top = `${(sp.node.y + WORLD_H / 2).toFixed(1)}px`;
       spark.style.setProperty('--d', sp.d.toFixed(1));
-      spark.style.setProperty('--a', `hsl(${sp.t1.h.toFixed(0)} ${Math.round(Math.max(0.5, sp.t1.s) * 100)}% 70%)`);
-      spark.style.setProperty('--b', `hsl(${sp.t2.h.toFixed(0)} ${Math.round(Math.max(0.5, sp.t2.s) * 100)}% 62%)`);
+      spark.style.setProperty('--a', `hsl(${sp.t1.h.toFixed(0)} ${Math.round(Math.max(0.6, sp.t1.s) * 100)}% 66%)`);
+      spark.style.setProperty('--b', `hsl(${sp.t2.h.toFixed(0)} ${Math.round(Math.max(0.6, sp.t2.s) * 100)}% 58%)`);
       spark.addEventListener('click', (e) => {
         e.stopPropagation();
         appBus.emit('universe-open-playlist', { id: sp.pl.id });
       });
       sparkFrag.append(spark);
+      sparksByEl.set(spark, sp);
       attachLabel(
         spark,
         sp.node.x,
@@ -727,35 +1074,22 @@ function rebuildSky(): void {
         sp.d,
         sp.pl.name,
         `${sp.pl.name} · ${sp.count} song${sp.count === 1 ? '' : 's'}`,
-        '',
+        'spark',
       );
     }
     sparksLayer.append(sparkFrag);
   }
 
-  if (nebLayer !== null) {
-    const nebFrag = document.createDocumentFragment();
-    for (const s of byMass.slice(0, NEBULA_CAP)) {
-      if (s === undefined || s.count < 2) break;
-      const neb = document.createElement('span');
-      neb.className = 'uni-nebula';
-      const size = Math.min(1500, 800 + s.count * 10).toFixed(0);
-      neb.style.width = `${size}px`;
-      neb.style.height = `${size}px`;
-      neb.style.left = `${(s.x + WORLD_W / 2).toFixed(1)}px`;
-      neb.style.top = `${(s.y + WORLD_H / 2).toFixed(1)}px`;
-      neb.style.background = `radial-gradient(circle, hsl(${s.tone.h.toFixed(0)} ${Math.round(
-        s.tone.s * 80,
-      )}% 58% / 0.05) 0%, transparent 68%)`;
-      nebFrag.append(neb);
-    }
-    nebLayer.append(nebFrag);
-  }
-
   applyTransforms();
   updateLabels();
   applyNow();
+  lastStars = stars;
   frameOnce(stars);
+}
+
+function randStop(name: string, salt: number): number {
+  const rand = mulberry32((hashName(name) ^ (0x9e3779b9 + salt * 0x85ebca6b)) >>> 0);
+  return rand();
 }
 
 function buildSurface(): HTMLElement {
@@ -764,47 +1098,86 @@ function buildSurface(): HTMLElement {
   section.setAttribute('aria-label', 'Universe view');
   section.hidden = true;
 
-  const field = document.createElement('div');
-  field.className = 'uni-field';
-  section.append(field);
+  const plane = (cls: string, factor: number): HTMLElement => {
+    const el = document.createElement('div');
+    el.className = `uni-layer ${cls}`;
+    section.append(el);
+    layers.push({ el, factor });
+    return el;
+  };
 
-  const neb = document.createElement('div');
-  neb.className = 'uni-layer uni-neb';
-  section.append(neb);
-  layers.push({ el: neb, factor: 0.55 });
-  nebLayer = neb;
+  deepPlane = plane('uni-deep', 0.3);
+  buildFieldStars(deepPlane, {
+    count: 30,
+    minSize: 0.9,
+    maxSize: 1.8,
+    minAlpha: 0.4,
+    maxAlpha: 0.7,
+    twinkles: 5,
+    seed: SEED ^ 0xa1b2c3,
+  });
 
-  for (const spec of LAYERS) {
-    const layer = document.createElement('div');
-    layer.className = `uni-layer ${spec.cls}`;
-    buildSpecks(layer, spec);
-    section.append(layer);
-    layers.push({ el: layer, factor: spec.factor });
+  if (NEBULAE) {
+    const nebLayer = plane('uni-neb', 0.55);
+    const nebCv = makeCanvas(NEB_W, NEB_H);
+    nebLayer.append(nebCv);
+    nebCtx = nebCv.getContext('2d');
   }
 
-  const orbits = document.createElement('div');
-  orbits.className = 'uni-layer uni-orbits';
-  section.append(orbits);
-  layers.push({ el: orbits, factor: 1 });
-  orbitLayer = orbits;
+  nearPlane = plane('uni-near', 0.7);
+  buildFieldStars(nearPlane, {
+    count: 40,
+    minSize: 1.2,
+    maxSize: 2.4,
+    minAlpha: 0.55,
+    maxAlpha: 0.95,
+    twinkles: 8,
+    seed: SEED ^ 0xc3d4e5,
+  });
 
-  const stars = document.createElement('div');
-  stars.className = 'uni-layer uni-stars';
-  section.append(stars);
-  layers.push({ el: stars, factor: 1 });
-  starsLayer = stars;
+  const poolsLayer = plane('uni-pools', 1);
+  const poolsCv = makeCanvas(POOL_W, POOL_H);
+  poolsLayer.append(poolsCv);
+  poolsCtx = poolsCv.getContext('2d');
 
-  const sats = document.createElement('div');
-  sats.className = 'uni-layer uni-sats';
-  section.append(sats);
-  layers.push({ el: sats, factor: 1 });
-  satsLayer = sats;
+  const haloLayer = plane('uni-halo', 1);
+  const haloCv = makeCanvas(HALO_W, HALO_H);
+  haloLayer.append(haloCv);
+  haloCtx = haloCv.getContext('2d');
 
-  const sparks = document.createElement('div');
-  sparks.className = 'uni-layer uni-sparks';
-  section.append(sparks);
-  layers.push({ el: sparks, factor: 1 });
-  sparksLayer = sparks;
+  const threadsLayer = plane('uni-threads', 1);
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${WORLD_W} ${WORLD_H}`);
+  svg.setAttribute('width', String(WORLD_W));
+  svg.setAttribute('height', String(WORLD_H));
+  threadsLayer.append(svg);
+  threadSvg = svg;
+
+  heartLayer = plane('uni-heart', 1);
+  const swirl = makeCanvas(SWIRL_BMP, SWIRL_BMP);
+  swirl.className = 'hole-swirl';
+  heartLayer.append(swirl);
+  swirlCtx = swirl.getContext('2d');
+  const hole = document.createElement('button');
+  hole.className = 'uni-hole';
+  hole.type = 'button';
+  hole.setAttribute('aria-label', 'All songs');
+  const glow = document.createElement('span');
+  glow.className = 'hole-glow';
+  const ring = document.createElement('span');
+  ring.className = 'hole-ring';
+  const disc = document.createElement('span');
+  disc.className = 'hole-disc';
+  hole.append(glow, disc, ring);
+  hole.addEventListener('click', (e) => {
+    e.stopPropagation();
+    appBus.emit('universe-open-all', {});
+  });
+  heartLayer.append(hole);
+  holeEl = hole;
+
+  starsLayer = plane('uni-stars', 1);
+  sparksLayer = plane('uni-sparks', 1);
 
   const labelPlane = document.createElement('div');
   labelPlane.className = 'uni-labels';
@@ -820,7 +1193,7 @@ function buildSurface(): HTMLElement {
 
   section.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
-    if ((e.target as HTMLElement | null)?.closest?.('.uni-star, .uni-sat, .uni-spark') !== null) return;
+    if ((e.target as HTMLElement | null)?.closest?.('.uni-star, .uni-spark, .uni-hole') !== null) return;
     userMoved = true;
     dragging = true;
     lastPointer = { x: e.clientX, y: e.clientY };
@@ -841,10 +1214,21 @@ function buildSurface(): HTMLElement {
   };
   section.addEventListener('pointerup', release);
   section.addEventListener('pointercancel', release);
-  section.addEventListener('pointerover', setHotFromEvent);
+
+  section.addEventListener('pointerover', (e) => {
+    const el = (e.target as HTMLElement | null)?.closest?.('.uni-star, .uni-spark, .uni-hole');
+    setHot(el instanceof HTMLElement ? (el.dataset.label ?? null) : null);
+    const sparkEl = (e.target as HTMLElement | null)?.closest?.('.uni-spark');
+    if (sparkEl instanceof HTMLElement) showThreads(sparkEl);
+    else clearThreads();
+  });
   section.addEventListener('pointerout', (e) => {
-    if ((e.target as HTMLElement | null)?.closest?.('.uni-star, .uni-sat, .uni-spark') !== null) {
+    const ev = e as PointerEvent;
+    const from = (ev.target as HTMLElement | null)?.closest?.('.uni-star, .uni-spark, .uni-hole');
+    const to = (ev.relatedTarget as HTMLElement | null)?.closest?.('.uni-star, .uni-spark, .uni-hole');
+    if (from !== null && from !== to) {
       setHot(null);
+      clearThreads();
     }
   });
 
@@ -865,7 +1249,25 @@ export function initUniverse(): void {
   libraryStore.onChange(rebuildSky);
   playlistsStore.onChange(() => rebuildSky());
   void playlistsStore.load();
-  loadPins();
+  onMoment((strength) => {
+    if (!active) return;
+    const artist = player.currentTrack !== null ? primaryOf(player.currentTrack) : null;
+    if (artist === null) return;
+    const el = starEls.get(artist);
+    if (el === undefined) return;
+    const now = performance.now();
+    if (now - lastPulse < 280) return;
+    lastPulse = now;
+    const amp = 0.06 + strength * 0.1;
+    el.animate(
+      [
+        { transform: 'translate(-50%, -50%) scale(1)' },
+        { transform: `translate(-50%, -50%) scale(${(1 + amp).toFixed(3)})`, offset: 0.3 },
+        { transform: 'translate(-50%, -50%) scale(1)' },
+      ],
+      { duration: 420, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' },
+    );
+  });
   rebuildSky();
 }
 
@@ -876,7 +1278,13 @@ export function setUniverseVisible(on: boolean): void {
   surface.classList.toggle('on', on);
   document.body.classList.toggle('universe-active', on);
   if (on) {
+    if (!painted) {
+      painted = true;
+      paintSky();
+      paintSwirl();
+    }
     refreshRect();
+    frameOnce(lastStars);
     updateLabels();
     wake();
   } else if (raf !== 0) {
