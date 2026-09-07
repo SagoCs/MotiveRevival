@@ -72,6 +72,10 @@ await sleep(1500);
 
 const info = await evalJs(`(() => {
   const hole = document.querySelector('.uni-hole').getBoundingClientRect();
+  const stars = [...document.querySelectorAll('.uni-star')].slice(0, 3).map((el) => {
+    const r = el.getBoundingClientRect();
+    return { name: el.dataset.name, x: r.x, y: r.y, w: r.width };
+  });
   const sparks = [...document.querySelectorAll('.uni-spark')].map((el) => {
     const r = el.getBoundingClientRect();
     const cs = getComputedStyle(el, '::before');
@@ -86,6 +90,7 @@ const info = await evalJs(`(() => {
   const ring = getComputedStyle(document.querySelector('.hole-ring'));
   return {
     hole: { x: hole.x, y: hole.y, w: hole.width, h: hole.height },
+    stars,
     sparks,
     ringBg: ring.backgroundImage.slice(0, 120),
   };
@@ -101,7 +106,12 @@ async function snap(clipX, clipY, clipW, clipH, file) {
   console.log('saved', file);
 }
 
+await snap(0, 0, 1920, 1080, 'C:\\Users\\rhlin\\AppData\\Local\\Temp\\uni-full.png');
 await snap(info.hole.x + info.hole.w / 2 - 130, info.hole.y + info.hole.h / 2 - 130, 260, 260, 'C:\\Users\\rhlin\\AppData\\Local\\Temp\\uni-hole.png');
+const st = info.stars?.[0];
+if (st) {
+  await snap(st.x - 60, st.y - 60, 120, 120, 'C:\\Users\\rhlin\\AppData\\Local\\Temp\\uni-star.png');
+}
 const sp = info.sparks[0];
 if (sp) {
   await snap(sp.x + sp.w / 2 - 45, sp.y + sp.h / 2 - 45, 90, 90, 'C:\\Users\\rhlin\\AppData\\Local\\Temp\\uni-spark.png');

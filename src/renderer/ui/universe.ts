@@ -18,8 +18,8 @@ const SEED = 20260905;
 const ORBIT_MIN = 340;
 const ORBIT_MAX = 700;
 const ABS_WEIGHT_MAX = 300;
-const WORLD_SQUASH = 0.85;
-const OVAL_TILT = 0.35;
+const WORLD_SQUASH = 0.5;
+const OVAL_TILT = 0.12;
 const ANGLE_NOISE = 0.3;
 const SCATTER = 0.8;
 const GROWTH_CAP = 1.6;
@@ -550,6 +550,33 @@ function paintSwirl(): void {
   const R = 145 * scale;
   const rand = mulberry32(SEED ^ 0x51ade);
   const bright = -0.35;
+  const drawSpirals = (target: CanvasRenderingContext2D, count: number, wMin: number, wMax: number, aMin: number, aMax: number): void => {
+    for (let i = 0; i < count; i += 1) {
+      const t = Math.pow(rand(), 1.2);
+      const rr = r0 + t * (R - r0);
+      const a = rand() * Math.PI * 2;
+      const sweep = (0.12 + rand() * 0.38) * (1 - t * 0.4);
+      const grow = Math.min((10 + rand() * 35) * scale, R - rr);
+      const width = (wMin + rand() * (wMax - wMin)) * scale;
+      const asym = Math.max(0.12, 1 + 0.85 * Math.cos(a - bright));
+      const fade = Math.pow(1 - t, 1.15);
+      const alpha = (aMin + rand() * (aMax - aMin)) * fade * asym;
+      target.strokeStyle = `rgba(236, 239, 246, ${alpha.toFixed(3)})`;
+      target.lineWidth = width;
+      target.beginPath();
+      const segs = 7;
+      for (let k = 0; k <= segs; k += 1) {
+        const u = k / segs;
+        const ang = a + u * sweep;
+        const rad = rr + u * grow;
+        const px = c + Math.cos(ang) * rad;
+        const py = c + Math.sin(ang) * rad;
+        if (k === 0) target.moveTo(px, py);
+        else target.lineTo(px, py);
+      }
+      target.stroke();
+    }
+  };
   ctx.clearRect(0, 0, SWIRL_BMP, SWIRL_BMP);
   ctx.globalCompositeOperation = 'lighter';
   const envStart = 70 * scale;
@@ -560,31 +587,24 @@ function paintSwirl(): void {
   env.addColorStop(1, 'rgba(238, 241, 247, 0)');
   ctx.fillStyle = env;
   ctx.fillRect(0, 0, SWIRL_BMP, SWIRL_BMP);
-  for (let i = 0; i < 240; i += 1) {
-    const t = Math.pow(rand(), 1.2);
-    const rr = r0 + t * (R - r0);
-    const a = rand() * Math.PI * 2;
-    const sweep = (0.12 + rand() * 0.38) * (1 - t * 0.4);
-    const grow = Math.min((10 + rand() * 35) * scale, R - rr);
-    const width = (0.5 + rand() * 1.6) * scale;
-    const asym = Math.max(0.12, 1 + 0.85 * Math.cos(a - bright));
-    const fade = Math.pow(1 - t, 1.15);
-    const alpha = (0.02 + rand() * 0.15) * fade * asym;
-    ctx.strokeStyle = `rgba(236, 239, 246, ${alpha.toFixed(3)})`;
-    ctx.lineWidth = width;
-    ctx.beginPath();
-    const segs = 7;
-    for (let k = 0; k <= segs; k += 1) {
-      const u = k / segs;
-      const ang = a + u * sweep;
-      const rad = rr + u * grow;
-      const px = c + Math.cos(ang) * rad;
-      const py = c + Math.sin(ang) * rad;
-      if (k === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
-    }
-    ctx.stroke();
+  const haze = makeCanvas(SWIRL_BMP, SWIRL_BMP);
+  const hazeCtx = haze.getContext('2d');
+  if (hazeCtx !== null) {
+    hazeCtx.globalCompositeOperation = 'lighter';
+    drawSpirals(hazeCtx, 26, 3, 8, 0.012, 0.04);
   }
+  ctx.filter = `blur(${(4 * scale).toFixed(1)}px)`;
+  ctx.drawImage(haze, 0, 0);
+  const fils = makeCanvas(SWIRL_BMP, SWIRL_BMP);
+  const filsCtx = fils.getContext('2d');
+  if (filsCtx !== null) {
+    filsCtx.globalCompositeOperation = 'lighter';
+    drawSpirals(filsCtx, 680, 0.5, 2, 0.02, 0.15);
+  }
+  ctx.filter = `blur(${(1.5 * scale).toFixed(1)}px)`;
+  ctx.drawImage(fils, 0, 0);
+  ctx.filter = 'none';
+  drawSpirals(ctx, 26, 0.5, 1.2, 0.04, 0.11);
   ctx.globalCompositeOperation = 'source-over';
 }
 
@@ -636,36 +656,57 @@ function paintSparkGlow(ctx: CanvasRenderingContext2D, sx: number, sp: SparkData
   }
 }
 
+function paintStar(ctx: CanvasRenderingContext2D, sx: number, s: ArtistStar): void {
+  const x = (s.x + WORLD_W / 2) * sx;
+  const y = (s.y + WORLD_H / 2) * sx;
+  const reach = (s.major ? 0.75 : 0.55) + randStop(s.name, 7) * 0.2;
+  const inten = 0.85 + randStop(s.name, 8) * 0.3;
+  const r = Math.max(5, s.d * 0.5 * (1 + reach) * sx);
+  const h = s.tone.h;
+  const drift = (randStop(s.name, 16) - 0.5) * 24;
+  const sat = Math.min(92, Math.max(50, s.tone.s * 100));
+  const bloomSat = Math.min(95, Math.max(85, sat + 10));
+  const stretch = 0.1 + randStop(s.name, 2) * 0.15;
+  const stretchAng = randStop(s.name, 3) * Math.PI;
+  const hlAng = randStop(s.name, 9) * Math.PI * 2;
+  const hlPow = 0.1 + randStop(s.name, 10) * 0.16 + (s.major ? 0.05 : 0);
+  const h0 = h.toFixed(0);
+  const h1 = ((h + drift * 0.5 + 360) % 360).toFixed(0);
+  const h2 = ((h + drift + 360) % 360).toFixed(0);
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(stretchAng);
+  ctx.scale(r * (1 + stretch), r * (1 - stretch * 0.7));
+  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+  g.addColorStop(0, `hsla(${h0}, ${Math.round(sat * 0.3)}%, 98%, ${inten.toFixed(3)})`);
+  g.addColorStop(0.2, `hsla(${h0}, ${Math.round(bloomSat * 0.85)}%, 80%, ${(0.75 * inten).toFixed(3)})`);
+  g.addColorStop(0.46, `hsla(${h0}, ${bloomSat}%, 64%, ${(0.62 * inten).toFixed(3)})`);
+  g.addColorStop(0.7, `hsla(${h1}, ${Math.round(bloomSat * 0.92)}%, 58%, ${(0.34 * inten).toFixed(3)})`);
+  g.addColorStop(0.9, `hsla(${h1}, ${Math.round(bloomSat * 0.7)}%, 78%, ${(0.6 * inten).toFixed(3)})`);
+  g.addColorStop(0.97, `hsla(${h2}, ${Math.round(sat * 0.8)}%, 60%, ${(0.12 * inten).toFixed(3)})`);
+  g.addColorStop(1, `hsla(${h2}, ${Math.round(sat)}%, 50%, 0)`);
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(0, 0, 1, 0, Math.PI * 2);
+  ctx.fill();
+  const hx = Math.cos(hlAng) * 0.18;
+  const hy = Math.sin(hlAng) * 0.18;
+  const hl = ctx.createRadialGradient(hx, hy, 0, hx, hy, 0.32);
+  hl.addColorStop(0, `hsla(${h0}, 24%, 99%, ${hlPow.toFixed(3)})`);
+  hl.addColorStop(1, `hsla(${h0}, 24%, 99%, 0)`);
+  ctx.fillStyle = hl;
+  ctx.beginPath();
+  ctx.arc(hx, hy, 0.32, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 function paintHalos(stars: ArtistStar[], sparks: SparkData[]): void {
   const ctx = haloCtx;
   if (ctx === null) return;
   ctx.clearRect(0, 0, HALO_W, HALO_H);
   const sx = HALO_W / WORLD_W;
-  for (const s of stars) {
-    const reach = (s.major ? 0.75 : 0.55) + randStop(s.name, 7) * 0.2;
-    const inten = 0.7 + randStop(s.name, 8) * 0.4;
-    const x = (s.x + WORLD_W / 2) * sx;
-    const y = (s.y + WORLD_H / 2) * sx;
-    const r = Math.max(5, s.d * 0.5 * (1 + reach) * sx);
-    const h = s.tone.h.toFixed(0);
-    const sat = Math.round(Math.max(55, s.tone.s * 100));
-    const lobes: Array<{ ox: number; oy: number; a: number }> = [
-      { ox: 0, oy: 0, a: 1 },
-      { ox: Math.cos(randStop(s.name, 9) * 6.283) * 0.3, oy: Math.sin(randStop(s.name, 9) * 6.283) * 0.3, a: 0.5 },
-      { ox: Math.cos(randStop(s.name, 10) * 6.283) * 0.3, oy: Math.sin(randStop(s.name, 10) * 6.283) * 0.3, a: 0.4 },
-    ];
-    for (const lobe of lobes) {
-      const lx = x + lobe.ox * r;
-      const ly = y + lobe.oy * r;
-      const g = ctx.createRadialGradient(lx, ly, 0, lx, ly, r);
-      g.addColorStop(0, `hsla(${h}, ${sat}%, 66%, ${(0.4 * inten * lobe.a).toFixed(3)})`);
-      g.addColorStop(0.4, `hsla(${h}, ${sat}%, 60%, ${(0.2 * inten * lobe.a).toFixed(3)})`);
-      g.addColorStop(0.75, `hsla(${h}, ${sat}%, 54%, ${(0.07 * inten * lobe.a).toFixed(3)})`);
-      g.addColorStop(1, `hsla(${h}, ${sat}%, 50%, 0)`);
-      ctx.fillStyle = g;
-      ctx.fillRect(lx - r, ly - r, r * 2, r * 2);
-    }
-  }
+  for (const s of stars) paintStar(ctx, sx, s);
   for (const sp of sparks) paintSparkGlow(ctx, sx, sp);
 }
 
@@ -914,8 +955,10 @@ function rebuildSky(): void {
     const rand = mulberry32((hashName(name) ^ 0x9e3779b9) >>> 0);
     const angle = (angles.get(name) ?? 0) + (rand() - 0.5) * 2 * ANGLE_NOISE;
     const orbit = weightAt(count) * growth * (1 + (rand() - 0.5) * SCATTER);
-    const ex = Math.cos(angle) * orbit;
-    const ey = Math.sin(angle) * orbit * WORLD_SQUASH;
+    const lobed =
+      orbit * (1 + 0.16 * Math.sin(2 * angle + 1.3) + 0.11 * Math.sin(3 * angle + 4.1));
+    const ex = Math.cos(angle) * lobed;
+    const ey = Math.sin(angle) * lobed * WORLD_SQUASH;
     stars.push({
       name,
       count,
@@ -1029,15 +1072,10 @@ function rebuildSky(): void {
     star.style.left = `${(s.x + WORLD_W / 2).toFixed(1)}px`;
     star.style.top = `${(s.y + WORLD_H / 2).toFixed(1)}px`;
     star.style.setProperty('--d', s.d.toFixed(1));
-    const coreStop = 34 + randStop(s.name, 0) * 10;
-    const rimStop = 58 + randStop(s.name, 1) * 8;
     const hotS = 28 + randStop(s.name, 4) * 26;
     const hotL = (s.major ? 96 : 92) + randStop(s.name, 5) * (s.major ? 3 : 5);
-    star.style.setProperty('--corestop', coreStop.toFixed(1));
-    star.style.setProperty('--rimstop', rimStop.toFixed(1));
     star.style.setProperty('--hot', `hsl(${h} ${Math.round(hotS)}% ${hotL.toFixed(0)}%)`);
     star.style.setProperty('--body', `hsl(${h} ${sat}% 64%)`);
-    star.style.setProperty('--rim', `hsl(${h} ${Math.min(100, sat + 12)}% 78%)`);
     star.classList.add('breathe');
     star.style.setProperty('--bdur', `${(4.5 + randStop(s.name, 11) * 4).toFixed(2)}s`);
     star.style.setProperty('--bdel', `${(-randStop(s.name, 12) * 9).toFixed(2)}s`);
