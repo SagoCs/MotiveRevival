@@ -37,7 +37,6 @@ uniform vec4  uMoteData[12];
 out vec4 fragColor;
 
 const float TAU = 6.283185307179586;
-const float TAIL_FLOOR = 0.0006;
 
 float hash11(float n) { return fract(sin(n * 127.1 + uSeed * 311.7) * 43758.5453123); }
 vec3  hash31(float n) { return vec3(hash11(n), hash11(n + 17.17), hash11(n + 43.43)); }
@@ -46,12 +45,10 @@ float pxHash(vec2 p)  { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.
 vec3 corona(float r) {
   float R = max(uRadiusPx, 0.75);
   float g = uGlowGain;
-  vec3 ct = mix(uColBloom, uColBody, 0.35);
-  float q1 = r / max(R * 1.6, 1.0);
-  vec3 c = ct * (g / pow(1.0 + q1 * q1, 6.0));
-  float q2 = r / max(R * 4.5, 1.0);
-  c += ct * (g * 0.22 / pow(1.0 + q2 * q2, 6.0));
-  return max(c - TAIL_FLOOR, vec3(0.0));
+  vec3 ct = mix(uColBloom, uColBody, 0.25);
+  float q = r / max(R * 1.6, 1.0);
+  float fade = exp(-pow(r / (R * 4.6), 2.2));
+  return ct * (g * 0.9 * fade / pow(1.0 + q * q, 4.0));
 }
 
 void main() {
