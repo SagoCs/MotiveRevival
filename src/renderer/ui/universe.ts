@@ -1,4 +1,20 @@
 import '../styles/universe.css';
+import { libraryStore } from '../core/libraryStore';
+import { player } from '../core/player';
+import { appBus } from '../core/appBus';
+import { primaryOf } from '../core/searchIndex';
+import { hashName, hexToHsl, mulberry32, type StarSeedInput } from '../universe/starParams';
+import {
+  mountStarfield,
+  resizeStarfield,
+  setStar,
+  updateStarCamera,
+  wakeStarfield,
+  parkStarfield,
+  refreshStarfieldMotion,
+} from '../universe/starfield';
+
+export { hashName, mulberry32 } from '../universe/starParams';
 
 const WORLD_W = 3600;
 const WORLD_H = 2200;
@@ -42,25 +58,6 @@ let viewRect: { width: number; height: number } | null = null;
 
 const cam = { x: 0, y: 0, z: 1 };
 const target = { x: 0, y: 0, z: 1 };
-
-export function hashName(text: string): number {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < text.length; i += 1) {
-    h ^= text.charCodeAt(i);
-    h = Math.imul(h, 0x01000193);
-  }
-  return h >>> 0;
-}
-
-export function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 export function weightAt(count: number): number {
   return ORBIT_MAX - (Math.log10(Math.max(1, count)) / Math.log10(ABS_WEIGHT_MAX)) * (ORBIT_MAX - ORBIT_MIN);
@@ -169,8 +166,88 @@ export function layoutArtists(entries: Array<{ name: string; count: number }>): 
   return stars;
 }
 
-function clampPan(): void {
-  const halfW = (WORLD_W / 2) * 0.92;
+interface ArtistTally {
+  name: string;
+  count: number;
+  colors: Set<string>;
+  albums: Map<string, { count: number; year: number }>;
+}
+
+function toneOf(colors: Iterable<string>): { h: number; s: number } {
+  let best: { h: number; s: number; c: number } | null = null;
+  for (const hex of colors) {
+    const m = /^#([0-9a-f]{6})$/i.exec(hex.trim());
+    if (m === null || m[1] === undefined) continue;
+    const t = hexToHsl(m[1]);
+    if (t.l < 0.18 || t.l > 0.85) continue;
+    const c = (1 - Math.abs(t.l * 2 - 1)) * t.s;
+    if (best === null || c > best.c) best = { h: t.h, s: t.s, c };
+  }
+  if (best === null || best.c < 0.08) return { h: 226, s: 0.6 };
+  return { h: best.h, s: Math.min(0.95, Math.max(0.45, best.s)) };
+}
+
+function tallyArtists(): ArtistTally[] {
+  const result = libraryStore.result;
+  const groups = new Map<string, ArtistTally>();
+  if (result !== null && result.ok) {
+    for (const t of result.tracks) {
+      const name = primaryOf(t);
+      if (name === null || name.trim() === '') continue;
+      let g = groups.get(name);
+      if (g === undefined) {
+        g = { name, count: 0, colors: new Set<string>(), albums: new Map() };
+        groups.set(name, g);
+      }
+      g.count += 1;
+      if (t.palette !== null) for (const c of t.palette) g.colors.add(c);
+      const album = t.album;
+      if (album !== null && album.trim() !== '') {
+        const a = g.albums.get(album);
+        const year = t.year ?? 9999;
+        if (a === undefined) g.albums.set(album, { count: 1, year });
+        else {
+          a.count += 1;
+          if (year < a.year) a.year = year;
+        }
+      }
+    }
+  }
+  return [...groups.values()];
+}
+
+function refreshStar(): void {
+  const groups = tallyArtists();
+  if (groups.length === 0) {
+    setStar(null);
+    return;
+  }
+  const playing = player.currentTrack !== null ? primaryOf(player.currentTrack) : null;
+  let pick = playing !== null ? groups.find((g) => g.name === playing) : undefined;
+  if (pick === undefined) {
+    for (const g of groups) {
+      if (pick === undefined || g.count > pick.count) pick = g;
+    }
+  }
+  if (pick === undefined) {
+    setStar(null);
+    return;
+  }
+  const tone = toneOf(pick.colors);
+  const albums = [...pick.albums.values()]
+    .sort((a, b) => a.year - b.year || a.count - b.count)
+    .map((a) => a.count);
+  const seed: StarSeedInput = {
+    seed: hashName(pick.name),
+    hue: tone.h,
+    sat: tone.s,
+    mass: 0.45 + 1.15 * Math.min(1, Math.sqrt(pick.count) / 20),
+    albums,
+  };
+  setStar(seed);
+}
+
+function clampPan(): void {  const halfW = (WORLD_W / 2) * 0.92;
   const halfH = (WORLD_H / 2) * 0.92;
   const camX = -target.x / target.z;
   const camY = -target.y / target.z;
@@ -193,6 +270,7 @@ function tick(): void {
   cam.y += (target.y - cam.y) * EASE;
   cam.z += (target.z - cam.z) * EASE;
   applyCamera();
+  updateStarCamera(cam.x, cam.y, cam.z);
   if (
     Math.abs(target.x - cam.x) < PARK_EPSILON &&
     Math.abs(target.y - cam.y) < PARK_EPSILON &&
@@ -202,6 +280,7 @@ function tick(): void {
     cam.y = target.y;
     cam.z = target.z;
     applyCamera();
+    updateStarCamera(cam.x, cam.y, cam.z);
     raf = 0;
     return;
   }
@@ -232,6 +311,12 @@ function refreshRect(): void {
   if (surface === null) return;
   const r = surface.getBoundingClientRect();
   viewRect = { width: r.width, height: r.height };
+  resizeStarfield(r.width, r.height);
+}
+
+function syncMotion(): void {
+  if (active) refreshStarfieldMotion();
+  else parkStarfield();
 }
 
 function buildSurface(): HTMLElement {
@@ -239,6 +324,7 @@ function buildSurface(): HTMLElement {
   section.id = 'universe';
   section.setAttribute('aria-label', 'Universe view');
   section.hidden = true;
+  mountStarfield(section);
 
   section.addEventListener('wheel', (e) => {
     e.preventDefault();
@@ -277,7 +363,20 @@ export function initUniverse(): void {
   document.body.append(surface);
   refreshRect();
   applyCamera();
-  window.addEventListener('resize', refreshRect);
+  refreshStar();
+  window.addEventListener('resize', () => {
+    refreshRect();
+    updateStarCamera(cam.x, cam.y, cam.z);
+  });
+  appBus.on('track-selected', () => {
+    refreshStar();
+    updateStarCamera(cam.x, cam.y, cam.z);
+  });
+  appBus.on('motion-flags', syncMotion);
+  libraryStore.onChange(() => {
+    refreshStar();
+    updateStarCamera(cam.x, cam.y, cam.z);
+  });
 }
 
 export function setUniverseVisible(on: boolean): void {
@@ -288,9 +387,14 @@ export function setUniverseVisible(on: boolean): void {
   document.body.classList.toggle('universe-active', on);
   if (on) {
     refreshRect();
+    refreshStar();
+    wakeStarfield();
     wake();
-  } else if (raf !== 0) {
-    window.cancelAnimationFrame(raf);
-    raf = 0;
+  } else {
+    parkStarfield();
+    if (raf !== 0) {
+      window.cancelAnimationFrame(raf);
+      raf = 0;
+    }
   }
 }
