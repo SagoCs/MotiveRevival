@@ -89,7 +89,8 @@ void main() {
       float z = dot(v, uCamFwd);
       if (z <= 0.1) continue;
       vec2 off = vec2(dot(v, uCamRight) / (z * uTanHalfFov * uAspect),
-                      dot(v, uCamUp)    / (z * uTanHalfFov)) * uResolution * 0.5;
+                      dot(v, uCamUp)    / (z * uTanHalfFov)) * uResolution * 0.5
+               - (uCenterPx - uResolution * 0.5);
       vec2 mr = fragPx - (uCenterPx + off);
       float heartR = R * 0.42 + 0.6;
       float heartFade = smoothstep(heartR * 0.75, heartR * 1.15, length(fragPx - uCenterPx));
