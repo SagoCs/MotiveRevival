@@ -165,7 +165,9 @@ const report = await evalJs(`JSON.stringify({
   title: document.title,
   canvas: (() => { const c = document.querySelector('#lab-canvas'); return c ? c.clientWidth + 'x' + c.clientHeight + ' dev ' + c.width + 'x' + c.height : null; })(),
   lab: window.__lab ? window.__lab.ok : null,
-  labVariant: window.__lab ? window.__lab.variant : null,
+  population: window.__lab ? window.__lab.population : null,
+  glErrors: window.__lab ? JSON.stringify(window.__lab.glErrors ?? []) : null,
+  preset: window.__lab ? window.__lab.preset : null,
   labError: window.__lab && window.__lab.error ? window.__lab.error : null
 })`);
 console.log('boot report:', report);
@@ -182,58 +184,116 @@ const capture = async () => {
   if (!r?.data) throw new Error('no screenshot data');
   return Buffer.from(r.data, 'base64');
 };
-const shotAt = async (name, expectZoom) => {
+const shotAt = async (name, expectZoom, centerHero = false) => {
   let mNow = await readMetrics();
-  const offCenter = Math.abs(mNow.x - 800) > 3 || Math.abs(mNow.y - 450) > 3;
+  const offCenter = centerHero
+    ? Math.abs(mNow.x - 800) > 3 || Math.abs(mNow.y - 450) > 3
+    : Math.abs(mNow.camX - 105) > 0.5 || Math.abs(mNow.camY - 67.5) > 0.5;
   if (Math.abs(mNow.zoom - expectZoom) > 0.01 || offCenter) {
-    console.log(`state race at ${name} (zoom ${mNow.zoom.toFixed(3)}), resetting and retaking`);
-    await evalJs(`window.__lab.resetView(); window.__lab.setZoom(${expectZoom})`);
+    console.log(`state adjust at ${name} (zoom ${mNow.zoom.toFixed(3)}), resetting`);
+    const focus = centerHero ? 'window.__lab.focusLargest(); ' : 'window.__lab.resetView(); ';
+    await evalJs(`${focus}window.__lab.setZoom(${expectZoom})`);
     await sleep(700);
     mNow = await readMetrics();
   }
+  await capture();
+  await sleep(150);
   const png = await capture();
   fs.writeFileSync(`${root}\\sandbox\\${name}.png`, png);
   return { img: decode(png), m: mNow };
 };
 
-const farShot = await shotAt('boot-far', 0.08);
-await sleep(500);
-console.log('--- far tier (zoom 0.08) ---');
-console.log('star center:', JSON.stringify(lumAt(farShot.img, 800, 450)));
+const heroCount = (img) => {
+  let n = 0;
+  for (let y = 0; y < img.height; y += 3) {
+    for (let x = 0; x < img.width; x += 3) {
+      const i = y * img.stride + x * 3;
+      const l = 0.2126 * img.px[i] + 0.7152 * img.px[i + 1] + 0.0722 * img.px[i + 2];
+      if (l > 60) n++;
+    }
+  }
+  return n;
+};
+
+await evalJs('window.__lab.debugAtlas = 2');
+await sleep(800);
+await shotAt('boot-baketex', 0.09);
+await evalJs('window.__lab.debugAtlas = 3');
+await sleep(800);
+await shotAt('boot-solid', 0.09);
+await evalJs('window.__lab.debugAtlas = 1');
+await sleep(800);
+await shotAt('boot-atlas', 0.09);
+await evalJs('window.__lab.debugAtlas = false');
+console.log('captured atlas dump');
+
+const farShot = await shotAt('boot-far', 0.09);
+await sleep(400);
+const fm = await readMetrics();
+console.log('--- sky far (zoom 0.09) ---');
+console.log('largest star screen pos:', JSON.stringify(fm));
+console.log('star center:', JSON.stringify(lumAt(farShot.img, fm.x, fm.y)));
 console.log('corner:', JSON.stringify(lumAt(farShot.img, 32, 18)));
+console.log('bright pixels (stars+field):', heroCount(farShot.img));
+console.log('per-star centers:', await evalJs('JSON.stringify(window.__lab.glErrors.slice(0, 6))'));
 
-const midShot = await shotAt('boot-mid', 1.0);
-const m = midShot.m;
-const sx = m.x;
-const sy = m.y;
-console.log('--- mid tier (zoom ' + m.zoom.toFixed(2) + ', body ' + Math.round(m.bodyPx) + 'px) ---');
-console.log('core:', JSON.stringify(lumAt(midShot.img, sx, sy)));
-const ringX = sx + Math.cos(Math.PI / 8) * m.bodyPx * 1.6;
-const ringY = sy - Math.sin(Math.PI / 8) * m.bodyPx * 1.6;
-console.log('bloom ring 1.6r@22.5deg:', JSON.stringify(lumAt(midShot.img, ringX, ringY)));
-console.log('corner:', JSON.stringify(lumAt(midShot.img, 32, 18)));
-
-const closeShot = await shotAt('boot-close', 3.5);
-const mc = closeShot.m;
-console.log('--- close tier (zoom ' + mc.zoom.toFixed(2) + ', body ' + Math.round(mc.bodyPx) + 'px) ---');
-console.log('core:', JSON.stringify(lumAt(closeShot.img, mc.x, mc.y)));
-const cx1 = mc.x + Math.cos(Math.PI / 8) * mc.bodyPx * 0.85;
-const cy1 = mc.y - Math.sin(Math.PI / 8) * mc.bodyPx * 0.85;
-console.log('body mid-edge 0.85r@22.5deg:', JSON.stringify(lumAt(closeShot.img, cx1, cy1)));
-const cx2 = mc.x + Math.cos(Math.PI / 8) * mc.bodyPx * 1.5;
-const cy2 = mc.y - Math.sin(Math.PI / 8) * mc.bodyPx * 1.5;
-console.log('outside 1.5r@22.5deg:', JSON.stringify(lumAt(closeShot.img, cx2, cy2)));
-
-for (const mode of [0, 1, 2]) {
-  await evalJs('window.__lab.resetView(); window.__lab.setZoom(1.0)');
-  await sleep(300);
-  await evalJs(`window.__lab.setParam('bodyMode', ${mode})`);
-  await sleep(500);
-  await capture();
-  await sleep(200);
-  await shotAt('boot-body' + mode, 1.0);
-  console.log('captured body mode ' + mode);
+await evalJs('window.__lab.debugFull = true');
+await sleep(600);
+const dbgPng = await capture();
+fs.writeFileSync(`${root}\\sandbox\\boot-debugfull.png`, dbgPng);
+await evalJs('window.__lab.debugFull = false');
+await sleep(400);
+console.log('captured debug full draw');
+const pngA = await capture();
+fs.writeFileSync(`${root}\\sandbox\\boot-mid-nodust.png`, pngA);
+await evalJs('window.__lab.setParam("sky.dustGain", 0.9)');
+await sleep(500);
+const pngB = await capture();
+fs.writeFileSync(`${root}\\sandbox\\boot-mid-dust.png`, pngB);
+const imgA = decode(pngA);
+const imgB = decode(pngB);
+let diff = 0;
+let minX = 9999, maxX = -1, minY = 9999, maxY = -1;
+for (let y = 0; y < imgB.height; y += 2) {
+  for (let x = 0; x < imgB.width; x += 2) {
+    const i = y * imgA.stride + x * 3;
+    const la = 0.2126 * imgA.px[i] + 0.7152 * imgA.px[i + 1] + 0.0722 * imgA.px[i + 2];
+    const lb = 0.2126 * imgB.px[i] + 0.7152 * imgB.px[i + 1] + 0.0722 * imgB.px[i + 2];
+    if (Math.abs(la - lb) > 8) {
+      diff++;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+  }
 }
+console.log('--- sky mid (zoom 0.5) ---');
+console.log('dust-only pixels:', diff, 'bounds x', minX, '-', maxX, ' y', minY, '-', maxY);
+console.log('corner:', JSON.stringify(lumAt(imgB, 32, 18)));
+
+await evalJs('window.__lab.focusLargest && window.__lab.focusLargest()');
+await sleep(600);
+const closeShot = await shotAt('boot-close', 1.6, true);
+const mc = closeShot.m;
+console.log('--- hero close (zoom 1.6, hero ' + Math.round(mc.x) + ',' + Math.round(mc.y) + ') ---');
+console.log('hero center:', JSON.stringify(lumAt(closeShot.img, mc.x, mc.y)));
+const ringX = mc.x + Math.cos(Math.PI / 8) * mc.bodyPx * 1.6;
+const ringY = mc.y - Math.sin(Math.PI / 8) * mc.bodyPx * 1.6;
+console.log('bloom ring 1.6r:', JSON.stringify(lumAt(closeShot.img, ringX, ringY)));
+console.log('corner:', JSON.stringify(lumAt(closeShot.img, 32, 18)));
+
+await evalJs('window.__lab.setPreset(120)');
+await sleep(1200);
+const bigShot = await shotAt('boot-sky120', 0.14);
+console.log('--- 120 roster ---');
+console.log('population now:', await evalJs('window.__lab.population'));
+console.log('bright pixels:', heroCount(bigShot.img));
+console.log('corner:', JSON.stringify(lumAt(bigShot.img, 32, 18)));
+await evalJs('window.__lab.setPreset(40)');
+await sleep(800);
+await evalJs('window.__lab.setParam("sky.dustGain", 0.8)');
+await sleep(400);
 
 console.log('--- captured errors ---');
 console.log(errors.join('\n---\n') || 'none');

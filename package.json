@@ -13,6 +13,8 @@
     "test": "node scripts/test.mjs",
     "build:sandbox": "tsc -p sandbox/universe --noEmit && node scripts/build-sandbox.mjs",
     "sandbox": "npm run build:sandbox && electron sandbox/dist/main.js",
+    "build:space": "tsc -p sandbox/space --noEmit && node scripts/build-space.mjs",
+    "sandbox:3d": "npm run build:space && electron sandbox/dist3d/main.js",
     "probe:sandbox": "node scripts/probe-sandbox.mjs"
   },
   "dependencies": {

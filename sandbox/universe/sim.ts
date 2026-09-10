@@ -4,87 +4,85 @@ import './sim.css';
 import { createRenderer, type Renderer } from './gl';
 import { STAR_FRAG, STAR_VERT } from './starShaders';
 
-type Recipe = {
-  exposure: number;
-  hue: number;
-  heat: number;
-  bloomShift: number;
-  heartShift: number;
-  heartMix: number;
-  coreScale: number;
+type StarLook = {
   bodyScale: number;
-  bodyMode: number;
-  rim: number;
-  bloomRadius: [number, number, number];
-  bloomGain: [number, number, number];
-  prongs: number;
+  prongCount: number;
   spikeLength: number;
-  spikeWidth: number;
-  spikeGain: number;
-  spikeAngle: number;
-  disperse: number;
-  facetGain: number;
-  sparkles: number;
-  sparkleGain: number;
-  sparkleSize: number;
-  shimmer: number;
-  flicker: number;
-  drift: number;
-  fieldDensity: number;
-  fieldGain: number;
+  fuse: number;
+  hue: number;
+  sat: number;
+  motes: number;
+  orientation: number;
+  spinSpeed: number;
 };
 
-const BASE_PX = 150;
-const MAX_SPARKLES = 28;
-const MAX_PRONGS = 12;
+type SkyParams = {
+  clusters: number;
+  corridor: number;
+  minGap: number;
+  roster: number;
+  dustGain: number;
+  fieldDensity: number;
+  fieldGain: number;
+  farGain: number;
+  bloomGain: number;
+  spikeGain: number;
+  moteGain: number;
+};
+
+const BASE_PX = 90;
+const MAX_SPARKLES = 14;
+const BOX_FLOOR_DPR = 96;
 const ZOOM_MIN = 0.06;
-const ZOOM_MAX = 60;
-const STORE_KEY = 'universe-lab-v5';
-const RECIPE_SCHEMA = 5;
+const ZOOM_MAX = 8;
+const WORLD_W = 210;
+const WORLD_H = 135;
+const STORE_KEY = 'universe-lab-v10';
+const RECIPE_SCHEMA = 10;
 
-const VARIANTS: { name: string; recipe: Recipe }[] = [
-  {
-    name: 'crystal',
-    recipe: {
-      exposure: 1.5, hue: 208, heat: 0.6, bloomShift: -14, heartShift: 34, heartMix: 0.65,
-      coreScale: 0.22, bodyScale: 0.75, bodyMode: 2, rim: 0.55,
-      bloomRadius: [1.9, 1.9, 5.5], bloomGain: [0.4, 0.06, 0.007],
-      prongs: 10, spikeLength: 3.6, spikeWidth: 1.3, spikeGain: 0.4, spikeAngle: 0, disperse: 0.7,
-      facetGain: 0.3, sparkles: 14, sparkleGain: 0.65, sparkleSize: 1.9, shimmer: 0, flicker: 0, drift: 0,
-      fieldDensity: 0.5, fieldGain: 0.8,
-    },
-  },
-  {
-    name: 'nova',
-    recipe: {
-      exposure: 1.5, hue: 40, heat: 0.75, bloomShift: -8, heartShift: -18, heartMix: 0.45,
-      coreScale: 0.26, bodyScale: 0.8, bodyMode: 0, rim: 0.3,
-      bloomRadius: [1.7, 1.8, 5], bloomGain: [0.5, 0.09, 0.01],
-      prongs: 8, spikeLength: 3.4, spikeWidth: 1.5, spikeGain: 0.3, spikeAngle: 0, disperse: 0.3,
-      facetGain: 0.1, sparkles: 9, sparkleGain: 0.4, sparkleSize: 2.3, shimmer: 0, flicker: 0, drift: 0,
-      fieldDensity: 0.45, fieldGain: 0.7,
-    },
-  },
-  {
-    name: 'ember',
-    recipe: {
-      exposure: 1.4, hue: 16, heat: 0.35, bloomShift: 6, heartShift: -40, heartMix: 0.55,
-      coreScale: 0.2, bodyScale: 0.78, bodyMode: 2, rim: 1.0,
-      bloomRadius: [1.6, 1.8, 5], bloomGain: [0.45, 0.09, 0.011],
-      prongs: 12, spikeLength: 3.6, spikeWidth: 1.6, spikeGain: 0.45, spikeAngle: 0, disperse: 0.5,
-      facetGain: 0.25, sparkles: 10, sparkleGain: 0.5, sparkleSize: 2.2, shimmer: 0, flicker: 0, drift: 0,
-      fieldDensity: 0.4, fieldGain: 0.6,
-    },
-  },
-];
+type RGB = [number, number, number];
 
-function hslToRgb(h: number, s: number, l: number): [number, number, number] {
+type Artist = {
+  name: string;
+  hash: number;
+  bodyScale: number;
+  prongCount: number;
+  spikeLength: number;
+  fuse: number;
+  hue: number;
+  sat: number;
+  motes: number;
+  orientation: number;
+  spinSpeed: number;
+  court: Float32Array;
+  prongs: Float32Array;
+  cols: { core: RGB; body: RGB; bloom: RGB; heart: RGB; rim: RGB };
+  x: number;
+  y: number;
+  gapR: number;
+  coverage: number;
+};
+
+function hslToRgb(h: number, s: number, l: number): RGB {
   const c = (1 - Math.abs(2 * l - 1)) * s;
   const hp = (((h % 360) + 360) % 360) / 60;
   const x = c * (1 - Math.abs((hp % 2) - 1));
   const rgb = hp < 1 ? [c, x, 0] : hp < 2 ? [x, c, 0] : hp < 3 ? [0, c, x] : hp < 4 ? [0, x, c] : hp < 5 ? [x, 0, c] : [c, 0, x];
   const m = l - c / 2;
   return [rgb[0]! + m, rgb[1]! + m, rgb[2]! + m];
+}
+
+function mix3(a: RGB, b: RGB, t: number): RGB {
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+}
+
+function hashName(name: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < name.length; i++) {
+    h ^= name.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
 }
 
 function mulberry32(seed: number): () => number {
@@ -95,6 +93,42 @@ function mulberry32(seed: number): () => number {
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
+}
+
+const SYLLABLES = ['mi', 'ka', 'ru', 'sen', 'va', 'lo', 'thi', 'ra', 'el', 'no', 'dra', 'su', 'yne', 'cal', 'or', 'ash', 'bel', 'tir', 'ume', 'qua', 'fen', 'zil', 'mor', 'hei', 'lun', 'cir', 'vex', 'ola', 'nyx', 'pet'];
+
+function makeName(rand: () => number): string {
+  const n = 2 + Math.floor(rand() * 2);
+  let s = '';
+  for (let i = 0; i < n; i++) s += SYLLABLES[Math.floor(rand() * SYLLABLES.length)];
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function layoutProngs(seed: number, count: number): Float32Array {
+  const pr = mulberry32(seed ^ 0x9e3779b9);
+  const order = 0.35 + 0.5 * Math.pow(pr(), 1.35);
+  const jitter = 0.4 - 0.33 * order;
+  const hierarchy = 0.85 - 0.4 * order;
+  const minLen = 0.25 + 0.3 * order;
+  const nonDomMax = Math.max(minLen + 0.05, hierarchy * 0.92);
+  const step = (Math.PI * 2) / Math.max(1, count);
+  const data = new Float32Array(12 * 4);
+  for (let i = 0; i < 12; i++) {
+    let lenFactor = 0;
+    if (i >= count) {
+      lenFactor = 0;
+    } else if (i < 2) {
+      lenFactor = hierarchy * (0.95 + 0.05 * pr());
+    } else {
+      lenFactor = minLen + (nonDomMax - minLen) * Math.pow(pr(), 1.3) + (pr() - 0.5) * 0.06;
+    }
+    lenFactor = Math.min(1, Math.max(0.2, lenFactor));
+    data[i * 4] = i * step + (pr() - 0.5) * 2 * jitter;
+    data[i * 4 + 1] = lenFactor;
+    data[i * 4 + 2] = 0.75 + 0.6 * pr();
+    data[i * 4 + 3] = i < count ? 0.55 + 0.45 * pr() : 0;
+  }
+  return data;
 }
 
 const boot = (): void => {
@@ -118,153 +152,268 @@ const boot = (): void => {
   }
   const r: Renderer = result.renderer;
 
-  const rand = mulberry32(1337);
-  const jitter = Array.from({ length: MAX_SPARKLES }, () => [rand(), rand(), rand(), rand(), rand(), rand(), rand()] as const);
-  const prongRand = mulberry32(4242);
-  const prongData = new Float32Array(MAX_PRONGS * 4);
-  for (let i = 0; i < MAX_PRONGS; i++) {
-    const angle = (i / MAX_PRONGS) * Math.PI * 2 + (prongRand() - 0.5) * 0.35;
-    const lenFactor = i < 2 ? 0.85 + 0.15 * prongRand() : 0.3 + 0.55 * Math.pow(prongRand(), 1.4);
-    const widthFactor = 0.75 + 0.6 * prongRand();
-    const gainFactor = 0.55 + 0.45 * prongRand();
-    prongData[i * 4] = angle;
-    prongData[i * 4 + 1] = lenFactor;
-    prongData[i * 4 + 2] = widthFactor;
-    prongData[i * 4 + 3] = gainFactor;
-  }
-
   const saved = (() => {
     try {
       const raw = localStorage.getItem(STORE_KEY);
-      const parsed = raw ? (JSON.parse(raw) as { schema?: number; variant?: number; recipe?: Partial<Recipe> }) : null;
+      const parsed = raw ? (JSON.parse(raw) as { schema?: number; sky?: Partial<SkyParams> }) : null;
       return parsed && parsed.schema === RECIPE_SCHEMA ? parsed : null;
     } catch {
       return null;
     }
   })();
 
-  let variantIndex = saved?.variant !== undefined && VARIANTS[saved.variant] ? saved.variant : 0;
-  let recipe: Recipe = {
-    ...structuredClone(VARIANTS[variantIndex]!.recipe),
-    ...(saved?.recipe ?? {}),
+  const sky: SkyParams = {
+    clusters: 5, corridor: 1.1, minGap: 1.6, roster: 40, dustGain: 1.0, fieldDensity: 0.5, fieldGain: 0.8, farGain: 0.3, bloomGain: 0.55, spikeGain: 1.3, moteGain: 1.15,
+    ...(saved?.sky ?? {}),
   };
 
   let dpr = Math.max(1, window.devicePixelRatio || 1);
   let zoom = 1;
-  let camX = 0;
-  let camY = 0;
+  let camX = WORLD_W / 2;
+  let camY = WORLD_H / 2;
   let driftAngle = 0;
   let dirty = true;
-  const hueCache = {
-    hue: -1, shift: -999, heartShift: -999, heat: -1,
-    core: [0, 0, 0] as [number, number, number],
-    body: [0, 0, 0] as [number, number, number],
-    bloom: [0, 0, 0] as [number, number, number],
-    heart: [0, 0, 0] as [number, number, number],
-    rim: [0, 0, 0] as [number, number, number],
-    sparkA: [0, 0, 0] as [number, number, number],
-    sparkB: [0, 0, 0] as [number, number, number],
-  };
+  const glErrors: string[] = [];
 
   const pxPerUnitDevice = (): number => BASE_PX * dpr * zoom;
-  const bodyPxDevice = (): number => recipe.bodyScale * pxPerUnitDevice();
 
-  const sparkleData = new Float32Array(MAX_SPARKLES * 4);
-  const sparkleMeta = new Float32Array(MAX_SPARKLES * 4);
-  const layoutSparkles = (): void => {
-    const ring = bodyPxDevice();
-    for (let i = 0; i < MAX_SPARKLES; i++) {
-      const j = jitter[i]!;
-      const band = 1.45 + 2.5 * j[0]!;
-      const theta = j[1]! * Math.PI * 2 + band * 2.4 + driftAngle * (0.4 + j[2]! * 0.8);
-      const size = recipe.sparkleSize * dpr * (0.7 + 0.6 * j[3]!);
-      sparkleData[i * 4] = Math.cos(theta) * band * ring;
-      sparkleData[i * 4 + 1] = Math.sin(theta) * band * ring;
-      sparkleData[i * 4 + 2] = size;
-      sparkleData[i * 4 + 3] = j[4]!;
-      sparkleMeta[i * 4] = j[5]!;
-      sparkleMeta[i * 4 + 1] = j[6]!;
-      sparkleMeta[i * 4 + 2] = j[1]!;
-      sparkleMeta[i * 4 + 3] = 0;
+  type Cluster = { x: number; y: number; sigma: number; strength: number };
+  let clusters: Cluster[] = [];
+  let corridorAngle = 0;
+  let artists: Artist[] = [];
+
+  const buildClusters = (): void => {
+    const pr = mulberry32(777);
+    clusters = [];
+    const n = Math.round(sky.clusters);
+    for (let i = 0; i < n; i++) {
+      clusters.push({
+        x: 15 + pr() * (WORLD_W - 30),
+        y: 15 + pr() * (WORLD_H - 30),
+        sigma: 14 + pr() * 26,
+        strength: 0.7 + pr() * 0.9,
+      });
+    }
+    corridorAngle = pr() * Math.PI;
+  };
+
+  const densityAt = (x: number, y: number): number => {
+    let d = 1;
+    for (const c of clusters) {
+      const dx = x - c.x;
+      const dy = y - c.y;
+      d += c.strength * Math.exp(-(dx * dx + dy * dy) / (2 * c.sigma * c.sigma));
+    }
+    const cosA = Math.cos(corridorAngle);
+    const sinA = Math.sin(corridorAngle);
+    const dPerp = -sinA * (x - WORLD_W / 2) + cosA * (y - WORLD_H / 2);
+    d += sky.corridor * Math.exp(-(dPerp * dPerp) / 968);
+    return d;
+  };
+
+  const maxDensity = (): number => 1 + Math.round(sky.clusters) * 1.6 + sky.corridor;
+
+  const buildRoster = (): void => {
+    const pr = mulberry32(20260908);
+    const count = Math.round(sky.roster);
+    const raw: Artist[] = [];
+    for (let i = 0; i < count; i++) {
+      const name = makeName(pr);
+      const hash = hashName(name);
+      const ph = mulberry32(hash);
+      const massRank = Math.pow(pr(), 2.6);
+      const prongCount = 6 + Math.floor(ph() * 5);
+      raw.push({
+        name,
+        hash,
+        bodyScale: 0.28 + massRank * 0.55,
+        prongCount,
+        spikeLength: 2.4 + ph() * 1.0,
+        fuse: 0.4 + ph() * 0.4,
+        hue: [20, 45, 200, 262, 330][Math.floor(ph() * 5) % 5]! + (ph() - 0.5) * 24,
+        sat: 0.3 + ph() * 0.25,
+        motes: 6 + Math.floor(ph() * 6),
+        orientation: (ph() - 0.5) * 0.7,
+        spinSpeed: (ph() - 0.5) * 0.02,
+        court: new Float32Array(0),
+        prongs: layoutProngs(hash, prongCount),
+        cols: { core: [0, 0, 0], body: [0, 0, 0], bloom: [0, 0, 0], heart: [0, 0, 0], rim: [0, 0, 0] },
+        x: 0,
+        y: 0,
+        gapR: 0,
+        coverage: 0,
+      });
+    }
+    raw.sort((a, b) => b.bodyScale - a.bodyScale);
+    for (const a of raw) {
+      a.gapR = a.bodyScale * 2.2 + 1.2;
+      a.coverage = a.bodyScale * (Math.max(a.spikeLength, 3.2) + 1.9);
+      const body = hslToRgb(a.hue, a.sat, 0.62);
+      a.cols.body = body;
+      a.cols.core = mix3(body, [1, 1, 1], 0.85);
+      a.cols.bloom = hslToRgb(a.hue - 10, 0.5, 0.6);
+      a.cols.heart = hslToRgb(a.hue + 30, 0.8, 0.62);
+      a.cols.rim = hslToRgb(a.hue + 26, 0.6, 0.74);
+    }
+    artists = raw;
+    placeArtists();
+  };
+
+  const placeArtists = (): void => {
+    const pr = mulberry32(555000 + Math.round(sky.roster));
+    const maxD = maxDensity();
+    const placed: Artist[] = [];
+    for (const a of artists) {
+      let bestX = 9 + pr() * (WORLD_W - 18);
+      let bestY = 9 + pr() * (WORLD_H - 18);
+      let bestScore = -1;
+      for (let t = 0; t < 260; t++) {
+        const x = 9 + pr() * (WORLD_W - 18);
+        const y = 9 + pr() * (WORLD_H - 18);
+        if (placed.length > 0 && pr() > densityAt(x, y) / maxD) continue;
+        let minDist = Infinity;
+        let blocked = false;
+        for (const p of placed) {
+          const dx = x - p.x;
+          const dy = y - p.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < sky.minGap * (a.gapR + p.gapR)) { blocked = true; break; }
+          if (dist < minDist) minDist = dist;
+        }
+        if (blocked) continue;
+        const score = minDist + densityAt(x, y) * 4;
+        if (score > bestScore) { bestScore = score; bestX = x; bestY = y; }
+        if (t > 40 || placed.length === 0) break;
+      }
+      a.x = bestX;
+      a.y = bestY;
+      placed.push(a);
     }
   };
 
-  const colors = (): void => {
-    if (hueCache.hue === recipe.hue && hueCache.shift === recipe.bloomShift && hueCache.heartShift === recipe.heartShift && hueCache.heat === recipe.heat) return;
-    const body = hslToRgb(recipe.hue, 0.66, 0.6);
-    const k = 0.75 + recipe.heat * 0.2;
-    const core: [number, number, number] = [body[0] + (1 - body[0]) * k, body[1] + (1 - body[1]) * k, body[2] + (1 - body[2]) * k];
-    const bloom = hslToRgb(recipe.hue + recipe.bloomShift, 0.74, 0.55);
-    const heart = hslToRgb(recipe.hue + recipe.heartShift, 0.8, 0.62);
-    const rim = hslToRgb(recipe.hue + recipe.heartShift * 0.6 + 16, 0.85, 0.72);
-    const sparkA = hslToRgb(recipe.hue - 22, 0.75, 0.72);
-    const sparkB = hslToRgb(recipe.hue + 30, 0.75, 0.74);
-    hueCache.hue = recipe.hue;
-    hueCache.shift = recipe.bloomShift;
-    hueCache.heartShift = recipe.heartShift;
-    hueCache.heat = recipe.heat;
-    hueCache.core = core;
-    hueCache.body = body;
-    hueCache.bloom = bloom;
-    hueCache.heart = heart;
-    hueCache.rim = rim;
-    hueCache.sparkA = sparkA;
-    hueCache.sparkB = sparkB;
+  const sparkScratch = new Float32Array(MAX_SPARKLES * 4);
+  const metaScratch = new Float32Array(MAX_SPARKLES * 4);
+
+  const draw = (time: number): void => {
+    const ppu = pxPerUnitDevice();
+    const hw = canvas.width / 2;
+    const hh = canvas.height / 2;
+
+    r.setBlend(false);
+    r.setViewport(0, 0, canvas.width, canvas.height);
+    r.setV2('uResolution', canvas.width, canvas.height);
+    r.setV2('uViewOrigin', 0, 0);
+    r.setF('uTime', time);
+    r.setV2('uCam', camX, camY);
+    r.setF('uPxPerUnit', ppu);
+    r.setF('uDpr', dpr);
+    r.setF('uExposure', 1.5);
+    r.setF('uStarGain', 0);
+    r.setF('uVoidGain', 1);
+    r.setF('uFieldDensity', sky.fieldDensity);
+    r.setF('uFieldGain', sky.fieldGain);
+    r.drawFullscreen();
+
+    r.setBlend(true);
+    const zoomClamp = Math.min(1, zoom);
+    const gainScale = sky.farGain + (1 - sky.farGain) * zoomClamp;
+    const farMix = 1 - zoomClamp;
+    let starDraws = 0;
+    for (const a of artists) {
+      const sxD = hw + (a.x - camX) * ppu;
+      const syD = hh + (a.y - camY) * ppu;
+      const half = Math.max(a.coverage * ppu, BOX_FLOOR_DPR * dpr);
+      if (sxD + half < 0 || sxD - half > canvas.width || syD + half < 0 || syD - half > canvas.height) continue;
+      let vx = Math.max(0, Math.floor(sxD - half));
+      let vy = Math.max(0, Math.floor(syD - half));
+      let vw = Math.min(canvas.width, Math.ceil(sxD + half)) - vx;
+      let vh = Math.min(canvas.height, Math.ceil(syD + half)) - vy;
+      if (labRecord['debugFull']) { vx = 0; vy = 0; vw = canvas.width; vh = canvas.height; }
+      if (vw <= 0 || vh <= 0) continue;
+      r.setViewport(vx, vy, vw, vh);
+      r.setV2('uResolution', vw, vh);
+      r.setV2('uViewOrigin', vx, vy);
+      r.setV2('uCam', (vx + vw / 2 - sxD) / ppu, (vy + vh / 2 - syD) / ppu);
+      r.setF('uTime', time);
+      r.setF('uPxPerUnit', ppu);
+      r.setF('uDpr', dpr);
+      r.setF('uExposure', 1.5);
+      r.setF('uStarGain', gainScale);
+      r.setF('uFarMix', farMix);
+      r.setF('uVoidGain', 0);
+      r.setV3('uColorCore', a.cols.core[0], a.cols.core[1], a.cols.core[2]);
+      r.setV3('uColorBody', a.cols.body[0], a.cols.body[1], a.cols.body[2]);
+      r.setV3('uColorBloom', a.cols.bloom[0], a.cols.bloom[1], a.cols.bloom[2]);
+      r.setV3('uColorHeart', a.cols.heart[0], a.cols.heart[1], a.cols.heart[2]);
+      r.setV3('uColorRim', a.cols.rim[0], a.cols.rim[1], a.cols.rim[2]);
+      r.setF('uCoreRadius', a.bodyScale * 0.3);
+      r.setF('uBodyRadius', a.bodyScale);
+      r.setF('uHeartMix', 0.3);
+      r.setV3('uBloomRadius', 1.7, 2.1, 5.5);
+      r.setV3('uBloomGain', 0.42 * Math.min(1, a.bodyScale * 2.4) * sky.bloomGain, 0.055, 0.007);
+      r.setF('uSpikeLength', a.spikeLength);
+      r.setF('uSpikeWidth', 1.3);
+      r.setF('uSpikeGain', 0.4 * sky.spikeGain);
+      r.setF('uSpikeAngle', a.orientation + time * a.spinSpeed);
+      r.setF('uOrientation', a.orientation);
+      r.setF('uFuse', a.fuse);
+      r.setF('uDisperse', 0.5);
+      r.setF('uFacetGain', 0.25);
+      r.setI('uProngCount', a.prongCount);
+      r.setV4Array('uProngs', a.prongs);
+      const ds = mulberry32(a.hash ^ 0x51ab);
+      const bodyPx = a.bodyScale * ppu;
+      let spikyCount = 0;
+      for (let i = 0; i < MAX_SPARKLES; i++) {
+        if (i >= a.motes) {
+          sparkScratch[i * 4 + 3] = -1;
+          continue;
+        }
+        const inner = ds() < 0.5;
+        const band = inner ? 1.3 + 0.5 * ds() : 1.9 + 1.0 * ds();
+        const phase = ds() * Math.PI * 2;
+        const speed = (0.02 + ds() * 0.06) * (ds() < 0.5 ? -1 : 1);
+        const ang = phase + speed * time;
+        sparkScratch[i * 4] = Math.cos(ang) * band * bodyPx;
+        sparkScratch[i * 4 + 1] = Math.sin(ang) * band * bodyPx;
+        sparkScratch[i * 4 + 2] = Math.max(1.6, bodyPx * 0.14 * (0.7 + ds() * 0.6));
+        sparkScratch[i * 4 + 3] = phase;
+        metaScratch[i * 4] = ds();
+        metaScratch[i * 4 + 1] = ds();
+        metaScratch[i * 4 + 2] = ds();
+        const spiky = ds() < 0.25 && spikyCount < 2;
+        if (spiky) spikyCount++;
+        metaScratch[i * 4 + 3] = spiky ? 1 : 0;
+      }
+      r.setI('uSparkleCount', a.motes);
+      r.setV4Array('uSparkles', sparkScratch);
+      r.setV4Array('uSparkMeta', metaScratch);
+      r.setF('uSparkleGain', 0.6 * sky.dustGain * sky.moteGain);
+      r.setF('uShimmer', 0.18);
+      r.setF('uFlicker', 0.06);
+      r.setF('uFieldDensity', 0);
+      r.setF('uFieldGain', 0);
+      starDraws++;
+      const e = r.gl.getError();
+      if (e !== 0 && glErrors.length < 6) glErrors.push('GL err after star draw: ' + e);
+      r.drawFullscreen();
+    }
+    const loopErr = r.gl.getError();
+    if (loopErr !== 0) glErrors.push('post-loop GL err: ' + loopErr);
+    if (starDraws !== artists.length) glErrors.push('drew ' + starDraws + ' of ' + artists.length);
+    r.setBlend(false);
   };
 
   const resize = (): void => {
     dpr = Math.max(1, window.devicePixelRatio || 1);
     canvas.width = Math.round(canvas.clientWidth * dpr);
     canvas.height = Math.round(canvas.clientHeight * dpr);
-    layoutSparkles();
     dirty = true;
-  };
-
-  const draw = (time: number): void => {
-    colors();
-    r.setV2('uResolution', canvas.width, canvas.height);
-    r.setF('uTime', time);
-    r.setV2('uCam', camX, camY);
-    r.setF('uPxPerUnit', pxPerUnitDevice());
-    r.setF('uDpr', dpr);
-    r.setF('uExposure', recipe.exposure);
-    r.setV3('uColorCore', hueCache.core[0], hueCache.core[1], hueCache.core[2]);
-    r.setV3('uColorBody', hueCache.body[0], hueCache.body[1], hueCache.body[2]);
-    r.setV3('uColorBloom', hueCache.bloom[0], hueCache.bloom[1], hueCache.bloom[2]);
-    r.setV3('uColorHeart', hueCache.heart[0], hueCache.heart[1], hueCache.heart[2]);
-    r.setV3('uColorRim', hueCache.rim[0], hueCache.rim[1], hueCache.rim[2]);
-    r.setV3('uSparkA', hueCache.sparkA[0], hueCache.sparkA[1], hueCache.sparkA[2]);
-    r.setV3('uSparkB', hueCache.sparkB[0], hueCache.sparkB[1], hueCache.sparkB[2]);
-    r.setF('uCoreRadius', recipe.coreScale);
-    r.setF('uBodyRadius', recipe.bodyScale);
-    r.setF('uBodyMode', recipe.bodyMode);
-    r.setF('uRim', recipe.rim);
-    r.setF('uHeartMix', recipe.heartMix);
-    r.setV3('uBloomRadius', recipe.bloomRadius[0], recipe.bloomRadius[1], recipe.bloomRadius[2]);
-    r.setV3('uBloomGain', recipe.bloomGain[0], recipe.bloomGain[1], recipe.bloomGain[2]);
-    r.setF('uSpikeLength', recipe.spikeLength);
-    r.setF('uSpikeWidth', recipe.spikeWidth);
-    r.setF('uSpikeGain', recipe.spikeGain);
-    r.setF('uSpikeAngle', (recipe.spikeAngle * Math.PI) / 180);
-    r.setF('uDisperse', recipe.disperse);
-    r.setF('uFacetGain', recipe.facetGain);
-    r.setI('uProngCount', Math.round(recipe.prongs));
-    r.setV4Array('uProngs', prongData);
-    r.setI('uSparkleCount', Math.round(recipe.sparkles));
-    r.setV4Array('uSparkles', sparkleData);
-    r.setV4Array('uSparkMeta', sparkleMeta);
-    r.setF('uSparkleGain', recipe.sparkleGain);
-    r.setF('uSparkleSize', recipe.sparkleSize);
-    r.setF('uShimmer', recipe.shimmer);
-    r.setF('uFlicker', recipe.flicker);
-    r.setF('uFieldDensity', recipe.fieldDensity);
-    r.setF('uFieldGain', recipe.fieldGain);
-    r.draw();
   };
 
   const save = (): void => {
     try {
-      localStorage.setItem(STORE_KEY, JSON.stringify({ schema: RECIPE_SCHEMA, variant: variantIndex, recipe }));
+      localStorage.setItem(STORE_KEY, JSON.stringify({ schema: RECIPE_SCHEMA, sky }));
     } catch {}
   };
 
@@ -276,63 +425,30 @@ const boot = (): void => {
   const readouts = new Map<string, HTMLElement>();
 
   const GROUPS: { title: string; rows: [string, string, number, number, number][] }[] = [
-    { title: 'Light', rows: [
-      ['exposure', 'Exposure', 0.4, 3, 0.01],
-      ['hue', 'Hue', 0, 360, 1],
-      ['heat', 'Core heat', 0, 1, 0.01],
-      ['bloomShift', 'Bloom hue shift', -60, 60, 1],
-      ['heartShift', 'Heart hue shift', -60, 60, 1],
-      ['heartMix', 'Heart mix', 0, 1, 0.01],
-    ] },
-    { title: 'Body', rows: [
-      ['bodyMode', 'Body mode', 0, 2, 0.01],
-      ['coreScale', 'Core radius', 0.05, 0.5, 0.005],
-      ['bodyScale', 'Body radius', 0.4, 2, 0.01],
-      ['rim', 'Rim light', 0, 1, 0.01],
-    ] },
-    { title: 'Bloom', rows: [
-      ['bloomRadius.0', 'Inner radius', 0.5, 14, 0.05],
-      ['bloomGain.0', 'Inner gain', 0, 2, 0.01],
-      ['bloomRadius.1', 'Mid radius', 0.5, 14, 0.05],
-      ['bloomGain.1', 'Mid gain', 0, 2, 0.01],
-      ['bloomRadius.2', 'Halo radius', 0.5, 14, 0.05],
-      ['bloomGain.2', 'Halo gain', 0, 2, 0.01],
-    ] },
-    { title: 'Prongs', rows: [
-      ['prongs', 'Prong count', 0, 12, 1],
-      ['spikeLength', 'Prong length', 0, 8, 0.05],
-      ['spikeWidth', 'Prong softness', 0.5, 3, 0.01],
-      ['spikeGain', 'Prong gain', 0, 2, 0.01],
-      ['spikeAngle', 'Prong rotation', 0, 90, 0.5],
-      ['disperse', 'Prismatic drift', 0, 1, 0.01],
-    ] },
-    { title: 'Diamond dust', rows: [
-      ['facetGain', 'Facet structure', 0, 1, 0.01],
-      ['sparkles', 'Dust count', 0, 24, 1],
-      ['sparkleGain', 'Dust gain', 0, 1.2, 0.01],
-      ['sparkleSize', 'Dust size', 1, 4, 0.05],
-      ['shimmer', 'Shimmer', 0, 1, 0.01],
-      ['flicker', 'Flicker', 0, 1, 0.01],
-      ['drift', 'Drift', 0, 1, 0.01],
+    { title: 'Population', rows: [
+      ['clusters', 'Clusters', 0, 8, 1],
+      ['corridor', 'Corridor', 0, 2, 0.05],
+      ['minGap', 'Politeness', 1.2, 3.2, 0.05],
+      ['dustGain', 'Dust gain', 0, 1.5, 0.01],
     ] },
     { title: 'Field', rows: [
       ['fieldDensity', 'Field density', 0, 1, 0.01],
       ['fieldGain', 'Field gain', 0, 1.6, 0.01],
     ] },
+    { title: 'Distance', rows: [
+      ['farGain', 'Far gain', 0.1, 1, 0.01],
+    ] },
+    { title: 'Structure', rows: [
+      ['bloomGain', 'Core glow', 0.15, 1.2, 0.01],
+      ['spikeGain', 'Prong punch', 0.6, 2, 0.01],
+      ['moteGain', 'Mote sparkle', 0.5, 2, 0.01],
+    ] },
   ];
 
-  const paramAt = (key: string): number => {
-    const [k, idx] = key.split('.');
-    const base = recipe[k as keyof Recipe];
-    if (idx !== undefined && Array.isArray(base)) return base[Number(idx)] ?? 0;
-    return typeof base === 'number' ? base : 0;
-  };
+  const paramAt = (key: string): number => (sky as unknown as Record<string, number>)[key] ?? 0;
   const setParam = (key: string, value: number): void => {
-    const [k, idx] = key.split('.');
-    const base = recipe[k as keyof Recipe];
-    if (idx !== undefined && Array.isArray(base)) base[Number(idx)] = value;
-    else if (typeof base === 'number') (recipe as unknown as Record<string, number>)[k!] = value;
-    if (k === 'bodyScale' || k === 'sparkleSize') layoutSparkles();
+    (sky as unknown as Record<string, number>)[key] = value;
+    if (key === 'clusters' || key === 'corridor' || key === 'minGap') placeArtists();
   };
 
   const refreshHud = (): void => {
@@ -344,23 +460,17 @@ const boot = (): void => {
   };
 
   const buildHud = (): void => {
-    const variantRow = document.createElement('div');
-    variantRow.className = 'lab-variants';
-    VARIANTS.forEach((v, i) => {
+    const presetRow = document.createElement('div');
+    presetRow.className = 'lab-variants';
+    ([['1', 14], ['2', 40], ['3', 120]] as [string, number][]).forEach(([label, count]) => {
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.textContent = String(i + 1);
-      btn.title = v.name;
-      btn.addEventListener('click', () => applyVariant(i));
-      variantRow.append(btn);
+      btn.textContent = label;
+      btn.title = count + ' artists';
+      btn.addEventListener('click', () => setRoster(count));
+      presetRow.append(btn);
     });
-    const reset = document.createElement('button');
-    reset.type = 'button';
-    reset.textContent = 'reset';
-    reset.className = 'lab-reset';
-    reset.addEventListener('click', () => applyVariant(variantIndex));
-    variantRow.append(reset);
-    hud.append(variantRow);
+    hud.append(presetRow);
     for (const group of GROUPS) {
       const h = document.createElement('div');
       h.className = 'lab-group-title';
@@ -393,29 +503,25 @@ const boot = (): void => {
     }
     const hint = document.createElement('div');
     hint.className = 'lab-hint mono';
-    hint.textContent = 'B body · H panel · P recipe · wheel zoom · drag parallax';
+    hint.textContent = '1/2/3 roster · H panel · wheel zoom · drag pan';
     hud.append(hint);
     refreshHud();
   };
 
-  const applyVariant = (index: number): void => {
-    variantIndex = index;
-    recipe = structuredClone(VARIANTS[index]!.recipe);
-    layoutSparkles();
+  const setRoster = (count: number): void => {
+    sky.roster = count;
+    buildClusters();
+    buildRoster();
     refreshHud();
-    dirty = true;
     save();
+    dirty = true;
   };
 
-  const dumpRecipe = (): void => {
-    const json = JSON.stringify({ variant: VARIANTS[variantIndex]!.name, recipe }, null, 2);
-    console.log(json);
-    try {
-      void navigator.clipboard.writeText(json);
-    } catch {}
-  };
+  window.addEventListener('resize', () => {
+    resize();
+    dirty = true;
+  });
 
-  window.addEventListener('resize', resize);
   canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
     const factor = Math.exp(-e.deltaY * 0.0011);
@@ -424,12 +530,11 @@ const boot = (): void => {
     const rect = canvas.getBoundingClientRect();
     const cx = e.clientX - rect.left - rect.width / 2;
     const cy = -(e.clientY - rect.top - rect.height / 2);
-    const kOld = 1 / pxPerUnitDevice() * dpr;
+    const kOld = 1 / (BASE_PX * zoom);
     zoom = next;
-    const kNew = 1 / pxPerUnitDevice() * dpr;
+    const kNew = 1 / (BASE_PX * zoom);
     camX += cx * (kOld - kNew);
     camY += cy * (kOld - kNew);
-    layoutSparkles();
     dirty = true;
   }, { passive: false });
 
@@ -450,44 +555,37 @@ const boot = (): void => {
     lastY = e.clientY;
     camX -= dx;
     camY -= dy;
-    camX = Math.max(-8, Math.min(8, camX));
-    camY = Math.max(-8, Math.min(8, camY));
     dirty = true;
   });
   canvas.addEventListener('pointerup', () => { dragging = false; });
 
   window.addEventListener('keydown', (e) => {
     if (e.target instanceof HTMLInputElement) return;
-    if (e.key === '1') applyVariant(0);
-    else if (e.key === '2') applyVariant(1);
-    else if (e.key === '3') applyVariant(2);
-    else if (e.key === 'b' || e.key === 'B') {
-      setParam('bodyMode', (Math.round(paramAt('bodyMode')) + 1) % 3);
-      refreshHud();
-      dirty = true;
-      save();
-    } else if (e.key === 'h' || e.key === 'H') hud.classList.toggle('hidden');
-    else if (e.key === 'p' || e.key === 'P') dumpRecipe();
+    if (e.key === '1') setRoster(14);
+    else if (e.key === '2') setRoster(40);
+    else if (e.key === '3') setRoster(120);
+    else if (e.key === 'h' || e.key === 'H') hud.classList.toggle('hidden');
   });
 
   buildHud();
   resize();
+  buildClusters();
+  buildRoster();
 
   const labRecord: Record<string, unknown> = {
     ok: true,
-    variant: VARIANTS[variantIndex]!.name,
+    population: artists.length,
+    preset: Math.round(sky.roster),
     zoom,
     resetView: () => {
       zoom = 1;
-      camX = 0;
-      camY = 0;
-      layoutSparkles();
+      camX = WORLD_W / 2;
+      camY = WORLD_H / 2;
       dirty = true;
       labRecord['zoom'] = zoom;
     },
     setZoom: (z: number) => {
       zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
-      layoutSparkles();
       dirty = true;
       labRecord['zoom'] = zoom;
     },
@@ -496,16 +594,43 @@ const boot = (): void => {
       refreshHud();
       dirty = true;
     },
+    setPreset: (n: number) => {
+      setRoster(n);
+    },
+    focusLargest: () => {
+      let best: Artist | null = null;
+      for (const a of artists) if (!best || a.bodyScale > best.bodyScale) best = a;
+      if (best) {
+        camX = best.x;
+        camY = best.y;
+        dirty = true;
+      }
+    },
+    positions: () => {
+      const rect = canvas.getBoundingClientRect();
+      const ppuCss = BASE_PX * zoom;
+      return artists.map((a) => ({
+        x: Math.round(rect.width / 2 + (a.x - camX) * ppuCss),
+        y: Math.round(rect.height / 2 - (a.y - camY) * ppuCss),
+        body: a.bodyScale,
+        name: a.name,
+      }));
+    },
     metrics: () => {
       const rect = canvas.getBoundingClientRect();
+      const ppuCss = BASE_PX * zoom;
+      let best: Artist | null = null;
+      for (const a of artists) if (!best || a.bodyScale > best.bodyScale) best = a;
       return {
-        x: rect.width / 2 - camX * BASE_PX * zoom,
-        y: rect.height / 2 + camY * BASE_PX * zoom,
-        bodyPx: recipe.bodyScale * BASE_PX * zoom,
+        x: rect.width / 2 + ((best ? best.x : 0) - camX) * ppuCss,
+        y: rect.height / 2 - ((best ? best.y : 0) - camY) * ppuCss,
+        bodyPx: (best ? best.bodyScale : 0.5) * ppuCss,
         zoom,
+        camX,
+        camY,
       };
     },
-    dump: () => JSON.stringify({ variant: VARIANTS[variantIndex]!.name, recipe }),
+    dump: () => JSON.stringify(sky),
   };
   (window as unknown as Record<string, unknown>).__lab = labRecord;
 
@@ -514,12 +639,8 @@ const boot = (): void => {
     const t = tms * 0.001;
     const dt = Math.min(0.1, t - lastT);
     lastT = t;
-    if (recipe.drift > 0.001) {
-      driftAngle += dt * recipe.drift * 0.25;
-      layoutSparkles();
-    }
-    if (dirty || recipe.shimmer > 0.001 || recipe.flicker > 0.001) draw(t);
-    dirty = false;
+    driftAngle += dt * 0.18;
+    draw(t);
     requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);

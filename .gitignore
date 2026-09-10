@@ -1,5 +1,10 @@
-node_modules/
 dist/
+node_modules/
 *.log
 sandbox/dist/
+sandbox/dist3d/
 sandbox/boot.png
+sandbox/boot-*.png
+sandbox/space-*.png
+MotiveMKII/
+.zcode/
