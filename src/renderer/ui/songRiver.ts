@@ -68,6 +68,7 @@ let fall = 420;
 let fadeRange = 350;
 let riverCy = 0;
 let fitScale = 1;
+let pxStep = 1;
 
 const mod = (a: number, n: number): number => ((a % n) + n) % n;
 const slotOffset = (slot: number): number => (slot <= Math.floor(SLAB_COUNT / 2) ? slot : slot - SLAB_COUNT);
@@ -108,6 +109,7 @@ const measure = (): void => {
   fall = Math.max(300, (bottomEdge - topEdge) / 2);
   fadeRange = Math.max(240, fall - EDGE_MARGIN);
   fitScale = Math.max(0.7, Math.min(1, Math.min(w / 1200, h / 780)));
+  pxStep = 1 / Math.max(1, window.devicePixelRatio || 1);
   const glowH = Math.round(Math.max(300, Math.min(640, fadeRange * 1.05)));
   document.body.style.setProperty('--river-cy', `${Math.round(riverCy)}px`);
   document.body.style.setProperty('--river-gh', `${glowH}px`);
@@ -164,17 +166,16 @@ const layout = (): void => {
     const n = Math.min(1, Math.abs(d) / fadeRange);
     const nS = n * n;
     const nT = Math.pow(n, 1.5);
-    const y = Math.round(d * 2) / 2;
-    const scale =
-      Math.round((1 - curveAmt * nS) * (slab === committed ? 1.07 : 1) * fitScale * 100) / 100;
-    const tilt = Math.round(-Math.sign(d) * tiltMax * nT * 10) / 10;
-    const opacity = Math.round((1 - fadeAmt * nS) * 50) / 50;
+    const y = Math.round(d / pxStep) * pxStep;
+    const scale = (1 - curveAmt * nS) * (slab === committed ? 1.07 : 1) * fitScale;
+    const tilt = -Math.sign(d) * tiltMax * nT;
+    const opacity = 1 - fadeAmt * nS;
     const z = Math.round((1 - n) * 60);
     if (slab.lastY !== y || slab.lastScale !== scale || slab.lastTilt !== tilt) {
       slab.lastY = y;
       slab.lastScale = scale;
       slab.lastTilt = tilt;
-      slab.el.style.transform = `translate3d(0, ${y.toFixed(1)}px, 0) rotateX(${tilt.toFixed(1)}deg) scale(${scale})`;
+      slab.el.style.transform = `translate3d(0, ${y.toFixed(3)}px, 0) rotateX(${tilt.toFixed(3)}deg) scale(${scale})`;
     }
     if (slab.lastOpacity !== opacity) {
       slab.lastOpacity = opacity;
