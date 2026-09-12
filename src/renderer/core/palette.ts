@@ -141,6 +141,22 @@ function selectTone(tones: Hsl[], weights?: readonly number[]): Hsl | null {
   return best;
 }
 
+const MOONLIGHT_WASH = 'hsl(233 40% 19%)';
+
+export function deriveRowWash(palette: readonly string[] | null, weights?: readonly number[]): string | null {
+  if (palette === null || palette.length === 0) return null;
+  const tones: Hsl[] = [];
+  for (const entry of palette) {
+    const converted = hexToHsl(entry);
+    if (converted !== null) tones.push(converted);
+  }
+  const chromatic = selectTone(tones, weights);
+  if (chromatic === null) return MOONLIGHT_WASH;
+  const hue = (chromatic.h + 360) % 360;
+  const sat = Math.max(24, Math.min(chromatic.s * 0.72, 48));
+  return hsl(hue, sat, 17);
+}
+
 export function deriveAccent(palette: readonly string[] | null, weights?: readonly number[]): { a: string; b: string; g: string } {
   if (palette === null || palette.length === 0) {
     return { a: '#8f97e8', b: '#6ee7d8', g: '#8f97e8' };

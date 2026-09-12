@@ -3,7 +3,7 @@ import { mediaUrl, player } from '../core/player';
 import { preview } from '../core/preview';
 import { applyPalette, fallbackPalette } from '../core/palette';
 import { fmtTotal } from '../core/searchIndex';
-import { fuzzyScore } from '../core/fuzzy';
+import { nameMatchScore } from '../core/fuzzy';
 import { basenameOf } from '../core/paths';
 import { ICON_SIGIL, ICON_PLAY, ICON_SHUFFLE, ICON_TRASH } from './icons';
 import { toast, toastSong } from '../core/toast';
@@ -174,7 +174,7 @@ export function searchPlaylists(query: string): PlaylistSearchHit[] {
   initPlaylists();
   const hits: PlaylistSearchHit[] = [];
   for (const pl of playlistsStore.list()) {
-    const score = fuzzyScore(query, pl.name);
+    const score = nameMatchScore(query, pl.name);
     if (score !== null) hits.push({ playlist: pl, score });
   }
   hits.sort(

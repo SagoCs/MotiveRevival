@@ -2,7 +2,7 @@
 import { mediaUrl, player } from '../core/player';
 import { appBus } from '../core/appBus';
 import { libraryStore } from '../core/libraryStore';
-import { fuzzyScore } from '../core/fuzzy';
+import { fuzzyScore, nameMatchScore } from '../core/fuzzy';
 import {
   buildSearchIndexes,
   fmtTotal,
@@ -10,6 +10,7 @@ import {
   type ArtistEntry,
   type SearchIndexes,
 } from '../core/searchIndex';
+import { deriveRowWash } from '../core/palette';
 import { Carousel } from './carousel';
 import { isOverlayOpen, openNowPlaying, toggleNowPlaying } from './overlay';
 import { ICON_SIGIL, ICON_NOTE } from './icons';
@@ -63,7 +64,6 @@ let debounceHandle = 0;
 let stageViz: Viz | null = null;
 let stageLyrics: ReturnType<typeof createLyrics> | null = null;
 let lastSongList: import('../../shared/types').IndexedTrack[] = [];
-let oracleSongs: import('../../shared/types').IndexedTrack[] = [];
 let oracleSelection = -1;
 let summonField: HTMLElement;
 let summonMirror: HTMLElement;
@@ -301,7 +301,6 @@ function closeOracle(): void {
   summonVeilEl?.classList.remove('on');
   oracleInput.value = '';
   oracleInput.blur();
-  oracleSongs = [];
   updateSummonWidth();
 }
 
@@ -476,69 +475,104 @@ function wireGlobalKeys(): void {
   );
 }
 
+type SummonKind = 'artist' | 'album' | 'song' | 'playlist';
+
+interface SummonHit {
+  kind: SummonKind;
+  score: number;
+  artist?: ArtistEntry;
+  album?: AlbumEntry;
+  track?: import('../../shared/types').IndexedTrack;
+  playlist?: Playlist;
+}
+
+const SUMMON_KIND_CAP = 5;
+const SUMMON_FIELD_WEIGHT = 0.45;
+
+function summonScore(query: string, name: string, fieldHay: string | null): number | null {
+  const nameScore = nameMatchScore(query, name);
+  const fieldScore = fieldHay !== null ? fuzzyScore(query, fieldHay) : null;
+  if (nameScore === null && fieldScore === null) return null;
+  return (nameScore ?? 0) + (fieldScore ?? 0) * SUMMON_FIELD_WEIGHT;
+}
+
+function summonName(hit: SummonHit): string {
+  if (hit.kind === 'artist') return hit.artist?.name ?? '';
+  if (hit.kind === 'album') return hit.album?.name ?? '';
+  if (hit.kind === 'song') return hit.track?.title ?? '';
+  return hit.playlist?.name ?? '';
+}
+
+function summonSection(hits: SummonHit[]): SummonHit[] {
+  const sorted = [...hits].sort(
+    (a, b) => b.score - a.score || summonName(a).localeCompare(summonName(b)),
+  );
+  return sorted.slice(0, SUMMON_KIND_CAP);
+}
+
+const SUMMON_SECTION_ORDER = ['Artists', 'Songs', 'Albums', 'Playlists'];
+
+function summonHits(query: string): Array<{ label: string; hits: SummonHit[] }> {
+  const artists: SummonHit[] = [];
+  const albums: SummonHit[] = [];
+  const songs: SummonHit[] = [];
+  const playlists: SummonHit[] = [];
+
+  for (const artist of idx.artists) {
+    const field = artist.albums.map((a) => a.name).join(' ');
+    const score = summonScore(query, artist.name, field);
+    if (score !== null) artists.push({ kind: 'artist', score, artist });
+  }
+  for (const album of idx.albums) {
+    const field = `${album.artist} ${album.credit ?? ''} ${album.tracks.map((t) => t.title).join(' ')}`;
+    const score = summonScore(query, album.name, field);
+    if (score !== null) albums.push({ kind: 'album', score, album });
+  }
+  for (const song of idx.songs) {
+    const track = song.track;
+    const field = `${track.artist ?? ''} ${track.primaryArtist ?? ''} ${track.album ?? ''}`;
+    const score = summonScore(query, track.title, field);
+    if (score !== null) songs.push({ kind: 'song', score, track });
+  }
+  for (const hit of searchPlaylists(query)) {
+    playlists.push({ kind: 'playlist', score: hit.score, playlist: hit.playlist });
+  }
+
+  const built: Array<{ label: string; hits: SummonHit[] }> = [
+    { label: 'Artists', hits: summonSection(artists) },
+    { label: 'Albums', hits: summonSection(albums) },
+    { label: 'Songs', hits: summonSection(songs) },
+    { label: 'Playlists', hits: summonSection(playlists) },
+  ];
+  return built
+    .filter((s) => s.hits.length > 0)
+    .sort(
+      (a, b) =>
+        (b.hits[0]?.score ?? 0) - (a.hits[0]?.score ?? 0) ||
+        SUMMON_SECTION_ORDER.indexOf(a.label) - SUMMON_SECTION_ORDER.indexOf(b.label),
+    );
+}
+
 function renderOracleResults(): void {
   const query = oracleInput.value.trim();
 
   if (query === '') {
-    oracleSongs = [];
     oracleSelection = -1;
     oracleResults.replaceChildren(hintNode('Type to summon the archive…'));
     return;
   }
 
-  const songHits = scoreSongs(query).slice(0, 12);
-  const albumHits = scoreOf(idx.albums, query).slice(0, 8);
-  const artistHits = scoreOf(idx.artists, query).slice(0, 6);
-  const playlistHits = searchPlaylists(query).slice(0, 5);
-  let total = 0;
+  const sections = summonHits(query);
+
+  if (sections.length === 0) {
+    oracleResults.replaceChildren(hintNode('No echoes found.'));
+    return;
+  }
 
   const frag = document.createDocumentFragment();
-  let surfaceShift = 0;
-  if (songHits.length > 0) {
-    frag.append(oracleSectionHeader('Songs'));
-    oracleSongs = songHits.map((hit) => hit.item.track);
-    for (const hit of songHits) {
-      const row = songRow(hit.item.track);
-      applyArtSurface(row, hit.item.track.artFile, surfaceShift);
-      surfaceShift += 1;
-      frag.append(row);
-      total += 1;
-    }
-  }
-  if (albumHits.length > 0) {
-    frag.append(oracleSectionHeader('Albums'));
-    for (const hit of albumHits) {
-      const row = oracleAlbumRow(hit.item);
-      applyArtSurface(row, hit.item.artFile, surfaceShift);
-      surfaceShift += 1;
-      frag.append(row);
-      total += 1;
-    }
-  }
-  if (artistHits.length > 0) {
-    frag.append(oracleSectionHeader('Artists'));
-    for (const hit of artistHits) {
-      const row = oracleArtistRow(hit.item);
-      applyArtSurface(row, hit.item.artFile, surfaceShift);
-      surfaceShift += 1;
-      frag.append(row);
-      total += 1;
-    }
-  }
-  if (playlistHits.length > 0) {
-    frag.append(oracleSectionHeader('Playlists'));
-    for (const hit of playlistHits) {
-      const row = oraclePlaylistRow(hit);
-      applyArtSurface(row, playlistCover(hit.playlist), surfaceShift);
-      surfaceShift += 1;
-      frag.append(row);
-      total += 1;
-    }
-  }
-
-  if (total === 0) {
-    oracleSongs = [];
-    frag.append(hintNode('No echoes found.'));
+  for (const section of sections) {
+    frag.append(oracleSectionHeader(section.label));
+    for (const hit of section.hits) frag.append(summonRowFor(hit));
   }
 
   oracleResults.replaceChildren(frag);
@@ -594,26 +628,66 @@ function oracleSectionHeader(label: string): HTMLElement {
   return header;
 }
 
-function applyArtSurface(row: HTMLElement, artFile: string | null, shift: number): void {
-  if (artFile === null) return;
-  row.style.backgroundImage = `url("${mediaUrl(artFile)}")`;
-  row.style.backgroundPosition = `${(shift * 47) % 100}% center`;
+function summonRowFor(hit: SummonHit): HTMLElement {
+  if (hit.kind === 'artist' && hit.artist !== undefined) return oracleArtistRow(hit.artist);
+  if (hit.kind === 'album' && hit.album !== undefined) return oracleAlbumRow(hit.album);
+  if (hit.kind === 'song' && hit.track !== undefined) return oracleSongRow(hit.track);
+  if (hit.kind === 'playlist' && hit.playlist !== undefined) return oraclePlaylistRow(hit.playlist);
+  return el('div', 'oracle-row');
 }
 
-function playlistCover(pl: Playlist): string | null {
-  return (
-    pl.tracks
-      .map((ref) => libraryStore.getTrackList().find((t) => t.id === ref.trackId))
-      .find((t) => t?.artFile !== null && t !== undefined)?.artFile ?? null
-  );
+function oracleSongRow(track: import('../../shared/types').IndexedTrack): HTMLElement {
+  const row = el('div', 'oracle-row kind-song');
+  row.dataset.interactive = '1';
+  row.dataset.trackId = track.id;
+  row.dataset.trackPath = track.absPath;
+  if (track.absPath === playingPath) row.classList.add('playing');
+
+  const wash = deriveRowWash(track.palette, track.paletteWeights);
+  if (wash !== null) row.style.background = wash;
+
+  const meta = el('div', 'song-meta');
+  const title = el('div', 'song-title');
+  title.textContent = track.title;
+  const sub = el('div', 'mono dim song-sub');
+  sub.textContent = `${track.artist ?? UNKNOWN_ARTIST}${
+    track.album !== null ? ` — ${track.album}` : ''
+  }`;
+  meta.append(title, sub);
+
+  const dur = el('div', 'mono dim song-dur');
+  dur.textContent =
+    track.durationSec !== null && Number.isFinite(track.durationSec)
+      ? fmtTime(track.durationSec)
+      : '--:--';
+
+  row.append(meta, dur);
+  attachPreview(row, track);
+  attachContextMenu(row, track, () => {
+    closeOracle();
+    preview.hardStop();
+    playFromList(track, row);
+  });
+  row.addEventListener('click', () => {
+    if (carousel.wasDrag()) return;
+    if (playingPath === track.absPath) {
+      closeOracle();
+      openNowPlaying();
+      return;
+    }
+    closeOracle();
+    preview.hardStop();
+    playFromList(track, row);
+  });
+  return row;
 }
 
 function oracleAlbumRow(album: AlbumEntry): HTMLElement {
-  const row = el('div', 'oracle-row');
+  const row = el('div', 'oracle-row kind-album');
   row.dataset.interactive = '1';
-
-  const thumb = el('div', 'song-thumb');
-  artInto(thumb, album.artFile, 'card-img');
+  if (album.artFile !== null) {
+    row.style.backgroundImage = `url("${mediaUrl(album.artFile)}")`;
+  }
 
   const meta = el('div', 'song-meta');
   const title = el('div', 'song-title');
@@ -624,7 +698,7 @@ function oracleAlbumRow(album: AlbumEntry): HTMLElement {
   }`;
   meta.append(title, sub);
 
-  row.append(thumb, meta);
+  row.append(meta);
   row.addEventListener('click', () => {
     closeOracle();
     openAlbum(album);
@@ -633,11 +707,11 @@ function oracleAlbumRow(album: AlbumEntry): HTMLElement {
 }
 
 function oracleArtistRow(artist: ArtistEntry): HTMLElement {
-  const row = el('div', 'oracle-row');
+  const row = el('div', 'oracle-row kind-artist');
   row.dataset.interactive = '1';
-
-  const thumb = el('div', 'song-thumb');
-  artInto(thumb, artist.artFile, 'card-img');
+  if (artist.artFile !== null) {
+    row.style.backgroundImage = `url("${mediaUrl(artist.artFile)}")`;
+  }
 
   const meta = el('div', 'song-meta');
   const title = el('div', 'song-title');
@@ -648,7 +722,7 @@ function oracleArtistRow(artist: ArtistEntry): HTMLElement {
   } · ${artist.trackCount} tracks`;
   meta.append(title, sub);
 
-  row.append(thumb, meta);
+  row.append(meta);
   row.addEventListener('click', () => {
     closeOracle();
     state.mode = 'albums';
@@ -656,6 +730,33 @@ function oracleArtistRow(artist: ArtistEntry): HTMLElement {
     syncTabs();
     syncChips();
     render();
+  });
+  return row;
+}
+
+function oraclePlaylistRow(playlist: Playlist): HTMLElement {
+  const row = el('div', 'oracle-row kind-playlist');
+  row.dataset.interactive = '1';
+  const cover = playlist.tracks
+    .map((ref) => libraryStore.getTrackList().find((t) => t.id === ref.trackId))
+    .find((t) => t !== undefined && t.artFile !== null);
+  if (cover !== undefined && cover.artFile !== null) {
+    row.style.backgroundImage = `url("${mediaUrl(cover.artFile)}")`;
+  }
+
+  const meta = el('div', 'song-meta');
+  const title = el('div', 'song-title');
+  title.textContent = playlist.name;
+  const sub = el('div', 'mono dim song-sub');
+  sub.textContent = `Playlist · ${playlist.tracks.length} song${
+    playlist.tracks.length === 1 ? '' : 's'
+  }`;
+  meta.append(title, sub);
+
+  row.append(meta);
+  row.addEventListener('click', () => {
+    closeOracle();
+    openDetail(playlist.id);
   });
   return row;
 }
@@ -911,45 +1012,6 @@ function renderBrowse(frag: DocumentFragment): void {
 
 function sectionHeader(label: string): HTMLElement {
   return artistHeader(label);
-}
-
-function scoreOf<T>(items: readonly T[], query: string): Array<{ item: T; score: number }> {
-  const out: Array<{ item: T; score: number }> = [];
-  for (const item of items) {
-    const candidate = item as { hay?: unknown };
-    if (typeof candidate.hay !== 'string') continue;
-    const score = fuzzyScore(query, candidate.hay);
-    if (score !== null) out.push({ item, score });
-  }
-  out.sort((a, b) => b.score - a.score);
-  return out;
-}
-
-function scoreSongs(
-  query: string,
-): Array<{ item: { track: import('../../shared/types').IndexedTrack; hay: string }; score: number }> {
-  const hits = scoreOf(idx.songs, query);
-  const wantsInstrumental = /\binstrumental\b/i.test(query);
-  hits.sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
-
-    const titleScoreA = fuzzyScore(query, a.item.track.title) ?? 0;
-    const titleScoreB = fuzzyScore(query, b.item.track.title) ?? 0;
-    if (titleScoreB !== titleScoreA) return titleScoreB - titleScoreA;
-
-    if (!wantsInstrumental) {
-      const instrumentalA = /\binstrumental\b/i.test(a.item.track.title) ? 1 : 0;
-      const instrumentalB = /\binstrumental\b/i.test(b.item.track.title) ? 1 : 0;
-      if (instrumentalA !== instrumentalB) return instrumentalA - instrumentalB;
-    }
-
-    const durationA = a.item.track.durationSec ?? Number.POSITIVE_INFINITY;
-    const durationB = b.item.track.durationSec ?? Number.POSITIVE_INFINITY;
-    if (durationA !== durationB) return durationA - durationB;
-
-    return a.item.track.title.localeCompare(b.item.track.title);
-  });
-  return hits;
 }
 
 function sortAlbums(albums: readonly AlbumEntry[]): AlbumEntry[] {
@@ -1240,33 +1302,6 @@ function closeDetail(): void {
       syncRiver();
     }
   }, 460);
-}
-
-function oraclePlaylistRow(hit: { playlist: Playlist }): HTMLElement {
-  const pl = hit.playlist;
-  const row = el('div', 'oracle-row');
-  row.dataset.interactive = '1';
-
-  const cover = pl.tracks
-    .map((ref) => libraryStore.getTrackList().find((t) => t.id === ref.trackId))
-    .find((t) => t?.artFile !== null && t !== undefined);
-
-  const thumb = el('div', 'song-thumb');
-  artInto(thumb, cover?.artFile ?? null, 'card-img');
-
-  const meta = el('div', 'song-meta');
-  const title = el('div', 'song-title');
-  title.textContent = pl.name;
-  const sub = el('div', 'mono dim song-sub');
-  sub.textContent = `Playlist · ${pl.tracks.length} track${pl.tracks.length === 1 ? '' : 's'}`;
-  meta.append(title, sub);
-
-  row.append(thumb, meta);
-  row.addEventListener('click', () => {
-    closeOracle();
-    openDetail(pl.id);
-  });
-  return row;
 }
 
 function playlistsEmpty(): HTMLElement {
