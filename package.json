@@ -15,7 +15,8 @@
     "sandbox": "npm run build:sandbox && electron sandbox/dist/main.js",
     "build:space": "tsc -p sandbox/space --noEmit && node scripts/build-space.mjs",
     "sandbox:3d": "npm run build:space && electron sandbox/dist3d/main.js",
-    "probe:sandbox": "node scripts/probe-sandbox.mjs"
+    "probe:sandbox": "node scripts/probe-sandbox.mjs",
+    "probe:river-lab": "node scripts/probe-river-lab.mjs"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.0.0",

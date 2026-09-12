@@ -7,6 +7,7 @@ import './styles/tokens.css';
 import './styles/base.css';
 import './styles/shell.css';
 import './styles/river.css';
+import './styles/riverV2.css';
 
 import { player } from './core/player';
 import { appBus } from './core/appBus';
@@ -25,6 +26,7 @@ import { createTransport } from './ui/transport';
 import { initWindowControls } from './ui/windowControls';
 import { initArrowMarkers } from './ui/arrowMarkers';
 import { initSongRiver } from './ui/songRiver';
+import { initRiverV2Lab } from './ui/riverV2Lab';
 import { initUniverse } from './ui/universe';
 
 window.addEventListener('error', (e) => {
@@ -51,6 +53,7 @@ function boot(): void {
   lantern.init();
   initArrowMarkers();
   initSongRiver();
+  initRiverV2Lab();
   initUniverse();
 
   const arrowAnchor = (side: number): { x: number; y: number } | null => {
