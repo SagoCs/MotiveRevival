@@ -56,24 +56,10 @@ export function applyPalette(target: HTMLElement, palette: readonly string[]): v
   target.style.setProperty('--p3', palette[2] ?? '#6ee7d8');
 }
 
-export interface Hsl {
+interface Hsl {
   h: number;
   s: number;
   l: number;
-}
-
-export function selectToneFromPalette(palette: readonly string[] | null, weights?: readonly number[]): (Hsl & { weight: number }) | null {
-  if (palette === null || palette.length === 0) return null;
-  const tones: Hsl[] = [];
-  for (const entry of palette) {
-    const converted = hexToHsl(entry);
-    if (converted !== null) tones.push(converted);
-  }
-  const winner = selectTone(tones, weights);
-  if (winner === null) return null;
-  const idx = tones.indexOf(winner);
-  const weight = weights !== undefined && weights.length > 0 ? weights[idx] ?? 0 : Math.pow(0.7, Math.max(0, idx));
-  return { h: winner.h, s: winner.s, l: winner.l, weight };
 }
 
 function hexToHsl(hex: string): Hsl | null {

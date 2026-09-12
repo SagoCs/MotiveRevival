@@ -3,8 +3,7 @@ import { libraryStore } from '../core/libraryStore';
 import { player } from '../core/player';
 import { appBus } from '../core/appBus';
 import { primaryOf } from '../core/searchIndex';
-import { selectToneFromPalette } from '../core/palette';
-import { hashName, mulberry32, type StarSeedInput } from '../universe/starParams';
+import { hashName, hexToHsl, mulberry32, type StarSeedInput } from '../universe/starParams';
 import {
   mountStarfield,
   resizeStarfield,
@@ -170,22 +169,22 @@ export function layoutArtists(entries: Array<{ name: string; count: number }>): 
 interface ArtistTally {
   name: string;
   count: number;
-  albums: Map<string, { count: number; year: number; palette: string[] | null; weights: number[] | undefined }>;
+  colors: Set<string>;
+  albums: Map<string, { count: number; year: number }>;
 }
 
-const MOONLIGHT_TONE = { h: 226, s: 60 };
-
-function artistTone(albums: Iterable<{ palette: string[] | null; weights: number[] | undefined }>): { h: number; s: number } {
-  let best: { h: number; s: number; score: number } | null = null;
-  for (const album of albums) {
-    const tone = selectToneFromPalette(album.palette, album.weights);
-    if (tone === null) continue;
-    const chroma = (1 - Math.abs((tone.l / 100) * 2 - 1)) * tone.s;
-    const score = chroma * Math.sqrt(Math.max(0, tone.weight));
-    if (best === null || score > best.score) best = { h: tone.h, s: tone.s, score };
+function toneOf(colors: Iterable<string>): { h: number; s: number } {
+  let best: { h: number; s: number; c: number } | null = null;
+  for (const hex of colors) {
+    const m = /^#([0-9a-f]{6})$/i.exec(hex.trim());
+    if (m === null || m[1] === undefined) continue;
+    const t = hexToHsl(m[1]);
+    if (t.l < 0.18 || t.l > 0.85) continue;
+    const c = (1 - Math.abs(t.l * 2 - 1)) * t.s;
+    if (best === null || c > best.c) best = { h: t.h, s: t.s, c };
   }
-  if (best === null) return MOONLIGHT_TONE;
-  return { h: best.h, s: best.s };
+  if (best === null || best.c < 0.08) return { h: 226, s: 0.6 };
+  return { h: best.h, s: Math.min(0.95, Math.max(0.45, best.s)) };
 }
 
 function tallyArtists(): ArtistTally[] {
@@ -197,22 +196,19 @@ function tallyArtists(): ArtistTally[] {
       if (name === null || name.trim() === '') continue;
       let g = groups.get(name);
       if (g === undefined) {
-        g = { name, count: 0, albums: new Map() };
+        g = { name, count: 0, colors: new Set<string>(), albums: new Map() };
         groups.set(name, g);
       }
       g.count += 1;
+      if (t.palette !== null) for (const c of t.palette) g.colors.add(c);
       const album = t.album;
       if (album !== null && album.trim() !== '') {
-        const year = t.year ?? 9999;
         const a = g.albums.get(album);
-        if (a === undefined) g.albums.set(album, { count: 1, year, palette: t.palette, weights: t.paletteWeights });
+        const year = t.year ?? 9999;
+        if (a === undefined) g.albums.set(album, { count: 1, year });
         else {
           a.count += 1;
           if (year < a.year) a.year = year;
-          if (a.palette === null && t.palette !== null) {
-            a.palette = t.palette;
-            a.weights = t.paletteWeights;
-          }
         }
       }
     }
@@ -220,60 +216,13 @@ function tallyArtists(): ArtistTally[] {
   return [...groups.values()];
 }
 
-let starTone: { h: number; s: number } = { h: 226, s: 60 };
-let starToneTarget: { h: number; s: number } = starTone;
-let starBase: { name: string; mass: number; albums: number[] } | null = null;
-let starKey: string | null = null;
-let toneRaf = 0;
-let toneLast = 0;
-
-function applyTone(): void {
-  if (starBase === null) return;
-  setStar({
-    seed: hashName(starBase.name),
-    hue: starTone.h,
-    sat: Math.min(0.95, Math.max(0.45, starTone.s / 100)),
-    mass: starBase.mass,
-    albums: starBase.albums,
-  });
-  updateStarCamera(cam.x, cam.y, cam.z);
-}
-
-function easeTone(ts: number): void {
-  toneRaf = 0;
-  const dtMs = toneLast === 0 ? 16 : Math.min(50, ts - toneLast);
-  toneLast = ts;
-  const k = 1 - Math.exp(-dtMs / 180);
-  const d = ((starToneTarget.h - starTone.h + 540) % 360) - 180;
-  starTone = {
-    h: (((starTone.h + d * k) % 360) + 360) % 360,
-    s: starTone.s + (starToneTarget.s - starTone.s) * k,
-  };
-  applyTone();
-  const dh = Math.abs(((starToneTarget.h - starTone.h + 540) % 360) - 180);
-  if (dh > 0.05 || Math.abs(starToneTarget.s - starTone.s) > 0.02) toneRaf = window.requestAnimationFrame(easeTone);
-  else {
-    starTone = starToneTarget;
-    applyTone();
-    toneLast = 0;
-  }
-}
-
-function startToneEase(): void {
-  if (toneRaf !== 0) return;
-  toneLast = 0;
-  toneRaf = window.requestAnimationFrame(easeTone);
-}
-
 function refreshStar(): void {
   const groups = tallyArtists();
   if (groups.length === 0) {
-    starBase = null;
     setStar(null);
     return;
   }
-  const current = player.currentTrack;
-  const playing = current !== null ? primaryOf(current) : null;
+  const playing = player.currentTrack !== null ? primaryOf(player.currentTrack) : null;
   let pick = playing !== null ? groups.find((g) => g.name === playing) : undefined;
   if (pick === undefined) {
     for (const g of groups) {
@@ -281,32 +230,21 @@ function refreshStar(): void {
     }
   }
   if (pick === undefined) {
-    starBase = null;
     setStar(null);
     return;
   }
+  const tone = toneOf(pick.colors);
   const albums = [...pick.albums.values()]
     .sort((a, b) => a.year - b.year || a.count - b.count)
     .map((a) => a.count);
-  starBase = { name: pick.name, mass: 0.45 + 1.15 * Math.min(1, Math.sqrt(pick.count) / 20), albums };
-  let tone = artistTone(pick.albums.values());
-  if (playing !== null && current !== null && current.album !== null) {
-    const playingAlbum = pick.albums.get(current.album);
-    if (playingAlbum !== undefined) {
-      const lean = selectToneFromPalette(playingAlbum.palette, playingAlbum.weights);
-      if (lean !== null) tone = { h: lean.h, s: lean.s };
-    }
-  }
-  if (starKey !== pick.name) {
-    starKey = pick.name;
-    starTone = tone;
-    starToneTarget = tone;
-    applyTone();
-    return;
-  }
-  starToneTarget = tone;
-  applyTone();
-  startToneEase();
+  const seed: StarSeedInput = {
+    seed: hashName(pick.name),
+    hue: tone.h,
+    sat: tone.s,
+    mass: 0.45 + 1.15 * Math.min(1, Math.sqrt(pick.count) / 20),
+    albums,
+  };
+  setStar(seed);
 }
 
 function clampPan(): void {  const halfW = (WORLD_W / 2) * 0.92;
@@ -439,12 +377,6 @@ export function initUniverse(): void {
     refreshStar();
     updateStarCamera(cam.x, cam.y, cam.z);
   });
-
-  (window as unknown as { __universeDbg?: unknown }).__universeDbg = {
-    tone: () => starTone,
-    target: () => starToneTarget,
-    key: () => starKey,
-  };
 }
 
 export function setUniverseVisible(on: boolean): void {
