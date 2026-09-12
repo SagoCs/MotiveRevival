@@ -97,6 +97,11 @@ export function initRiverV2Lab(): void {
     river?.setCommitted(track.id);
   });
 
+  appBus.on('reveal-playing', () => {
+    if (!active || river === null) return;
+    river.glideTo(homeIndex());
+  });
+
   (window as unknown as { __riverV2Lab?: unknown }).__riverV2Lab = {
     river: () => river,
     reload: () => pushEntries(),

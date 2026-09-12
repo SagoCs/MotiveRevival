@@ -667,6 +667,7 @@ function oracleSongRow(track: import('../../shared/types').IndexedTrack): HTMLEl
     closeOracle();
     preview.hardStop();
     playFromList(track, row);
+    appBus.emit('reveal-playing', {});
   });
   row.addEventListener('click', () => {
     if (carousel.wasDrag()) return;
@@ -678,6 +679,7 @@ function oracleSongRow(track: import('../../shared/types').IndexedTrack): HTMLEl
     closeOracle();
     preview.hardStop();
     playFromList(track, row);
+    appBus.emit('reveal-playing', {});
   });
   return row;
 }

@@ -543,6 +543,12 @@ export function initSongRiver(): void {
   };
   pull();
 
+  appBus.on('reveal-playing', () => {
+    if (river === null || !on) return;
+    if (document.body.classList.contains('river-v2-active')) return;
+    glideToCurrent();
+  });
+
   river = document.createElement('div');
   river.id = 'song-river';
   for (let i = 0; i < SLAB_COUNT; i++) slabs.push(buildSlab(i));

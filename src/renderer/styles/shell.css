@@ -917,7 +917,6 @@ body.universe-active #detail-layer {
   gap: 16px;
   height: var(--bottom-h);
   padding: 0 22px;
-  border-top: 1px solid color-mix(in srgb, var(--acc-a) 14%, rgba(212, 214, 226, 0.08));
   background:
     linear-gradient(0deg, color-mix(in srgb, var(--void-0) 28%, transparent), color-mix(in srgb, var(--void-0) 12%, transparent) 55%, color-mix(in srgb, var(--void-0) 10%, transparent) 90%),
     radial-gradient(95% 260% at 50% 0%, color-mix(in srgb, var(--hz-a) 16%, transparent), transparent 80%),
@@ -929,15 +928,17 @@ body.universe-active #detail-layer {
   position: absolute;
   left: 0;
   right: 0;
-  top: -1px;
+  top: 0;
   height: 1px;
   pointer-events: none;
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--acc-a) 14%, rgba(212, 214, 226, 0.08)),
-    color-mix(in srgb, var(--acc-b) 34%, transparent) 50%,
-    color-mix(in srgb, var(--acc-a) 14%, rgba(212, 214, 226, 0.08))
-  );
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--acc-a) 14%, rgba(212, 214, 226, 0.08)),
+      color-mix(in srgb, var(--acc-b) 34%, transparent) 50%,
+      color-mix(in srgb, var(--acc-a) 14%, rgba(212, 214, 226, 0.08))
+    ),
+    color-mix(in srgb, var(--acc-a) 14%, rgba(212, 214, 226, 0.08));
 }
 
 #bottom-bar .icon-btn.lit {

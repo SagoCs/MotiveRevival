@@ -7,6 +7,7 @@ export interface AppEventMap {
   'universe-open-all': Record<string, never>;
   'universe-open-artist': { name: string };
   'universe-open-playlist': { id: string };
+  'reveal-playing': Record<string, never>;
 }
 
 export const appBus = new Bus<AppEventMap>();
