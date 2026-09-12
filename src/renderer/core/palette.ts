@@ -1,6 +1,6 @@
 const FALLBACK_HUES = [226, 172, 258];
 
-export function deriveHorizon(palette: readonly string[] | null): { a: string; b: string; g: string } {
+export function deriveHorizon(palette: readonly string[] | null, weights?: readonly number[]): { a: string; b: string; g: string } {
   const moonlit = { a: 'hsl(233 40% 19%)', b: 'hsl(172 38% 15%)', g: 'hsl(233 50% 27%)' };
   if (palette === null || palette.length === 0) {
     return moonlit;
@@ -10,7 +10,7 @@ export function deriveHorizon(palette: readonly string[] | null): { a: string; b
     const converted = hexToHsl(entry);
     if (converted !== null) tones.push(converted);
   }
-  const chromatic = mostChromatic(tones);
+  const chromatic = selectTone(tones, weights);
   if (chromatic === null) {
     return moonlit;
   }
@@ -85,7 +85,7 @@ function hexToHsl(hex: string): Hsl | null {
   return { h, s: s * 100, l: l * 100 };
 }
 
-export function applyLyricsInk(target: HTMLElement, palette: readonly string[] | null): void {
+export function applyLyricsInk(target: HTMLElement, palette: readonly string[] | null, weights?: readonly number[]): void {
   let line = 'hsl(228 32% 88% / 0.92)';
   let active = '#f6f6ff';
   let glow = '#8f97e8';
@@ -98,7 +98,7 @@ export function applyLyricsInk(target: HTMLElement, palette: readonly string[] |
     }
   }
   const lightest = tones.reduce<Hsl | null>((best, t) => (best === null || t.l > best.l ? t : best), null);
-  const chromatic = mostChromatic(tones);
+  const chromatic = selectTone(tones, weights);
 
   if (lightest !== null && chromatic !== null) {
     const hue = (lightest.h + 360) % 360;
@@ -117,11 +117,22 @@ function chromaOf(t: Hsl): number {
   return (1 - Math.abs((t.l / 100) * 2 - 1)) * t.s;
 }
 
-function mostChromatic(tones: Hsl[]): Hsl | null {
+function weightPrior(i: number, weights: readonly number[] | undefined): number {
+  if (weights === undefined || weights.length === 0) return Math.pow(0.7, i);
+  const w = weights[i];
+  if (w === undefined || w <= 0) return 0;
+  return Math.sqrt(Math.min(1, w));
+}
+
+function selectTone(tones: Hsl[], weights?: readonly number[]): Hsl | null {
   let best: Hsl | null = null;
-  let bestScore = 5;
-  for (const t of tones) {
-    const score = chromaOf(t);
+  let bestScore = 0;
+  for (let i = 0; i < tones.length; i++) {
+    const t = tones[i];
+    if (t === undefined) continue;
+    const chroma = chromaOf(t);
+    if (chroma <= 5) continue;
+    const score = chroma * weightPrior(i, weights);
     if (score > bestScore) {
       bestScore = score;
       best = t;
@@ -130,7 +141,7 @@ function mostChromatic(tones: Hsl[]): Hsl | null {
   return best;
 }
 
-export function deriveAccent(palette: readonly string[] | null): { a: string; b: string; g: string } {
+export function deriveAccent(palette: readonly string[] | null, weights?: readonly number[]): { a: string; b: string; g: string } {
   if (palette === null || palette.length === 0) {
     return { a: '#8f97e8', b: '#6ee7d8', g: '#8f97e8' };
   }
@@ -146,7 +157,7 @@ export function deriveAccent(palette: readonly string[] | null): { a: string; b:
   for (const t of tones) {
     if (lightest === undefined || t.l > lightest.l) lightest = t;
   }
-  const chromatic = mostChromatic(tones);
+  const chromatic = selectTone(tones, weights);
   if (chromatic === null) {
     return { a: '#8f97e8', b: '#6ee7d8', g: '#8f97e8' };
   }

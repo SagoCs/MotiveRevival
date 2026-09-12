@@ -9,6 +9,7 @@ export interface AlbumEntry {
   credit: string | null;
   artFile: string | null;
   palette: string[] | null;
+  paletteWeights?: number[];
   tracks: IndexedTrack[];
   totalDuration: number;
   year: number | null;
@@ -78,6 +79,7 @@ export function buildSearchIndexes(tracks: readonly IndexedTrack[]): SearchIndex
     album.tracks.push(track);
     if (album.artFile === null && track.artFile !== null) album.artFile = track.artFile;
     if (album.palette === null && track.palette !== null) album.palette = track.palette;
+    if (album.paletteWeights === undefined && track.paletteWeights !== undefined) album.paletteWeights = track.paletteWeights;
     if (album.year === null && track.year !== null) album.year = track.year;
     if (track.durationSec !== null) album.totalDuration += track.durationSec;
   }

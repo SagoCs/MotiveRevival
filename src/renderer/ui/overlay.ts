@@ -171,7 +171,7 @@ export function initOverlay(): void {
     hasLyrics = false;
     applySavedView();
     applyPalette(overlay, track.palette ?? fallbackPalette(track.id));
-    applyLyricsInk(overlay, track.palette);
+    applyLyricsInk(overlay, track.palette, track.paletteWeights);
     overlayLyrics?.setTrack(track);
     render();
   });

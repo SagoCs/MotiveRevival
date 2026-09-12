@@ -284,7 +284,7 @@ const showAdded = (side: 1 | -1, track: IndexedTrack): void => {
   const prompt = side === 1 ? promptL : promptR;
   if (prompt === null) return;
   const label = side === 1 ? 'Add to queue' : 'Add to playlist';
-  const accent = deriveAccent(track.palette).g;
+  const accent = deriveAccent(track.palette, track.paletteWeights).g;
   const timer = addedTimers.get(prompt);
   if (timer !== undefined) window.clearTimeout(timer);
   prompt.textContent = 'Added.';
@@ -345,7 +345,8 @@ const onCardPointerDown = (slab: Slab, event: PointerEvent): void => {
       closeNames();
       resetPrompt(promptR, 'Add to playlist');
       resetPrompt(promptL, 'Add to queue');
-      const soft = diluteColor(deriveAccent(swipeTrackOf(slab)?.palette ?? null).g);
+      const swipeTrack = swipeTrackOf(slab);
+      const soft = diluteColor(deriveAccent(swipeTrack?.palette ?? null, swipeTrack?.paletteWeights).g);
       if (glowR !== null) {
         glowR.style.background = soft;
       }

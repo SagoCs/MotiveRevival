@@ -18,6 +18,7 @@ export interface IndexedTrack {
   durationSec: number | null;
   artFile: string | null;
   palette: string[] | null;
+  paletteWeights?: number[];
 }
 
 export type NowPlayingView = 'split' | 'art' | 'lyrics';

@@ -145,7 +145,7 @@ export function initBrowser(onCompactLyric?: (text: string | null, upcoming: boo
     playingPath = track.absPath;
     reconcilePlayingRows();
   });
-  appBus.on('track-selected', ({ track }) => uiTheme.setBase(track.palette));
+  appBus.on('track-selected', ({ track }) => uiTheme.setBase(track.palette, track.paletteWeights));
 
   window.addEventListener(
     'mr-go-to-album',
@@ -1163,7 +1163,7 @@ function openAlbum(album: AlbumEntry): void {
   if (!art || !titleEl || !subEl || !list) return;
 
   applyPalette(detailLayer, album.palette ?? fallbackPalette(album.key));
-  applyLyricsInk(detailLayer, album.palette);
+  applyLyricsInk(detailLayer, album.palette, album.paletteWeights);
   artInto(art, album.artFile, 'detail-img');
   titleEl.textContent = album.name;
   subEl.textContent = `${album.credit ?? album.artist}${

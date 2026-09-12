@@ -129,7 +129,7 @@ export function initArrowMarkers(): void {
   };
   img.src = arrowUrl;
   appBus.on('track-selected', ({ track }) => {
-    targetAccent = deriveAccent(track.palette).a;
+    targetAccent = deriveAccent(track.palette, track.paletteWeights).a;
     retint(targetAccent);
   });
   window.addEventListener('resize', scheduleRetint);

@@ -7,7 +7,7 @@ import type { IndexedTrack, LibraryResult } from '../shared/types';
 const AUDIO_EXTS = new Set(['.mp3', '.flac', '.ogg', '.oga', '.wav', '.m4a', '.aac', '.opus']);
 const MAX_DEPTH = 12;
 const CONCURRENCY = 8;
-const INDEX_VERSION = 6;
+const INDEX_VERSION = 7;
 
 const CREDIT_SPLIT = /\s*[;,]\s*|\s+feat\.?\s+|\s+ft\.\s*|\s+featuring\s+/i;
 
@@ -196,7 +196,7 @@ async function indexFile(
     if (artFile === null) {
       artFile = folderFallbackArt(dirname(fullPath), fallbackCache);
     }
-    const palette = artFile !== null ? extractPalette(artFile) : null;
+    const extracted = artFile !== null ? extractPalette(artFile) : null;
 
     const duration = meta.format.duration;
     const artistCredit = clean(common.artist);
@@ -213,7 +213,8 @@ async function indexFile(
       bpm: typeof common.bpm === 'number' && Number.isFinite(common.bpm) ? Math.round(common.bpm) : null,
       durationSec: duration !== undefined && Number.isFinite(duration) ? duration : null,
       artFile,
-      palette,
+      palette: extracted?.colors ?? null,
+      paletteWeights: extracted?.weights,
     };
   } catch {
     return {
@@ -234,13 +235,15 @@ async function indexFile(
   }
 }
 
-function extractPalette(artPath: string): string[] | null {
+function extractPalette(artPath: string): { colors: string[]; weights: number[] } | null {
   try {
     const img = nativeImage.createFromPath(artPath);
     if (img.isEmpty()) return null;
-    const small = img.resize({ width: 32, height: 32 });
+    const small = img.resize({ width: 64, height: 64 });
     const buf = small.toBitmap();
     const len = buf.length - (buf.length % 4);
+    const total = len / 4;
+    if (total === 0) return null;
 
     interface Bucket { n: number; r: number; g: number; b: number }
     const buckets = new Map<number, Bucket>();
@@ -250,7 +253,7 @@ function extractPalette(artPath: string): string[] | null {
       const g = buf[i + 1];
       const r = buf[i + 2];
       if (r === undefined || g === undefined || b === undefined) continue;
-      const key = ((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4);
+      const key = ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
       const cur = buckets.get(key);
       if (cur !== undefined) {
         cur.n += 1;
@@ -262,33 +265,49 @@ function extractPalette(artPath: string): string[] | null {
       }
     }
 
-    const sorted = Array.from(buckets.values()).sort((a, b2) => b2.n - a.n);
-    const picked: Array<{ r: number; g: number; b: number }> = [];
-
-    for (const bucket of sorted) {
-      const c = {
-        r: Math.round(bucket.r / bucket.n),
-        g: Math.round(bucket.g / bucket.n),
-        b: Math.round(bucket.b / bucket.n),
-      };
-      let tooClose = false;
-      for (const p of picked) {
-        if (Math.abs(p.r - c.r) + Math.abs(p.g - c.g) + Math.abs(p.b - c.b) < 72) {
-          tooClose = true;
-          break;
-        }
-      }
-      if (!tooClose) picked.push(c);
-      if (picked.length >= 3) break;
+    interface Candidate { r: number; g: number; b: number; share: number; chroma: number }
+    const candidates: Candidate[] = [];
+    for (const bucket of buckets.values()) {
+      const r = Math.round(bucket.r / bucket.n);
+      const g = Math.round(bucket.g / bucket.n);
+      const b = Math.round(bucket.b / bucket.n);
+      const mx = Math.max(r, g, b) / 255;
+      const mn = Math.min(r, g, b) / 255;
+      const l = (mx + mn) / 2;
+      const s = mx === mn ? 0 : l > 0.5 ? (mx - mn) / (2 - mx - mn) : (mx - mn) / (mx + mn);
+      candidates.push({ r, g, b, share: bucket.n / total, chroma: (1 - Math.abs(2 * l - 1)) * s * 100 });
     }
 
+    const manhattan = (a: Candidate, c: Candidate): number =>
+      Math.abs(a.r - c.r) + Math.abs(a.g - c.g) + Math.abs(a.b - c.b);
+
+    const byPop = [...candidates].sort((a, c) => c.share - a.share);
+    const base: Candidate[] = [];
+    for (const c of byPop) {
+      if (base.every((p) => manhattan(p, c) >= 72)) base.push(c);
+      if (base.length >= 4) break;
+    }
+
+    const vivid = candidates
+      .filter((c) => c.chroma > 6 && !base.includes(c))
+      .sort((a, c) => c.chroma * Math.sqrt(c.share) - a.chroma * Math.sqrt(a.share));
+    const extra: Candidate[] = [];
+    for (const c of vivid) {
+      if (extra.every((p) => manhattan(p, c) >= 72)) extra.push(c);
+      if (base.length + extra.length >= 6) break;
+    }
+
+    const picked = [...base, ...extra];
     if (picked.length === 0) return null;
-    while (picked.length < 3 && picked.length > 0) {
+    while (picked.length < 3) {
       const last = picked[picked.length - 1];
       if (last === undefined) break;
       picked.push(last);
     }
-    return picked.map((c) => `#${[c.r, c.g, c.b].map((v) => v.toString(16).padStart(2, '0')).join('')}`);
+    return {
+      colors: picked.map((c) => `#${[c.r, c.g, c.b].map((v) => v.toString(16).padStart(2, '0')).join('')}`),
+      weights: picked.map((c) => c.share),
+    };
   } catch {
     return null;
   }

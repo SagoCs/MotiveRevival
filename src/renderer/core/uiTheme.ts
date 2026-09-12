@@ -16,13 +16,13 @@ function apply(set: AccentSet, floor: AccentSet): void {
 }
 
 export const uiTheme = {
-  setBase(palette: readonly string[] | null): void {
-    base = deriveAccent(palette);
-    horizonBase = deriveHorizon(palette);
+  setBase(palette: readonly string[] | null, weights?: readonly number[]): void {
+    base = deriveAccent(palette, weights);
+    horizonBase = deriveHorizon(palette, weights);
     apply(base, horizonBase);
   },
-  pushPreview(palette: readonly string[] | null): void {
-    apply(deriveAccent(palette), deriveHorizon(palette));
+  pushPreview(palette: readonly string[] | null, weights?: readonly number[]): void {
+    apply(deriveAccent(palette, weights), deriveHorizon(palette, weights));
   },
   popPreview(): void {
     apply(base ?? deriveAccent(null), horizonBase);
