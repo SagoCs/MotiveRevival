@@ -27,6 +27,8 @@ export interface RiverV2Handle {
   setLayout(layout: Partial<RiverV2Layout>): void;
   setVisible(visible: boolean): void;
   onHome(cb: () => void): void;
+  onEntryActivated(cb: (id: string) => void): void;
+  setCommitted(id: string | null): void;
   entryRect(id: string): DOMRect | null;
   hideEntry(id: string): void;
   destroy(): void;
@@ -92,6 +94,8 @@ export function createRiverV2(): RiverV2Handle {
   let shown = false;
   let suppressDbl = 0;
   let homeCb: (() => void) | null = null;
+  let entryCb: ((id: string) => void) | null = null;
+  let committedId: string | null = null;
   let curve = 0.75;
   let tiltMax = 52;
   let fadeHold = 0.6;
@@ -240,10 +244,71 @@ export function createRiverV2(): RiverV2Handle {
     layout();
   };
 
+  const beginPan = (event: PointerEvent, el: HTMLDivElement, onTap: (() => void) | null): void => {
+    if (!shown || event.button !== 0) return;
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const startPos = clamp(position, 0, maxIndex());
+    let dragging = false;
+    const samples: Array<{ t: number; y: number }> = [];
+    try {
+      el.setPointerCapture(event.pointerId);
+    } catch {
+      return;
+    }
+    const onMove = (move: PointerEvent): void => {
+      const dx = move.clientX - startX;
+      const dy = move.clientY - startY;
+      const now = performance.now();
+      samples.push({ t: now, y: move.clientY });
+      while (samples.length > 2 && now - (samples[0]?.t ?? 0) > 100) samples.shift();
+      if (!dragging) {
+        if (Math.abs(dx) < DRAG_DEAD && Math.abs(dy) < DRAG_DEAD) return;
+        dragging = true;
+        gliding = false;
+        velocity = 0;
+      }
+      position = clamp(startPos - dy / slotH, 0, maxIndex());
+      layout();
+    };
+    const detach = (): void => {
+      el.removeEventListener('pointermove', onMove);
+      el.removeEventListener('pointerup', finish);
+      el.removeEventListener('pointercancel', cancel);
+    };
+    const finish = (): void => {
+      detach();
+      if (!dragging) {
+        if (onTap !== null) onTap();
+        return;
+      }
+      suppressDbl = performance.now();
+      const first = samples[0];
+      const lastSample = samples[samples.length - 1];
+      if (first !== undefined && lastSample !== undefined && lastSample.t > first.t) {
+        velocity = clamp(((first.y - lastSample.y) / (lastSample.t - first.t)) * 1000, -WHEEL_MAX, WHEEL_MAX);
+      }
+      wake();
+    };
+    const cancel = (): void => {
+      detach();
+      if (dragging) {
+        suppressDbl = performance.now();
+        velocity = 0;
+        wake();
+      }
+    };
+    el.addEventListener('pointermove', onMove);
+    el.addEventListener('pointerup', finish);
+    el.addEventListener('pointercancel', cancel);
+  };
+
   const buildSlab = (entry: RiverV2Entry, index: number, host: HTMLDivElement): Slab => {
     const el = document.createElement('div');
     el.className = entry.art === null ? 'rv2-card rv2-card-plain' : 'rv2-card';
     el.dataset.index = String(index);
+    el.dataset.id = entry.id;
+    if (entry.id === committedId) el.classList.add('committed');
     if (entry.art !== null) {
       const art = document.createElement('div');
       art.className = 'rv2-art';
@@ -270,6 +335,11 @@ export function createRiverV2(): RiverV2Handle {
     }
     el.append(text);
     host.append(el);
+    el.addEventListener('pointerdown', (event) => {
+      beginPan(event, el, () => {
+        if (entryCb !== null) entryCb(entry.id);
+      });
+    });
     return {
       el,
       id: entry.id,
@@ -298,57 +368,7 @@ export function createRiverV2(): RiverV2Handle {
     );
 
     voidEl.addEventListener('pointerdown', (event) => {
-      if (!shown || event.button !== 0) return;
-      const startY = event.clientY;
-      const startPos = clamp(position, 0, maxIndex());
-      let dragging = false;
-      const samples: Array<{ t: number; y: number }> = [];
-      try {
-        voidEl?.setPointerCapture(event.pointerId);
-      } catch {
-        return;
-      }
-      const onMove = (move: PointerEvent): void => {
-        const dy = move.clientY - startY;
-        const now = performance.now();
-        samples.push({ t: now, y: move.clientY });
-        while (samples.length > 2 && now - (samples[0]?.t ?? 0) > 100) samples.shift();
-        if (!dragging) {
-          if (Math.abs(dy) < DRAG_DEAD) return;
-          dragging = true;
-          gliding = false;
-          velocity = 0;
-        }
-        position = clamp(startPos - dy / slotH, 0, maxIndex());
-        layout();
-      };
-      const finish = (): void => {
-        voidEl?.removeEventListener('pointermove', onMove);
-        voidEl?.removeEventListener('pointerup', finish);
-        voidEl?.removeEventListener('pointercancel', cancel);
-        if (dragging) {
-          suppressDbl = performance.now();
-          const first = samples[0];
-          const lastSample = samples[samples.length - 1];
-          if (first !== undefined && lastSample !== undefined && lastSample.t > first.t) {
-            velocity = clamp(((first.y - lastSample.y) / (lastSample.t - first.t)) * 1000, -WHEEL_MAX, WHEEL_MAX);
-          }
-          wake();
-        }
-      };
-      const cancel = (): void => {
-        voidEl?.removeEventListener('pointermove', onMove);
-        voidEl?.removeEventListener('pointerup', finish);
-        voidEl?.removeEventListener('pointercancel', cancel);
-        if (dragging) {
-          suppressDbl = performance.now();
-          velocity = 0;
-          wake();
-        }
-      };
-      voidEl?.addEventListener('pointermove', onMove);
-      voidEl?.addEventListener('pointerup', finish);
-      voidEl?.addEventListener('pointercancel', cancel);
+      beginPan(event, voidEl as HTMLDivElement, null);
     });
 
     voidEl.addEventListener('dblclick', (event) => {
@@ -429,6 +449,13 @@ export function createRiverV2(): RiverV2Handle {
     },
     onHome(cb: () => void): void {
       homeCb = cb;
+    },
+    onEntryActivated(cb: (id: string) => void): void {
+      entryCb = cb;
+    },
+    setCommitted(id: string | null): void {
+      committedId = id;
+      for (const slab of slabs) slab.el.classList.toggle('committed', slab.id === id);
     },
     entryRect(id: string): DOMRect | null {
       const slab = slabs.find((s) => s.id === id);

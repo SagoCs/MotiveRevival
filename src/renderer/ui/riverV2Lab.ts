@@ -1,6 +1,8 @@
 import { libraryStore } from '../core/libraryStore';
 import { mediaUrl, player } from '../core/player';
+import { appBus } from '../core/appBus';
 import { createRiverV2 } from './riverV2';
+import { openNowPlaying } from './overlay';
 import type { RiverV2Entry, RiverV2Region } from './riverV2';
 import type { IndexedTrack } from '../../shared/types';
 
@@ -43,6 +45,8 @@ const pushEntries = (): void => {
   if (result === null || !result.ok || result.tracks.length === 0) return;
   river.setEntries(entriesFrom(result.tracks));
   river.scrollTo(homeIndex());
+  const cur = player.currentTrack;
+  river.setCommitted(cur !== null ? cur.id : null);
 };
 
 export function initRiverV2Lab(): void {
@@ -54,6 +58,23 @@ export function initRiverV2Lab(): void {
       if (river === null) {
         river = createRiverV2();
         river.onHome(() => river?.glideTo(homeIndex()));
+        river.onEntryActivated((id) => {
+          if (river === null) return;
+          const result = libraryStore.result;
+          if (result === null || !result.ok) return;
+          const idx = result.tracks.findIndex((t) => t.id === id);
+          if (idx < 0) return;
+          const track = result.tracks[idx];
+          if (track === undefined) return;
+          const cur = player.currentTrack;
+          if (cur === null || cur.absPath !== track.absPath) {
+            player.setContext(result.tracks, idx);
+          } else {
+            openNowPlaying();
+          }
+          river.setCommitted(id);
+          river.glideTo(idx);
+        });
       }
       river.mount(currentRegion(), window.devicePixelRatio || 1);
       pushEntries();
@@ -72,9 +93,14 @@ export function initRiverV2Lab(): void {
 
   libraryStore.onChange(() => pushEntries());
 
+  appBus.on('track-selected', ({ track }) => {
+    river?.setCommitted(track.id);
+  });
+
   (window as unknown as { __riverV2Lab?: unknown }).__riverV2Lab = {
     river: () => river,
     reload: () => pushEntries(),
     homeIndex: () => homeIndex(),
+    playingId: () => player.currentTrack?.id ?? null,
   };
 }

@@ -182,6 +182,8 @@ await evalJs(`(() => { const b = document.querySelector('#mode-tabs button[data-
 await evalJs('window.__f9probeDowns = 0');
 await pressF9();
 await sleep(1000);
+await evalJs(`__riverV2Lab.river()?.scrollTo(Math.min(40, document.querySelectorAll('#river-v2 .rv2-card').length - 1))`);
+await sleep(500);
 const downs = await evalJs('window.__f9probeDowns');
 check('exactly one keydown delivered per press', downs === 1, `${downs} keydown(s)`);
 const on = await state();
@@ -232,10 +234,7 @@ if (geometryReady && on.visible.length > 0) {
 }
 
 const shot = await send('Page.captureScreenshot', { format: 'png' });
-const shotBuf = Buffer.from(shot.data, 'base64');
-const { writeFileSync } = await import('node:fs');
-writeFileSync(`${process.cwd()}\\river-lab-latest.png`, shotBuf);
-const img = decode(shotBuf);
+const img = decode(Buffer.from(shot.data, 'base64'));
 const artState = await evalJs(`JSON.stringify({
   cards: document.querySelectorAll('#river-v2 .rv2-card').length,
   imgs: [...document.querySelectorAll('#river-v2 .rv2-art img')].slice(0, 20).filter((i) => i.complete && i.naturalWidth > 0).length,
@@ -358,8 +357,7 @@ if (labReady === 'ok') {
   const region = on.region;
   const vx = region.x + Math.max(60, region.w * 0.04);
   const vy = region.y + region.h / 2;
-  const h0 = await evalJs('__riverV2Lab.homeIndex()');
-  await evalJs(`__riverV2Lab.river().scrollTo(${Math.min(h0 + 5, 157)})`);
+  await evalJs(`__riverV2Lab.river()?.scrollTo(Math.min(45, document.querySelectorAll('#river-v2 .rv2-card').length - 1))`);
   await sleep(300);
 
   await evalJs(`(() => { window.__posTrace = []; const t0 = performance.now(); const grab = () => { const out = []; for (const el of document.querySelectorAll('#river-v2 .rv2-card')) { if (el.style.visibility === 'hidden') continue; const r = el.getBoundingClientRect(); if (r.height < 4) continue; out.push([+el.dataset.index, +r.top.toFixed(2)]); } return out; }; const loop = () => { window.__posTrace.push([Math.round(performance.now() - t0), +__riverV2Lab.river().scrollPosition().toFixed(4), grab()]); if (performance.now() - t0 < 2600) requestAnimationFrame(loop); }; requestAnimationFrame(loop); return 'ok'; })()`);
@@ -399,8 +397,7 @@ if (labReady === 'ok') {
   check('park: position frozen at idle', posA === posB, `${posA} vs ${posB}`);
 
   const posBefore = await evalJs('__riverV2Lab.river().scrollPosition()');
-  const dy0 = region.y + region.h * 0.75;
-  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: vx, y: dy0, button: 'left', clickCount: 1 });
+  const dy0 = region.y + region.h * 0.75;  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: vx, y: dy0, button: 'left', clickCount: 1 });
   for (let k = 1; k <= 12; k++) {
     await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: vx, y: dy0 - k * 20, button: 'left' });
     await sleep(16);
@@ -414,7 +411,8 @@ if (labReady === 'ok') {
   await sleep(1800);
 
   const home = await evalJs('__riverV2Lab.homeIndex()');
-  await evalJs(`__riverV2Lab.river().scrollTo(${Math.min(home + 20, 157)})`);
+  const away = home < 138 ? home + 20 : home - 20;
+  await evalJs(`__riverV2Lab.river().scrollTo(${away})`);
   await sleep(300);
   await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: vx, y: vy, button: 'left', clickCount: 1 });
   await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: vx, y: vy, button: 'left', clickCount: 1 });
@@ -443,6 +441,32 @@ if (labReady === 'ok') {
   await sleep(600);
   const posEnd = await evalJs('__riverV2Lab.river().scrollPosition()');
   check('clamps at list end', Math.abs(posEnd - (libCount - 1)) < 0.001, `pos ${posEnd} vs ${libCount - 1}`);
+
+  const cx = Math.round(region.x + region.w / 2);
+  const clickCardId = await evalJs(`(() => { const el = document.elementFromPoint(${cx}, ${vy})?.closest('.rv2-card'); return el?.dataset.id ?? null; })()`);
+  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: cx, y: vy, button: 'left', clickCount: 1 });
+  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: cx, y: vy, button: 'left', clickCount: 1 });
+  await sleep(1100);
+  const playingId = await evalJs('__riverV2Lab.playingId()');
+  check('click plays the clicked song', clickCardId !== null && playingId === clickCardId, `playing ${playingId} vs clicked ${clickCardId}`);
+  const committedIdx = await evalJs(`document.querySelector('#river-v2 .rv2-card.committed')?.dataset.index ?? null`);
+  const homeNow = await evalJs('__riverV2Lab.homeIndex()');
+  const posAfterClick = await evalJs('__riverV2Lab.river().scrollPosition()');
+  check('clicked card wears committed bloom and centers', committedIdx === String(homeNow) && Math.abs(posAfterClick - homeNow) < 0.02, `committed ${committedIdx}, home ${homeNow}, pos ${(+posAfterClick).toFixed(2)}`);
+
+  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: cx, y: vy, button: 'left', clickCount: 1 });
+  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: cx, y: vy, button: 'left', clickCount: 1 });
+  await sleep(1000);
+  const overlayOpen = await evalJs(`document.querySelector('#overlay') !== null && !document.querySelector('#overlay').hidden`);
+  check('click on playing song opens now-playing', overlayOpen === true, `overlay open: ${overlayOpen}`);
+  await send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 });
+  await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 });
+  await sleep(800);
+  const overlayClosed = await evalJs(`document.querySelector('#overlay') === null || document.querySelector('#overlay').hidden`);
+  check('escape closes now-playing', overlayClosed === true, `overlay closed: ${overlayClosed}`);
+  await send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: ' ', code: 'Space', windowsVirtualKeyCode: 32, nativeVirtualKeyCode: 32 });
+  await send('Input.dispatchKeyEvent', { type: 'keyUp', key: ' ', code: 'Space', windowsVirtualKeyCode: 32, nativeVirtualKeyCode: 32 });
+  await sleep(400);
 }
 
 await pressF9();
