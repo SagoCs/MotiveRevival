@@ -12,6 +12,19 @@ const REST_CENTER = 8;
 
 let river: ReturnType<typeof createRiverV2> | null = null;
 let active = false;
+let browserVisible = false;
+
+const applyVisibility = (): void => {
+  river?.setVisible(active && browserVisible);
+};
+
+export const riverV2Lab = {
+  setBrowserVisible(next: boolean): void {
+    if (browserVisible === next) return;
+    browserVisible = next;
+    applyVisibility();
+  },
+};
 
 const entriesFrom = (tracks: IndexedTrack[]): RiverV2Entry[] =>
   tracks.map((track) => ({
@@ -78,9 +91,10 @@ export function initRiverV2Lab(): void {
       }
       river.mount(currentRegion(), window.devicePixelRatio || 1);
       pushEntries();
-      river.setVisible(true);
+      applyVisibility();
       document.body.classList.add('river-v2-active');
     } else {
+      active = false;
       river?.setVisible(false);
       document.body.classList.remove('river-v2-active');
     }

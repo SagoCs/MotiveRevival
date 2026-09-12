@@ -24,6 +24,7 @@ import { Viz } from './viz';
 import { createLyrics } from './lyrics';
 import { renderTabCards, searchPlaylists, closePlaylistLayer, isPlaylistLayerOpen, openDetail, attachContextMenu } from './playlistsView';
 import { songRiver } from './songRiver';
+import { riverV2Lab } from './riverV2Lab';
 import { setUniverseVisible } from './universe';
 import type { Playlist } from '../../shared/types';
 
@@ -926,6 +927,7 @@ function retractVisibleRows(): void {
 
 function syncRiver(): void {
   songRiver.setVisible(state.mode === 'songs' && libraryOk && idx.songs.length > 0 && !detailOpen);
+  riverV2Lab.setBrowserVisible(state.mode === 'songs' && libraryOk && idx.songs.length > 0 && !detailOpen);
 }
 
 function render(immediate = false): void {
@@ -950,7 +952,10 @@ function render(immediate = false): void {
     renderedMode = state.mode;
   };
 
-  if (!immediate && fx.motion && fx.carousel && renderedMode === 'songs' && state.mode !== 'songs') {
+  const flatListShown =
+    !document.body.classList.contains('song-river-active') &&
+    !document.body.classList.contains('river-v2-active');
+  if (!immediate && fx.motion && fx.carousel && flatListShown && renderedMode === 'songs' && state.mode !== 'songs') {
     if (pendingSwapTimer !== 0) window.clearTimeout(pendingSwapTimer);
     retractVisibleRows();
     pendingSwapTimer = window.setTimeout(() => {
