@@ -24,6 +24,7 @@ import { Viz } from './viz';
 import { createLyrics } from './lyrics';
 import { renderTabCards, searchPlaylists, closePlaylistLayer, isPlaylistLayerOpen, openDetail, attachContextMenu } from './playlistsView';
 import { songRiver } from './songRiver';
+import { closeSongMenu } from './songMenu';
 import { riverV2Lab } from './riverV2Lab';
 import { setUniverseVisible } from './universe';
 import type { Playlist } from '../../shared/types';
@@ -287,6 +288,7 @@ function updateSummonWidth(): void {
 function openOracle(): void {
   const panel = document.getElementById('search-oracle');
   if (panel === null) return;
+  closeSongMenu();
   panel.hidden = false;
   requestAnimationFrame(() => panel.classList.add('open'));
   summonZone.classList.add('active');

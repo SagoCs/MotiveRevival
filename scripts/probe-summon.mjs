@@ -159,8 +159,14 @@ phase = 'open';
 await evalJs(`document.querySelector('#summon-zone').click()`);
 await sleep(400);
 check('summon opens', await evalJs(`document.querySelector('#search-oracle').classList.contains('open')`));
-check('drawer frame is complete (top border present)',
-  (await evalJs(`getComputedStyle(document.querySelector('#search-oracle')).borderTopWidth`)) === '1px');
+const frameStyle = await evalJs(`(() => {
+  const el = document.querySelector('#search-oracle');
+  const cs = getComputedStyle(el);
+  const before = getComputedStyle(el, '::before');
+  return { border: cs.borderTopWidth, hairline: before.content !== 'none' && before.position === 'absolute', hairlineHeight: before.height };
+})()`);
+check('drawer frame is the single top hairline (frameless, hairline present)',
+  frameStyle.border === '0px' && frameStyle.hairline === true, JSON.stringify(frameStyle));
 
 async function summonQuery(q) {
   phase = `query:${q}`;

@@ -5,6 +5,7 @@
   width: 280px;
   padding: 2px 0 6px;
   border: 1px solid color-mix(in srgb, var(--acc-a) 12%, rgba(212, 214, 226, 0.06));
+  border-top-width: 0;
   background:
     radial-gradient(70% 90px at 50% 0%, color-mix(in srgb, var(--hz-a) 12%, transparent), transparent 100%),
     linear-gradient(180deg, color-mix(in srgb, var(--void-1) 97%, transparent), color-mix(in srgb, var(--void-0) 99%, transparent));

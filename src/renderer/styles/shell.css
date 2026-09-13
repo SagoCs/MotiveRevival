@@ -1594,7 +1594,7 @@ body:has(#playlist-layer.open) .transport-lyric {
   flex-direction: column;
   overflow: hidden;
   border-radius: 0;
-  border-color: color-mix(in srgb, var(--acc-a) 12%, rgba(212, 214, 226, 0.06));
+  border: none;
   background:
     radial-gradient(46% 150px at 16% 0%, color-mix(in srgb, var(--hz-a) 16%, transparent), transparent 100%),
     linear-gradient(180deg, color-mix(in srgb, var(--hz-glow) 8%, transparent), transparent 130px),
