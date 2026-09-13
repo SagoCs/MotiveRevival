@@ -1,5 +1,11 @@
 # Spike Brief — River v2 (working title)
 
+Status: **GRADUATED 2026-09-13** — the river is the live Songs view
+(`ui/riverSurface.ts` over the `ui/riverV2.ts` contract); v1 `songRiver.ts`,
+the F9 lab, and this brief's spike scaffolding are deleted. Remaining riders:
+reveal/collapse + spread-exit timeline, card recycling, the fling fps bar.
+The history below is kept as the spike's record.
+
 Status: APPROVED by owner 2026-09-11 — the drill grammar below (Future
 consumers) was settled in session the same day. Nothing is built yet; this
 document seeds the spike's HANDOFF.md. Decided: branch `spike/river-v2`

@@ -94,10 +94,8 @@ for (let i = 0; i < 20; i++) {
 }
 
 await evalJs(`document.querySelector('#mode-tabs button[data-mode="songs"]').click()`);
-await sleep(500);
-await evalJs(`document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'F9', bubbles: true }))`);
-await sleep(700);
-console.log('v2 lab active:', await evalJs(`document.body.classList.contains('river-v2-active')`));
+await sleep(800);
+console.log('river surface live:', await evalJs(`document.querySelector('#river-v2').classList.contains('on')`));
 
 const pre = await evalJs(`({ pos: window.__riverV2Lab.river().scrollPosition(), home: window.__riverV2Lab.homeIndex(), playing: window.__riverV2Lab.playingId() })`);
 console.log('before summon click: scrollPosition =', pre.pos, ' homeIndex(playing) =', pre.home, ' playingId =', pre.playing);

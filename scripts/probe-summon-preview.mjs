@@ -120,7 +120,7 @@ const dwell = await evalJs(`(() => {
 })()`);
 check('dwell marks the row as preview-pending', dwell.pending === true);
 
-await sleep(1400);
+await sleep(2200);
 const active = await evalJs(`(() => {
   const row = document.querySelector('#oracle-results .kind-song');
   const cs = getComputedStyle(row);

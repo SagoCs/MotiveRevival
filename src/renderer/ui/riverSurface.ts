@@ -12,14 +12,14 @@ const TIMELINE_H = 62;
 const REST_CENTER = 8;
 
 let river: ReturnType<typeof createRiverV2> | null = null;
-let active = false;
 let browserVisible = false;
 
 const applyVisibility = (): void => {
-  river?.setVisible(active && browserVisible);
+  river?.setVisible(browserVisible);
+  document.body.classList.toggle('song-river-active', browserVisible);
 };
 
-export const riverV2Lab = {
+export const riverSurface = {
   setBrowserVisible(next: boolean): void {
     if (browserVisible === next) return;
     browserVisible = next;
@@ -54,7 +54,7 @@ const homeIndex = (): number => {
 };
 
 const pushEntries = (): void => {
-  if (river === null || !active) return;
+  if (river === null) return;
   const result = libraryStore.result;
   if (result === null || !result.ok || result.tracks.length === 0) return;
   river.setEntries(entriesFrom(result.tracks));
@@ -63,54 +63,40 @@ const pushEntries = (): void => {
   river.setCommitted(cur !== null ? cur.id : null);
 };
 
-export function initRiverV2Lab(): void {
-  window.addEventListener('keydown', (event) => {
-    if (event.key !== 'F9') return;
-    event.preventDefault();
-    active = !active;
-    if (active) {
-      if (river === null) {
-        river = createRiverV2();
-        river.onHome(() => river?.glideTo(homeIndex()));
-        river.onEntryContext((id, card) => {
-          if (river === null) return;
-          const result = libraryStore.result;
-          if (result === null || !result.ok) return;
-          const track = result.tracks.find((t) => t.id === id);
-          if (track === undefined) return;
-          openSongMenu({ track, host: card, row: null });
-        });
-        river.onEntryActivated((id) => {
-          if (river === null) return;
-          const result = libraryStore.result;
-          if (result === null || !result.ok) return;
-          const idx = result.tracks.findIndex((t) => t.id === id);
-          if (idx < 0) return;
-          const track = result.tracks[idx];
-          if (track === undefined) return;
-          const cur = player.currentTrack;
-          if (cur === null || cur.absPath !== track.absPath) {
-            player.setContext(result.tracks, idx);
-          } else {
-            openNowPlaying();
-          }
-          river.setCommitted(id);
-          river.glideTo(idx);
-        });
-      }
-      river.mount(currentRegion(), window.devicePixelRatio || 1);
-      pushEntries();
-      applyVisibility();
-      document.body.classList.add('river-v2-active');
-    } else {
-      active = false;
-      river?.setVisible(false);
-      document.body.classList.remove('river-v2-active');
-    }
+export function initRiverSurface(): void {
+  river = createRiverV2();
+  river.onHome(() => river?.glideTo(homeIndex()));
+  river.onEntryContext((id, card) => {
+    if (river === null) return;
+    const result = libraryStore.result;
+    if (result === null || !result.ok) return;
+    const track = result.tracks.find((t) => t.id === id);
+    if (track === undefined) return;
+    openSongMenu({ track, host: card, row: null });
   });
+  river.onEntryActivated((id) => {
+    if (river === null) return;
+    const result = libraryStore.result;
+    if (result === null || !result.ok) return;
+    const idx = result.tracks.findIndex((t) => t.id === id);
+    if (idx < 0) return;
+    const track = result.tracks[idx];
+    if (track === undefined) return;
+    const cur = player.currentTrack;
+    if (cur === null || cur.absPath !== track.absPath) {
+      player.setContext(result.tracks, idx);
+    } else {
+      openNowPlaying();
+    }
+    river.setCommitted(id);
+    river.glideTo(idx);
+  });
+  river.mount(currentRegion(), window.devicePixelRatio || 1);
+  pushEntries();
+  applyVisibility();
 
   window.addEventListener('resize', () => {
-    if (river === null || !active) return;
+    if (river === null) return;
     river.setRegion(currentRegion(), window.devicePixelRatio || 1);
   });
 
@@ -121,8 +107,7 @@ export function initRiverV2Lab(): void {
   });
 
   appBus.on('reveal-playing', () => {
-    if (!active || river === null) return;
-    river.glideTo(homeIndex());
+    river?.glideTo(homeIndex());
   });
 
   (window as unknown as { __riverV2Lab?: unknown }).__riverV2Lab = {

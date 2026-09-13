@@ -102,9 +102,7 @@ const revived = await evalJs(`(async () => {
   const A = window.__songActions;
   if (A.queueSnapshot().upcoming.length > 0) return 'ready';
   document.querySelector('#mode-tabs button[data-mode="songs"]')?.click();
-  await new Promise((r) => setTimeout(r, 400));
-  if (!document.body.classList.contains('river-v2-active')) document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'F9', bubbles: true }));
-  await new Promise((r) => setTimeout(r, 600));
+  await new Promise((r) => setTimeout(r, 900));
   const playing = window.__riverV2Lab?.playingId?.() ?? null;
   const cards = Array.from(document.querySelectorAll('.rv2-card'));
   const c = cards.find((x) => x.dataset.id !== playing && x.getBoundingClientRect().height > 60);

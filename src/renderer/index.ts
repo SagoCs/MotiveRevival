@@ -6,7 +6,6 @@ import '@fontsource/ibm-plex-mono/400.css';
 import './styles/tokens.css';
 import './styles/base.css';
 import './styles/shell.css';
-import './styles/river.css';
 import './styles/riverV2.css';
 import './styles/songMenu.css';
 
@@ -26,8 +25,7 @@ import { initSettingsPanel, applyLyricsLayout } from './ui/settings';
 import { createTransport } from './ui/transport';
 import { initWindowControls } from './ui/windowControls';
 import { initArrowMarkers } from './ui/arrowMarkers';
-import { initSongRiver } from './ui/songRiver';
-import { initRiverV2Lab } from './ui/riverV2Lab';
+import { initRiverSurface } from './ui/riverSurface';
 import { initUniverse } from './ui/universe';
 import './core/songActions';
 
@@ -54,8 +52,7 @@ function boot(): void {
   });
   lantern.init();
   initArrowMarkers();
-  initSongRiver();
-  initRiverV2Lab();
+  initRiverSurface();
   initUniverse();
 
   const arrowAnchor = (side: number): { x: number; y: number } | null => {

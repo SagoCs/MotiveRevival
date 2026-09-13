@@ -1,5 +1,5 @@
-body.river-v2-active #song-river {
-  display: none;
+body.song-river-active #carousel-content {
+  visibility: hidden;
 }
 
 #river-v2 {

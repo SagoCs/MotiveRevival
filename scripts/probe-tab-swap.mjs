@@ -121,23 +121,13 @@ for (let i = 0; i < 20; i++) {
   await sleep(700);
 }
 
-await evalJs(`if (document.body.classList.contains('river-v2-active')) document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'F9', bubbles: true }))`);
 await sleep(400);
 
-console.log('--- v1 river live ---');
-await timedSwap('albums', 'artists', 'albums -> artists');
-await timedSwap('artists', 'albums', 'artists -> albums');
-await timedSwap('albums', 'songs', 'albums -> songs (v1)');
-await timedSwap('songs', 'albums', 'songs (v1) -> albums');
-
-console.log('--- v2 river armed (F9) ---');
+console.log('--- river surface live on Songs ---');
 await evalJs(`document.querySelector('#mode-tabs button[data-mode="songs"]').click()`);
-await sleep(500);
-await evalJs(`document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'F9', bubbles: true }))`);
 await sleep(700);
 await timedSwap('albums', 'artists', 'albums -> artists');
-await timedSwap('albums', 'songs', 'albums -> songs (v2)');
-await timedSwap('songs', 'albums', 'songs (v2) -> albums');
-await timedSwap('songs', 'artists', 'songs (v2) -> artists');
-await evalJs(`document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'F9', bubbles: true }))`);
+await timedSwap('albums', 'songs', 'albums -> songs');
+await timedSwap('songs', 'albums', 'songs -> albums');
+await timedSwap('songs', 'artists', 'songs -> artists');
 process.exit(0);

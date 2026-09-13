@@ -259,8 +259,11 @@ phase = 'pixel';
 const pixelRes = await summonQuery('mili');
 const songRows = pixelRes.rows.filter((r) => kindOf(r) === 'song');
 if (songRows.length > 0) {
+  await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 4, y: 4 });
+  await sleep(150);
   const rect = await evalJs(`(() => {
     const r = document.querySelector('#oracle-results .kind-song');
+    r.scrollIntoView({ block: 'center' });
     const b = r.getBoundingClientRect();
     return { x: b.x, y: b.y, w: b.width, h: b.height };
   })()`);

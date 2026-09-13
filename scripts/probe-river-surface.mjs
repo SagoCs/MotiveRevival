@@ -151,44 +151,29 @@ const tab = JSON.parse(tabCenter);
 await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: tab.x, y: tab.y, button: 'left', clickCount: 1 });
 await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: tab.x, y: tab.y, button: 'left', clickCount: 1 });
 await sleep(2000);
-
-const pressF9 = async () => {
-  await evalJs(`(() => { const b = document.querySelector('#mode-tabs button[data-mode="songs"]'); if (b !== null) b.focus(); return 'ok'; })()`);
-  await send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'F9', code: 'F9', windowsVirtualKeyCode: 120, nativeVirtualKeyCode: 120 });
-  await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'F9', code: 'F9', windowsVirtualKeyCode: 120, nativeVirtualKeyCode: 120 });
-};
+let libLen = await evalJs(`window.__songActions.libraryTracks().length`);
+for (let i = 0; i < 15; i++) {
+  await sleep(1000);
+  const next = await evalJs(`window.__songActions.libraryTracks().length`);
+  if (next === libLen && next > 0) break;
+  libLen = next;
+}
+await evalJs(`__riverV2Lab.river().scrollTo(__riverV2Lab.homeIndex())`);
+await sleep(1200);
 
 const state = async () => JSON.parse(await evalJs(`JSON.stringify({
-  v2Active: document.body.classList.contains('river-v2-active'),
   v2On: document.querySelector('#river-v2')?.classList.contains('on') ?? false,
   v2Mounted: document.querySelector('#river-v2') !== null,
-  liveDisplay: getComputedStyle(document.querySelector('#song-river')).display,
   slabCount: document.querySelectorAll('#river-v2 .rv2-card').length,
   region: (() => { const r = document.querySelector('#river-v2')?.getBoundingClientRect(); return r ? { x: r.x, y: r.y, w: r.width, h: r.height } : null; })(),
   visible: [...document.querySelectorAll('#river-v2 .rv2-card')].filter((el) => el.style.visibility !== 'hidden').map((el) => { const r = el.getBoundingClientRect(); return { t: +r.top.toFixed(2), b: +r.bottom.toFixed(2), l: +r.left.toFixed(2), rt: +r.right.toFixed(2), h: +r.height.toFixed(2), op: +(+el.style.opacity).toFixed(3) }; }),
-  activeTab: document.querySelector('#mode-tabs button.active')?.getAttribute('data-mode') ?? null,
-  liveOn: document.querySelector('#song-river')?.classList.contains('on') ?? false
+  activeTab: document.querySelector('#mode-tabs button.active')?.getAttribute('data-mode') ?? null
 })`));
 
-let s = await state();
-while (s.v2Active) {
-  await pressF9();
-  await sleep(500);
-  s = await state();
-}
-
-await evalJs(`(() => { window.__f9probeDowns = 0; if (!window.__f9probeCounting) { window.__f9probeCounting = true; window.addEventListener('keydown', (e) => { if (e.key === 'F9') window.__f9probeDowns++; }); } return 'ok'; })()`);
-await evalJs(`(() => { const b = document.querySelector('#mode-tabs button[data-mode="songs"]'); if (b !== null) b.focus(); return document.hasFocus(); })()`);
-await evalJs('window.__f9probeDowns = 0');
-await pressF9();
-await sleep(1000);
 await evalJs(`__riverV2Lab.river()?.scrollTo(Math.min(40, document.querySelectorAll('#river-v2 .rv2-card').length - 1))`);
 await sleep(500);
-const downs = await evalJs('window.__f9probeDowns');
-check('exactly one keydown delivered per press', downs === 1, `${downs} keydown(s)`);
 const on = await state();
-check('F9 activates lab', on.v2Active && on.v2On && on.v2Mounted, JSON.stringify({ active: on.v2Active, on: on.v2On, mounted: on.v2Mounted }));
-check('live river hidden while lab active', on.liveDisplay === 'none', `#song-river display: ${on.liveDisplay}`);
+check('river surface live on Songs', on.v2On && on.v2Mounted, JSON.stringify({ on: on.v2On, mounted: on.v2Mounted }));
 check('slabs built from real library', on.slabCount > 0, `${on.slabCount} slabs`);
 
 const geometryReady = on.v2On && on.region !== null && on.region.h > 0;
@@ -330,15 +315,16 @@ if (labReady === 'ok') {
   const maxOff = Math.max(...sh.visible.map((r) => Math.abs((r.t + r.b) / 2 - cyS)));
   check('shorten: band compressed near edge', maxOff < sh.region.h * 0.375, `max offset ${maxOff.toFixed(0)}px vs half region ${(sh.region.h / 2).toFixed(0)}px`);
   await evalJs('__riverV2Lab.river().scrollTo(15)');
-  await sleep(500);
+  await sleep(1100);
+  const edgeRegion = (await state()).region;
   const edgeShot = await send('Page.captureScreenshot', { format: 'png' });
   const eimg = decode(Buffer.from(edgeShot.data, 'base64'));
   let litTop = 0;
   let litBottom = 0;
   for (let y = 0; y < eimg.height; y += 2) {
-    if (y < on.region.y + 1 || y >= on.region.y + on.region.h - 1) continue;
-    const inTop = y <= on.region.y + 34;
-    const inBottom = y >= on.region.y + on.region.h - 35;
+    if (y < edgeRegion.y + 1 || y >= edgeRegion.y + edgeRegion.h - 1) continue;
+    const inTop = y <= edgeRegion.y + 34;
+    const inBottom = y >= edgeRegion.y + edgeRegion.h - 35;
     if (!inTop && !inBottom) continue;
     for (let x = 0; x < eimg.width; x += 4) {
       const i = y * eimg.stride + x * 3;
@@ -468,12 +454,6 @@ if (labReady === 'ok') {
   await send('Input.dispatchKeyEvent', { type: 'keyUp', key: ' ', code: 'Space', windowsVirtualKeyCode: 32, nativeVirtualKeyCode: 32 });
   await sleep(400);
 }
-
-await pressF9();
-await sleep(800);
-const off = await state();
-check('F9 deactivates lab', !off.v2Active && !off.v2On);
-check('live river restored on Songs tab', off.liveDisplay !== 'none' && off.activeTab === 'songs' && off.liveOn, `display: ${off.liveDisplay}, tab: ${off.activeTab}, live .on: ${off.liveOn}`);
 
 const knownArtifact = errors.filter((e) => e.includes('closest is not a function') && e.includes('renderer.js'));
 const realErrors = errors.filter((e) => !knownArtifact.includes(e));

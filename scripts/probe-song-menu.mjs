@@ -99,10 +99,8 @@ for (let i = 0; i < 20; i++) {
 }
 
 await evalJs(`document.querySelector('#mode-tabs button[data-mode="songs"]').click()`);
-await sleep(500);
-await evalJs(`if (!document.body.classList.contains('river-v2-active')) document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'F9', bubbles: true }))`);
 await sleep(800);
-check('v2 river live (F9)', await evalJs(`document.body.classList.contains('river-v2-active')`));
+check('v2 river live on Songs', await evalJs(`document.getElementById('river-v2').classList.contains('on') && document.body.classList.contains('song-river-active')`));
 await evalJs(`document.querySelectorAll('[data-probe-pick]').forEach((c) => { delete c.dataset.probePick; })`);
 
 const qState = await evalJs(`(() => { const s = window.__songActions.queueSnapshot(); return { up: s.upcoming.length, total: s.ids.length, lib: window.__songActions.libraryTracks().length }; })()`);
