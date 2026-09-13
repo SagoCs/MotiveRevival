@@ -1,7 +1,8 @@
 import { el } from '../core/dom';
 import { fmtTime } from '../core/dom';
 import { player } from '../core/player';
-import { createQueuePanel } from './queuePanel';
+import { appBus } from '../core/appBus';
+import { openSongMenu, closeSongMenu, isSongMenuOpen } from './songMenu';
 import { ICON_PAUSE, ICON_PLAY, ICON_PREV, ICON_NEXT, ICON_VOLUME, ICON_VOLUME_MUTE, ICON_LOOP } from './icons';
 import type { LoopMode } from '../../shared/types';
 
@@ -131,16 +132,16 @@ export function createTransport(host: HTMLElement): TransportHandle {
   const bottomBar = host.parentElement;
   if (bottomBar !== null) bottomBar.insertBefore(queueBtn, host);
 
-  const queuePanel = createQueuePanel();
   const syncQueueButton = (open: boolean): void => {
     queueBtn.classList.toggle('lit', open);
     queueBtn.setAttribute('aria-pressed', open ? 'true' : 'false');
   };
-  queuePanel.onStateChange(syncQueueButton);
-  syncQueueButton(queuePanel.isOpen());
   queueBtn.addEventListener('click', () => {
-    queuePanel.toggle();
+    if (isSongMenuOpen()) closeSongMenu();
+    else openSongMenu({ host: null, row: queueBtn, phase: 'queue', placement: 'above' });
   });
+  appBus.on('song-menu-opened', ({ row }) => syncQueueButton(row === queueBtn));
+  appBus.on('song-menu-closed', () => syncQueueButton(false));
 
   let dragging = false;
   let lastProgressSent = 0;

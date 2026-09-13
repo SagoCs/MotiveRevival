@@ -480,5 +480,135 @@ const cleanup = await evalJs(`(() => {
 })()`);
 check('scratch playlist cleaned up', cleanup === true);
 
+await evalJs(`document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+await sleep(300);
+
+await evalJs(`(() => {
+  document.getElementById('search-summon').click();
+  const i = document.getElementById('oracle-input');
+  i.focus();
+  i.value = 'mili';
+  i.dispatchEvent(new Event('input', { bubbles: true }));
+})()`);
+await sleep(600);
+const songRowPicked = await evalJs(`(() => {
+  const row = document.querySelector('#oracle-results .oracle-row.kind-song');
+  if (row === null) return null;
+  row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+  return true;
+})()`);
+await sleep(350);
+const chrome = await evalJs(`(() => {
+  const m = document.querySelector('.song-menu');
+  const row = document.querySelector('#oracle-results .oracle-row.kind-song');
+  const mr = m?.getBoundingClientRect();
+  const rr = row?.getBoundingClientRect();
+  return {
+    open: m !== null,
+    chromeMount: m?.classList.contains('song-menu-chrome') ?? false,
+    not3d: m?.classList.contains('song-menu-3d') ?? false,
+    fork: m?.querySelector('.sm-fork') !== null,
+    rightOfRow: mr !== null && rr !== null && mr.left > rr.left && mr.right <= window.innerWidth - 10,
+    summonOpen: document.getElementById('search-oracle').classList.contains('open'),
+  };
+})()`);
+check('summon song row mounts the chrome menu', songRowPicked === true && chrome.open === true && chrome.chromeMount === true && chrome.not3d === false && chrome.fork === true, JSON.stringify(chrome));
+check('chrome menu sits right of the row inside the viewport', chrome.rightOfRow === true);
+check('summon stays open under the menu', chrome.summonOpen === true);
+
+await evalJs(`document.querySelector('#oracle-results .oracle-row.kind-song').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }))`);
+await sleep(400);
+const toggled = await evalJs(`(() => ({
+  menuGone: document.querySelector('.song-menu') === null,
+  summonOpen: document.getElementById('search-oracle').classList.contains('open'),
+}))()`);
+check('same summon row toggles the menu closed', toggled.menuGone === true && toggled.summonOpen === true, JSON.stringify(toggled));
+
+const nonSong = await evalJs(`(() => {
+  const row = document.querySelector('#oracle-results .oracle-row:not(.kind-song)');
+  if (row === null) return { found: false };
+  row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+  return { found: true, noMenu: document.querySelector('.song-menu') === null };
+})()`);
+check('non-song summon rows decline the menu', nonSong.found === false || (nonSong.found === true && nonSong.noMenu === true), JSON.stringify(nonSong));
+
+await evalJs(`(() => {
+  const row = document.querySelector('#oracle-results .oracle-row.kind-song');
+  row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+})()`);
+await sleep(350);
+await evalJs(`(() => {
+  const i = document.getElementById('oracle-input');
+  i.dispatchEvent(new KeyboardEvent('keydown', { key: 'x', bubbles: true }));
+})()`);
+await sleep(350);
+const kb = await evalJs(`(() => ({
+  menuGone: document.querySelector('.song-menu') === null,
+  summonOpen: document.getElementById('search-oracle').classList.contains('open'),
+}))()`);
+check('summon keyboard activity closes the menu', kb.menuGone === true && kb.summonOpen === true, JSON.stringify(kb));
+
+await evalJs(`(() => {
+  const row = document.querySelector('#oracle-results .oracle-row.kind-song');
+  row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+})()`);
+await sleep(350);
+await evalJs(`document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+await sleep(400);
+const layered = await evalJs(`(() => ({
+  menuGone: document.querySelector('.song-menu') === null,
+  summonOpen: document.getElementById('search-oracle').classList.contains('open'),
+}))()`);
+check('escape closes the menu but not the summon', layered.menuGone === true && layered.summonOpen === true, JSON.stringify(layered));
+await evalJs(`document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+await sleep(400);
+check('second escape closes the summon', await evalJs(`!document.getElementById('search-oracle').classList.contains('open')`));
+
+const transport = await evalJs(`(() => {
+  const btn = document.querySelector('.queue-toggle');
+  btn.click();
+  const m = document.querySelector('.song-menu');
+  const mr = m?.getBoundingClientRect();
+  const br = btn.getBoundingClientRect();
+  return {
+    open: m !== null,
+    head: m?.querySelector('.sm-head')?.textContent ?? null,
+    above: mr !== null && br !== null && mr.bottom <= br.top + 2,
+    leftAligned: mr !== null && br !== null && Math.abs(mr.left - br.left) < 40,
+    lit: btn.classList.contains('lit'),
+  };
+})()`);
+check('transport button opens the queue phase above it', transport.open === true && transport.head === 'UP NEXT' && transport.above === true && transport.leftAligned === true && transport.lit === true, JSON.stringify(transport));
+await evalJs(`document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+await sleep(400);
+check('transport menu escape closes it and unlights the button', await evalJs(`(() => {
+  const btn = document.querySelector('.queue-toggle');
+  return document.querySelector('.song-menu') === null && !btn.classList.contains('lit');
+})()`));
+
+await evalJs(`document.querySelector('#mode-tabs button[data-mode="albums"]').click()`);
+await sleep(500);
+await evalJs(`document.querySelector('.album-card')?.click()`);
+await sleep(700);
+await evalJs(`(() => {
+  const cell = document.querySelector('#detail-layer .mini-cell');
+  if (cell !== null) cell.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+})()`);
+await sleep(350);
+const stage = await evalJs(`(() => {
+  const m = document.querySelector('.song-menu');
+  return {
+    open: m !== null,
+    chromeMount: m?.classList.contains('song-menu-chrome') ?? false,
+    fork: m?.querySelector('.sm-fork') !== null,
+    overStage: m !== null,
+  };
+})()`);
+check('stage cell mounts the chrome menu', stage.open === true && stage.chromeMount === true && stage.fork === true, JSON.stringify(stage));
+await evalJs(`document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+await sleep(300);
+await evalJs(`document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+await sleep(400);
+
 console.log(failed === 0 ? 'ALL CHECKS PASSED' : `${failed} CHECK(S) FAILED`);
 process.exit(failed === 0 ? 0 : 1);

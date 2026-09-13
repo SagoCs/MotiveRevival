@@ -1,6 +1,7 @@
 import { libraryStore } from '../core/libraryStore';
 import { mediaUrl, player } from '../core/player';
 import { createArtImage, thumbOf } from '../core/dom';
+import { appBus } from '../core/appBus';
 import { playlistsStore } from '../core/playlistsStore';
 import {
   createPlaylistWithTrack,
@@ -30,6 +31,7 @@ let track: IndexedTrack | null = null;
 let highlightId: string | null = null;
 let deleteTargetId: string | null = null;
 let deletingId: string | null = null;
+let chromeRow: HTMLElement | null = null;
 let closeTimer = 0;
 let fadeTimer = 0;
 let wired = false;
@@ -197,6 +199,7 @@ const renderFork = (): void => {
     requestHighlightPulse();
   });
   listBtn.addEventListener('click', () => {
+    if (track === null) return;
     phase = 'playlists';
     renderPlaylists();
   });
@@ -392,10 +395,10 @@ const ensureWired = (): void => {
       if (root !== null && root.contains(e.target as Node)) return;
       if (
         e.button === 2 &&
-        in3d &&
         root !== null &&
         root.parentElement !== null &&
-        root.parentElement.contains(e.target as Node)
+        ((in3d && root.parentElement.contains(e.target as Node)) ||
+          (!in3d && chromeRow !== null && chromeRow.contains(e.target as Node)))
       ) {
         return;
       }
@@ -418,7 +421,7 @@ const ensureWired = (): void => {
         renderPlaylists();
         return;
       }
-      if (phase === 'queue' || phase === 'playlists') {
+      if ((phase === 'queue' || phase === 'playlists') && track !== null) {
         phase = 'fork';
         renderFork();
         return;
@@ -442,17 +445,26 @@ const ensureWired = (): void => {
   );
 };
 
-export function openSongMenu(opts: { track: IndexedTrack; host: HTMLElement | null; row: HTMLElement | null; phase?: 'fork' | 'queue' }): void {
+export function openSongMenu(opts: {
+  track?: IndexedTrack | null;
+  host: HTMLElement | null;
+  row: HTMLElement | null;
+  phase?: 'fork' | 'queue';
+  placement?: 'right' | 'above';
+}): void {
   ensureWired();
   window.clearTimeout(closeTimer);
   window.clearTimeout(fadeTimer);
-  if (open && opts.host !== null && root !== null && root.parentElement === opts.host) {
+  const sameHost = opts.host !== null && root !== null && root.parentElement === opts.host;
+  const sameRow = opts.host === null && opts.row !== null && chromeRow === opts.row;
+  if (open && (sameHost || sameRow)) {
     closeSongMenu();
     return;
   }
-  track = opts.track;
-  highlightId = opts.track.id;
+  track = opts.track ?? null;
+  highlightId = track !== null ? track.id : null;
   deleteTargetId = null;
+  chromeRow = opts.host === null ? opts.row : null;
   in3d = opts.host !== null;
 
   if (root === null) {
@@ -471,13 +483,23 @@ export function openSongMenu(opts: { track: IndexedTrack; host: HTMLElement | nu
   if (in3d && opts.host !== null) {
     root.style.left = '';
     root.style.top = '';
+    root.style.bottom = '';
     opts.host.append(root);
   } else {
     document.body.append(root);
     const rect = opts.row?.getBoundingClientRect();
-    if (rect !== undefined) {
-      root.style.left = `${Math.min(rect.right + 10, window.innerWidth - PANEL_WIDTH - 12)}px`;
+    if (rect !== undefined && opts.placement === 'above') {
+      root.style.left = `${Math.max(12, Math.min(rect.left, window.innerWidth - PANEL_WIDTH - 12))}px`;
+      root.style.top = '';
+      root.style.bottom = `${Math.max(70, window.innerHeight - rect.top + 10)}px`;
+    } else if (rect !== undefined) {
+      root.style.left = `${Math.max(12, Math.min(rect.right + 10, window.innerWidth - PANEL_WIDTH - 12))}px`;
       root.style.top = `${Math.max(12, Math.min(rect.top, window.innerHeight - 160))}px`;
+      root.style.bottom = '';
+    } else {
+      root.style.left = `${Math.max(12, Math.round((window.innerWidth - PANEL_WIDTH) / 2))}px`;
+      root.style.top = `${Math.round(window.innerHeight * 0.3)}px`;
+      root.style.bottom = '';
     }
   }
 
@@ -486,13 +508,16 @@ export function openSongMenu(opts: { track: IndexedTrack; host: HTMLElement | nu
   if (phase === 'queue') renderQueue();
   else renderFork();
   requestAnimationFrame(() => root?.classList.add('on'));
+  appBus.emit('song-menu-opened', { row: chromeRow });
 }
 
 export function closeSongMenu(): void {
   window.clearTimeout(closeTimer);
+  const wasOpen = open;
   if (!open && root === null) return;
   open = false;
   highlightId = null;
+  if (wasOpen) appBus.emit('song-menu-closed', {});
   const node = root;
   if (node === null) return;
   node.classList.remove('on');
@@ -505,4 +530,12 @@ export function closeSongMenu(): void {
 
 export function isSongMenuOpen(): boolean {
   return open;
+}
+
+export function attachSongMenu(row: HTMLElement, track: IndexedTrack): void {
+  row.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openSongMenu({ track, host: null, row });
+  });
 }

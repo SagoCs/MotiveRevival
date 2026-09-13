@@ -8,6 +8,7 @@ import { basenameOf } from '../core/paths';
 import { ICON_SIGIL, ICON_PLAY, ICON_SHUFFLE, ICON_TRASH } from './icons';
 import { toast, toastSong } from '../core/toast';
 import { playlistsStore, type ResolvedPlaylistEntry } from '../core/playlistsStore';
+import { attachSongMenu } from './songMenu';
 import type { IndexedTrack, Playlist, PlaylistTrackRef } from '../../shared/types';
 
 const ICON_PLUS = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" width="26" height="26" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>`;
@@ -388,6 +389,7 @@ function rowNode(
         ? fmtTime(entry.track.durationSec)
         : '--:--';
     attachTap(cell, () => playRow(entry.track, playlistId, thumb));
+    attachSongMenu(cell, entry.track);
   } else {
     cell.classList.add('ghost');
     thumb.classList.add('noart');

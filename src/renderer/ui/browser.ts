@@ -22,9 +22,9 @@ import { fx } from '../core/fx';
 import { enqueueIdle } from '../core/peakAnalyzer';
 import { Viz } from './viz';
 import { createLyrics } from './lyrics';
-import { renderTabCards, searchPlaylists, closePlaylistLayer, isPlaylistLayerOpen, openDetail, attachContextMenu } from './playlistsView';
+import { renderTabCards, searchPlaylists, closePlaylistLayer, isPlaylistLayerOpen, openDetail } from './playlistsView';
+import { attachSongMenu, closeSongMenu } from './songMenu';
 import { songRiver } from './songRiver';
-import { closeSongMenu } from './songMenu';
 import { riverV2Lab } from './riverV2Lab';
 import { setUniverseVisible } from './universe';
 import type { Playlist } from '../../shared/types';
@@ -376,6 +376,7 @@ function wireSearch(): void {
     }, 110);
   });
   oracleInput.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') closeSongMenu();
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
       moveOracleSelection(e.key === 'ArrowDown' ? 1 : -1);
@@ -673,12 +674,7 @@ function oracleSongRow(track: import('../../shared/types').IndexedTrack): HTMLEl
 
   row.append(meta, dur);
   attachPreview(row, track);
-  attachContextMenu(row, track, () => {
-    closeOracle();
-    preview.hardStop();
-    playFromList(track, row);
-    appBus.emit('reveal-playing', {});
-  });
+  attachSongMenu(row, track);
   row.addEventListener('click', () => {
     if (carousel.wasDrag()) return;
     if (playingPath === track.absPath) {
@@ -1181,10 +1177,7 @@ function songRow(
 
   row.append(thumb, meta, dur);
   attachPreview(row, track);
-  attachContextMenu(row, track, () => {
-    preview.hardStop();
-    playFromList(track, row);
-  });
+  attachSongMenu(row, track);
   row.addEventListener('click', () => {
     if (carousel.wasDrag()) return;
     if (playingPath === track.absPath) {
@@ -1296,10 +1289,7 @@ function miniCell(
 
   cell.append(n, thumb, t, d);
   attachPreview(cell, track);
-  attachContextMenu(cell, track, () => {
-    preview.hardStop();
-    player.setContext(context, index);
-  });
+  attachSongMenu(cell, track);
   cell.addEventListener('click', () => {
     preview.hardStop();
     player.setContext(context, index);
