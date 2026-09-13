@@ -1584,7 +1584,7 @@ body:has(#playlist-layer.open) .transport-lyric {
 
 #search-oracle {
   position: fixed;
-  top: var(--topbar-h);
+  top: calc(var(--topbar-h) - 1px);
   left: 50%;
   translate: -50% 0;
   z-index: 38;
