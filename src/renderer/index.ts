@@ -26,7 +26,6 @@ import { createTransport } from './ui/transport';
 import { initWindowControls } from './ui/windowControls';
 import { initArrowMarkers } from './ui/arrowMarkers';
 import { initRiverSurface } from './ui/riverSurface';
-import { initUniverse } from './ui/universe';
 import './core/songActions';
 
 window.addEventListener('error', (e) => {
@@ -53,7 +52,6 @@ function boot(): void {
   lantern.init();
   initArrowMarkers();
   initRiverSurface();
-  initUniverse();
 
   const arrowAnchor = (side: number): { x: number; y: number } | null => {
     const row = document.querySelector<HTMLElement>('.song-row.playing');

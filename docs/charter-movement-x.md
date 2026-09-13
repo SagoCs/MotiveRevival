@@ -1,5 +1,7 @@
 # Movement X — The Universe
 
+> **RETIRED 2026-09-13.** Superseded by `docs/charter-movement-x-v2.md` (The Library as Worlds). Kept on disk as the rejected-direction record, like the Listening View charter. The owner's verdict that retired it: the sky felt like "a very different art style from the rest of the application" — generated light where every other surface speaks in the library's own imagery. The night-sky spike this charter describes was deleted in Phase 0; the governing sentence survives in v2 with the shelf in place of the sky.
+
 **Charter v2.1 — chartered 2026-09-05; amended 2026-09-06 in three strokes: the heart rewritten (the orb is every song, playlist stars halo the hole), the Deep Field added (population, weather, and light for the far sky), and the day's verdicts locked — hover constellations replace playlist hover text, album pins retire, and color is atmosphere, never structure. Status: chartered; spike in progress on `spike/universe`. This charter is the project's sole active focus — every other open phase, rider, and idea is paused or subordinate until the spike verdict.**
 
 ## Intent

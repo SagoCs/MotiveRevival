@@ -145,7 +145,6 @@ async function pixelProbe(tag) {
     v2on: document.querySelector('#river-v2')?.classList.contains('on') ?? false,
     v2display: document.querySelector('#river-v2') ? getComputedStyle(document.querySelector('#river-v2')).display : 'missing',
     riverVisible: document.body.classList.contains('song-river-active'),
-    universe: document.querySelector('#universe').classList.contains('on'),
   })`);
   const png = await send('Page.captureScreenshot', { format: 'png', clip: { x: 700, y: 400, width: 400, height: 200, scale: 1 } });
   const img = decode(Buffer.from(png.data, 'base64'));
@@ -165,7 +164,4 @@ await pixelProbe('ALBUMS   :');
 await evalJs(`document.querySelector('#mode-tabs button[data-mode="artists"]').click()`);
 await sleep(600);
 await pixelProbe('ARTISTS  :');
-await evalJs(`document.querySelector('#mode-tabs button[data-mode="universe"]').click()`);
-await sleep(900);
-await pixelProbe('UNIVERSE :');
 process.exit(0);

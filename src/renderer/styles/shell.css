@@ -592,10 +592,6 @@ html.song-marker-surface .song-row.playing::after {
     visibility 0s linear 440ms;
 }
 
-body.universe-active #detail-layer {
-  background: color-mix(in srgb, var(--void-0) 62%, transparent);
-}
-
 #detail-layer.open {
   opacity: 1;
   transform: translateX(0);
@@ -2190,10 +2186,6 @@ body:has(#playlist-layer.open) .transport-lyric {
     opacity 380ms var(--ease-drift),
     transform 440ms var(--ease-drift),
     visibility 0s linear 440ms;
-}
-
-body.universe-active #playlist-layer {
-  background: color-mix(in srgb, var(--void-0) 62%, transparent);
 }
 
 #playlist-layer.open {

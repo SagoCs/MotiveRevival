@@ -25,10 +25,9 @@ import { createLyrics } from './lyrics';
 import { renderTabCards, searchPlaylists, closePlaylistLayer, isPlaylistLayerOpen, openDetail } from './playlistsView';
 import { attachSongMenu, closeSongMenu, isSongMenuOpen } from './songMenu';
 import { riverSurface } from './riverSurface';
-import { setUniverseVisible } from './universe';
 import type { Playlist } from '../../shared/types';
 
-type Mode = 'albums' | 'artists' | 'songs' | 'playlists' | 'universe';
+type Mode = 'albums' | 'artists' | 'songs' | 'playlists';
 type SortKey = 'alpha' | 'duration' | 'artist';
 
 const SORT_LABELS: Record<Mode, [string, string, string]> = {
@@ -36,7 +35,6 @@ const SORT_LABELS: Record<Mode, [string, string, string]> = {
   artists: ['A–Z', 'Longest', 'Tracks'],
   songs: ['A–Z', 'Longest', 'Artist'],
   playlists: ['A–Z', 'Longest', 'Tracks'],
-  universe: ['A–Z', 'Longest', 'Artist'],
 };
 
 interface BrowserState {
@@ -170,32 +168,6 @@ export function initBrowser(onCompactLyric?: (text: string | null, upcoming: boo
     appBus.on('track-selected', ({ track }) => stageLyrics?.setTrack(track));
   }
 
-  appBus.on('universe-open-all', () => {
-    if (detailOpen) closeDetail();
-    state.mode = 'songs';
-    syncPreviewEnabled();
-    setUniverseVisible(false);
-    setArtistFilter(null);
-    syncTabs();
-    syncChips();
-    render();
-  });
-  appBus.on('universe-open-artist', ({ name }) => {
-    const artist = idx.artists.find((a) => a.name === name);
-    if (artist === undefined) return;
-    if (detailOpen) closeDetail();
-    state.mode = 'albums';
-    syncPreviewEnabled();
-    setUniverseVisible(false);
-    setArtistFilter(artist.key);
-    syncTabs();
-    syncChips();
-    render();
-  });
-  appBus.on('universe-open-playlist', ({ id }) => {
-    openDetail(id);
-  });
-
   syncPreviewEnabled();
   wireTabs();
   wireSortChips();
@@ -227,8 +199,6 @@ function wireTabs(): void {
       }
       state.mode = mode;
       syncPreviewEnabled();
-      if (mode === 'universe' && detailOpen) closeDetail();
-      setUniverseVisible(mode === 'universe');
       if (mode !== 'albums') setArtistFilter(null);
       closeSortPopover();
       syncTabs();
@@ -784,12 +754,12 @@ function syncChips(): void {
   const labels = SORT_LABELS[state.mode];
   const chipsNav = document.querySelector<HTMLElement>('#sort-chips');
   if (chipsNav !== null) {
-    chipsNav.classList.toggle('is-disabled', state.mode === 'playlists' || state.mode === 'universe');
+    chipsNav.classList.toggle('is-disabled', state.mode === 'playlists');
   }
   let i = 0;
   for (const chip of document.querySelectorAll<HTMLButtonElement>('#sort-chips button')) {
     const key = chip.dataset.sort as SortKey | undefined;
-    chip.classList.toggle('active', key === state.sort && state.mode !== 'playlists' && state.mode !== 'universe');
+    chip.classList.toggle('active', key === state.sort && state.mode !== 'playlists');
     chip.textContent = labels[i] ?? '';
     i += 1;
   }
