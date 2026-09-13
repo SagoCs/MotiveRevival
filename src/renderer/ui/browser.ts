@@ -23,7 +23,7 @@ import { enqueueIdle } from '../core/peakAnalyzer';
 import { Viz } from './viz';
 import { createLyrics } from './lyrics';
 import { renderTabCards, searchPlaylists, closePlaylistLayer, isPlaylistLayerOpen, openDetail } from './playlistsView';
-import { attachSongMenu, closeSongMenu } from './songMenu';
+import { attachSongMenu, closeSongMenu, isSongMenuOpen } from './songMenu';
 import { songRiver } from './songRiver';
 import { riverV2Lab } from './riverV2Lab';
 import { setUniverseVisible } from './universe';
@@ -477,6 +477,7 @@ function wireGlobalKeys(): void {
     'pointerdown',
     (e) => {
       if (!isOracleOpen()) return;
+      if (isSongMenuOpen()) return;
       const hit = e.target as HTMLElement | null;
       if (hit !== null && hit.closest('#search-oracle') !== null) return;
       if (hit !== null && hit.closest('#summon-zone') !== null) return;

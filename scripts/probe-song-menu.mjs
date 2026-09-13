@@ -548,6 +548,62 @@ const kb = await evalJs(`(() => ({
 }))()`);
 check('summon keyboard activity closes the menu', kb.menuGone === true && kb.summonOpen === true, JSON.stringify(kb));
 
+await evalJs(`(async () => {
+  const A = window.__songActions;
+  for (const pl of A.playlists().filter((x) => x.name === '__probe_add')) await A.removePlaylist(pl.id);
+  const rowTitle = document.querySelector('#oracle-results .oracle-row.kind-song .song-title')?.textContent ?? '';
+  const track = A.libraryTracks().find((t) => t.title !== rowTitle) ?? A.libraryTracks()[0];
+  await A.createPlaylistWithTrack('__probe_add', track);
+})()`);
+await sleep(400);
+await evalJs(`(() => {
+  const row = document.querySelector('#oracle-results .oracle-row.kind-song');
+  row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+})()`);
+await sleep(350);
+const forkRow = await evalJs(`(() => {
+  const b = Array.from(document.querySelectorAll('.sm-fork-btn')).find((x) => x.textContent === 'Add to playlist');
+  if (b === undefined) return null;
+  const r = b.getBoundingClientRect();
+  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+})()`);
+if (forkRow !== null) {
+  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: forkRow.x, y: forkRow.y, button: 'left', clickCount: 1 });
+  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: forkRow.x, y: forkRow.y, button: 'left', clickCount: 1 });
+}
+await sleep(350);
+const realPressFork = await evalJs(`(() => ({
+  head: document.querySelector('.song-menu .sm-head')?.textContent ?? null,
+  summonOpen: document.getElementById('search-oracle').classList.contains('open'),
+}))()`);
+check('real press inside the menu leaves the summon open', realPressFork.head === 'ADD TO PLAYLIST' && realPressFork.summonOpen === true, JSON.stringify(realPressFork));
+const addRow = await evalJs(`(() => {
+  const rows = Array.from(document.querySelectorAll('.sm-list .sm-row'));
+  const row = rows.find((r) => r.querySelector('.sm-name')?.textContent === '__probe_add');
+  if (row === undefined) return null;
+  const r = row.getBoundingClientRect();
+  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+})()`);
+if (addRow !== null) {
+  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: addRow.x, y: addRow.y, button: 'left', clickCount: 1 });
+  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: addRow.x, y: addRow.y, button: 'left', clickCount: 1 });
+}
+await sleep(350);
+const realAdd = await evalJs(`(() => {
+  const pl = window.__songActions.playlists().find((x) => x.name === '__probe_add');
+  return {
+    word: document.querySelector('.song-menu .sm-word')?.textContent ?? null,
+    summonOpen: document.getElementById('search-oracle').classList.contains('open'),
+    filed: pl !== undefined && pl.tracks.length === 2,
+  };
+})()`);
+check('real click files the song with the summon still open', realAdd.word === 'Added' && realAdd.summonOpen === true && realAdd.filed === true, JSON.stringify(realAdd));
+await evalJs(`(async () => {
+  const A = window.__songActions;
+  for (const pl of A.playlists().filter((x) => x.name === '__probe_add')) await A.removePlaylist(pl.id);
+})()`);
+await sleep(1000);
+
 await evalJs(`(() => {
   const row = document.querySelector('#oracle-results .oracle-row.kind-song');
   row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
