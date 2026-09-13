@@ -138,7 +138,7 @@ export function createTransport(host: HTMLElement): TransportHandle {
   };
   queueBtn.addEventListener('click', () => {
     if (isSongMenuOpen()) closeSongMenu();
-    else openSongMenu({ host: null, row: queueBtn, phase: 'queue', placement: 'above' });
+    else openSongMenu({ host: null, row: queueBtn, phase: 'queue', placement: 'above', toggle: true });
   });
   appBus.on('song-menu-opened', ({ row }) => syncQueueButton(row === queueBtn));
   appBus.on('song-menu-closed', () => syncQueueButton(false));

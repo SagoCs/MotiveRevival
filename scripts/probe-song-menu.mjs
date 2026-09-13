@@ -633,6 +633,15 @@ const transport = await evalJs(`(() => {
   };
 })()`);
 check('transport button opens the queue phase above it', transport.open === true && transport.head === 'UP NEXT' && transport.above === true && transport.centered === true && transport.lit === true, JSON.stringify(transport));
+const qBtnCenter = await evalJs(`(() => { const b = document.querySelector('.queue-toggle'); const r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
+await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: qBtnCenter.x, y: qBtnCenter.y, button: 'left', clickCount: 1 });
+await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: qBtnCenter.x, y: qBtnCenter.y, button: 'left', clickCount: 1 });
+await sleep(450);
+const toggledOff = await evalJs(`(() => {
+  const btn = document.querySelector('.queue-toggle');
+  return { menuGone: document.querySelector('.song-menu') === null, lit: btn.classList.contains('lit') };
+})()`);
+check('pressing the lit button toggles the queue closed (real mouse)', toggledOff.menuGone === true && toggledOff.lit === false, JSON.stringify(toggledOff));
 await evalJs(`document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
 await sleep(400);
 check('transport menu escape closes it and unlights the button', await evalJs(`(() => {

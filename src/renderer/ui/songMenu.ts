@@ -32,6 +32,7 @@ let highlightId: string | null = null;
 let deleteTargetId: string | null = null;
 let deletingId: string | null = null;
 let chromeRow: HTMLElement | null = null;
+let toggleAnchor: HTMLElement | null = null;
 let closeTimer = 0;
 let fadeTimer = 0;
 let wired = false;
@@ -392,7 +393,15 @@ const ensureWired = (): void => {
     'pointerdown',
     (e) => {
       if (!open) return;
-      if (root !== null && root.contains(e.target as Node)) return;
+      if (
+        root !== null &&
+        root.contains(e.target as Node)
+      ) {
+        return;
+      }
+      if (toggleAnchor !== null && toggleAnchor.contains(e.target as Node)) {
+        return;
+      }
       if (
         e.button === 2 &&
         root !== null &&
@@ -451,6 +460,7 @@ export function openSongMenu(opts: {
   row: HTMLElement | null;
   phase?: 'fork' | 'queue';
   placement?: 'right' | 'above';
+  toggle?: boolean;
 }): void {
   ensureWired();
   window.clearTimeout(closeTimer);
@@ -465,6 +475,7 @@ export function openSongMenu(opts: {
   highlightId = track !== null ? track.id : null;
   deleteTargetId = null;
   chromeRow = opts.host === null ? opts.row : null;
+  toggleAnchor = opts.toggle === true ? chromeRow : null;
   in3d = opts.host !== null;
 
   if (root === null) {
