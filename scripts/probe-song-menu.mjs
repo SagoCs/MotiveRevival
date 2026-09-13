@@ -630,11 +630,11 @@ const transport = await evalJs(`(() => {
     open: m !== null,
     head: m?.querySelector('.sm-head')?.textContent ?? null,
     above: mr !== null && br !== null && mr.bottom <= br.top + 2,
-    leftAligned: mr !== null && br !== null && Math.abs(mr.left - br.left) < 40,
+    centered: mr !== null && br !== null && (Math.abs((mr.left + mr.width / 2) - (br.left + br.width / 2)) < 2 || Math.abs(mr.left - 12) < 2),
     lit: btn.classList.contains('lit'),
   };
 })()`);
-check('transport button opens the queue phase above it', transport.open === true && transport.head === 'UP NEXT' && transport.above === true && transport.leftAligned === true && transport.lit === true, JSON.stringify(transport));
+check('transport button opens the queue phase above it', transport.open === true && transport.head === 'UP NEXT' && transport.above === true && transport.centered === true && transport.lit === true, JSON.stringify(transport));
 await evalJs(`document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
 await sleep(400);
 check('transport menu escape closes it and unlights the button', await evalJs(`(() => {

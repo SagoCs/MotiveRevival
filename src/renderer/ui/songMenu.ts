@@ -489,7 +489,8 @@ export function openSongMenu(opts: {
     document.body.append(root);
     const rect = opts.row?.getBoundingClientRect();
     if (rect !== undefined && opts.placement === 'above') {
-      root.style.left = `${Math.max(12, Math.min(rect.left, window.innerWidth - PANEL_WIDTH - 12))}px`;
+      const centered = rect.left + rect.width / 2 - PANEL_WIDTH / 2;
+      root.style.left = `${Math.max(12, Math.min(centered, window.innerWidth - PANEL_WIDTH - 12))}px`;
       root.style.top = '';
       root.style.bottom = `${Math.max(70, window.innerHeight - rect.top + 10)}px`;
     } else if (rect !== undefined) {
