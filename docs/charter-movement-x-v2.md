@@ -58,6 +58,26 @@ The app boots into the shelf. A horizontal field of squares with the river's mom
 - Click a lit letter to unlight it. **Esc clears** the dim before stepping back. A small ✕ at the ruler's end clears all at once.
 - **#** is a real bucket, an equal citizen in the strip.
 
+### 3.1 Phase 1 specification — the artists field
+
+Everything Phase 1 builds, decided on paper before code. The graduated river is **untouched**: the shelf is a separate horizontal-first module porting the river contract's physics and laws verbatim — the way river v2 ported them from v1.
+
+**Entry.** A temporary sixth tab, **SHELF**, swaps the field in over the real chrome; the Songs river keeps working untouched behind it. The shelf is a full-bleed fixed surface with a dormancy body flag, mounted at boot, visibility driven by the browser — the established pattern. At graduation the tab row dies and the shelf becomes home.
+
+**The field grammar (owner-specified).** The river's depth grammar rotated horizontal: the centered square stands flat and forward, slightly larger; squares toward the edges shrink, ease back, and tilt away — **billboard recession with gentle tilt** (a few degrees at the edges, never the coverflow lean; the tilt is a dial if taste ever shifts). Spacing follows size — the self-similar depth walk — so edge squares pack tighter: immersive at the center, index-like at the periphery. Near the alphabet's ends the field compresses symmetrically (the Shorten squash); a library smaller than the visible band pins to center. The vanishing point sits at the center of the shelf band. Every number is a dial, tuned live by feel.
+
+**Rhythm.** Six to eight faces visible at once — parametric, derived from the region.
+
+**Edges.** The river's alpha-mask edge dissolve, rotated horizontal: squares dissolve into whatever is behind (void and horizon haze) at the left and right screen edges — never a hard clip at the viewport border. Names ride their squares as children, warping and fading in lockstep.
+
+**Scroll.** The river's physics ported verbatim with its banked laws: position on the device-pixel grid, scale/tilt/opacity never rounded, continuous depth lookup with no dead zones, compositor-only writes, idle parking. Acceptance is the river's own bar, ported: **a card may never move further in one frame than the scroll itself traveled**, plus slow-scroll pixel stability and a measured fling.
+
+**Selection.** As §3 defines it, now bound to the field: selecting an artist **glides the field** until they stand at the flat, forward center spot — then the horizon takes their tone and the square whispers its ledger. Second click enters — a deliberate no-op in Phase 1, because the places do not exist yet.
+
+**Faces.** Newest album's art requested at **full resolution** — 128px thumbnails upscale to mush, and the face is the content.
+
+**Scope boundary.** Phase 1 is the field and the selection feel only: no discography (Phase 3), no album place (Phase 2), no letter ruler (Phase 5), no playlist places (Phase 4). The Playlists lens exists with real squares and working selection; entry is a no-op. The new surface registers with the motion-flag system at birth.
+
 ---
 
 ## 4. The Artist Place — the discography
@@ -128,7 +148,7 @@ The summon is for *knowing* the name; the letter ruler is for *half-remembering*
 Each phase carries probe-verifiable acceptance; nothing is verified by eye alone (DPI-aware physical capture for anything near the bottom edge).
 
 - **Phase 0 — Disposition of the sky.** Retire the universe surface and probes, bank the verdict in the ledger. Small, reversible, first.
-- **Phase 1 — The Artists field.** The shelf as home: momentum squares, newest-album faces, A–Z + #, the boot-focus and selection layer, the lens switcher (Playlists lens present, lightly populated). River stays live until parity; the shelf mounts behind a temporary entry (the F9-lab/UNIVERSE-tab pattern).
+- **Phase 1 — The Artists field.** Built to the §3.1 specification: temporary SHELF tab; horizontal depth grammar (billboard recession with gentle tilt, self-similar packing, Shorten squash, small-set pinning, edge dissolve); six-to-eight full-res faces; boot focus + selection layer with glide-to-center; lens switcher (Playlists lens lightly populated, entry a no-op); motion-continuity acceptance bar ported from the river. River stays live until parity.
 - **Phase 2 — The Album place.** FLIP fill → veil → staggered river; auto-drill for one-album artists; anchor line; album openings route through it (stage's role absorbed).
 - **Phase 3 — The Artist place.** The discography river and the push-cascade entrance, reversible on Esc.
 - **Phase 4 — The Playlists lens + playlist place.** Spectrum rows, drag-reorder, ghost rows, square management menu.
