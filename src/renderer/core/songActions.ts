@@ -3,11 +3,16 @@ import { player } from './player';
 import { playlistsStore } from './playlistsStore';
 import type { IndexedTrack, Playlist } from '../../shared/types';
 
-export type QueueOutcome = 'queued' | 'alreadyQueued';
+export type QueueOutcome = 'queued' | 'moved' | 'alreadyNext';
 export type FileOutcome = 'added' | 'alreadyInPlaylist' | 'missingPlaylist';
 
 export function queueNext(track: IndexedTrack): QueueOutcome {
-  if (player.queueTracks.some((t) => t.id === track.id)) return 'alreadyQueued';
+  const offset = player.getUpcoming().findIndex((t) => t.id === track.id);
+  if (offset === 0) return 'alreadyNext';
+  if (offset > 0) {
+    player.moveUpcoming(offset, 0);
+    return 'moved';
+  }
   player.insertUpcoming(track, 0);
   return 'queued';
 }

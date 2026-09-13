@@ -15,9 +15,9 @@ import {
 } from '../core/songActions';
 import type { IndexedTrack, Playlist } from '../../shared/types';
 
-type MenuPhase = 'fork' | 'queue' | 'playlists' | 'typing' | 'confirmDelete' | 'added' | 'deleted';
+type MenuPhase = 'fork' | 'queue' | 'playlists' | 'typing' | 'confirmDelete' | 'added';
 
-const PANEL_WIDTH = 224;
+const PANEL_WIDTH = 280;
 const FADE_MS = 240;
 const WORD_MS = 900;
 
@@ -29,7 +29,9 @@ let in3d = false;
 let track: IndexedTrack | null = null;
 let highlightId: string | null = null;
 let deleteTargetId: string | null = null;
+let deletingId: string | null = null;
 let closeTimer = 0;
+let fadeTimer = 0;
 let wired = false;
 
 const trackArt = (t: IndexedTrack): HTMLImageElement | null => {
@@ -165,10 +167,12 @@ const beginRowDrag = (event: PointerEvent, row: HTMLDivElement, offset: number):
 
 const renderQueue = (): void => {
   if (root === null) return;
+  root.classList.remove('sm-center');
   root.replaceChildren();
   const head = sm('sm-head', 'UP NEXT');
   const list = sm('sm-list');
-  list.style.maxHeight = `${Math.min(340, Math.max(180, window.innerHeight * 0.34))}px`;
+  if (in3d) list.style.maxHeight = '';
+  else list.style.maxHeight = `${Math.min(340, Math.max(180, window.innerHeight * 0.34))}px`;
   const upcoming = queueUpcoming();
   if (upcoming.length === 0) {
     list.append(sm('sm-empty', 'The queue is quiet.'));
@@ -180,16 +184,17 @@ const renderQueue = (): void => {
 
 const renderFork = (): void => {
   if (root === null) return;
+  root.classList.add('sm-center');
   root.replaceChildren();
   const queueBtn = sm('sm-fork-btn', 'Add to queue');
   const listBtn = sm('sm-fork-btn', 'Add to playlist');
   queueBtn.addEventListener('click', () => {
     if (track === null) return;
-    const outcome = queueNext(track);
+    queueNext(track);
     highlightId = track.id;
     phase = 'queue';
     renderQueue();
-    if (outcome === 'queued') requestHighlightPulse();
+    requestHighlightPulse();
   });
   listBtn.addEventListener('click', () => {
     phase = 'playlists';
@@ -203,6 +208,7 @@ const renderFork = (): void => {
 const renderPlaylists = (): void => {
   if (root === null || track === null) return;
   const song = track;
+  root.classList.remove('sm-center');
   root.replaceChildren();
 
   const head = sm('sm-head', 'ADD TO PLAYLIST');
@@ -241,9 +247,10 @@ const renderPlaylists = (): void => {
     x.addEventListener('pointerdown', (e) => e.stopPropagation());
     x.addEventListener('click', (e) => {
       e.stopPropagation();
+      if (deleteTargetId !== null || deletingId !== null) return;
       deleteTargetId = pl.id;
       phase = 'confirmDelete';
-      renderConfirmDelete(pl.name);
+      armConfirm(row, pl);
     });
 
     row.append(art, rowHit, x);
@@ -303,33 +310,50 @@ const renderTyping = (): void => {
   });
 };
 
-const renderConfirmDelete = (name: string): void => {
-  if (root === null) return;
-  root.replaceChildren();
-  const head = sm('sm-head', 'DELETE PLAYLIST');
-  const ask = sm('sm-ask', `Delete “${name}”?`);
-  const fork = sm('sm-fork');
-  const confirm = sm('sm-fork-btn sm-danger', 'Confirm');
-  const cancel = sm('sm-fork-btn', 'Cancel');
-  confirm.addEventListener('click', () => {
-    if (deleteTargetId === null) return;
-    void removePlaylist(deleteTargetId).then(() => {
+const fadeDeletedRow = (row: HTMLDivElement): void => {
+  row.style.height = `${row.getBoundingClientRect().height}px`;
+  row.classList.add('sm-deleted');
+  row.replaceChildren(sm('sm-deleted-word', 'Deleted'));
+  window.setTimeout(() => {
+    row.classList.add('sm-gone');
+    window.setTimeout(() => {
+      deletingId = null;
       deleteTargetId = null;
-      phase = 'deleted';
-      renderWord('Deleted');
+      if (open && phase === 'playlists') renderPlaylists();
+    }, 440);
+  }, 560);
+};
+
+const armConfirm = (row: HTMLDivElement, pl: Playlist): void => {
+  row.classList.add('sm-confirming');
+  const pair = sm('sm-confirm-pair');
+  const confirm = sm('sm-mini sm-mini-danger', 'Confirm');
+  const cancel = sm('sm-mini', 'Cancel');
+  confirm.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (deleteTargetId === null) return;
+    const doomed = deleteTargetId;
+    deleteTargetId = null;
+    phase = 'playlists';
+    deletingId = doomed;
+    void removePlaylist(doomed).then(() => {
+      fadeDeletedRow(row);
     });
   });
-  cancel.addEventListener('click', () => {
+  cancel.addEventListener('click', (e) => {
+    e.stopPropagation();
     deleteTargetId = null;
     phase = 'playlists';
     renderPlaylists();
   });
-  fork.append(confirm, cancel);
-  root.append(head, ask, fork);
+  pair.append(confirm, cancel);
+  const x = row.querySelector('.sm-x');
+  if (x !== null) x.replaceWith(pair);
 };
 
 const renderWord = (word: string): void => {
   if (root === null) return;
+  root.classList.add('sm-center');
   root.replaceChildren();
   root.append(sm('sm-word', word));
   window.clearTimeout(closeTimer);
@@ -358,7 +382,7 @@ const ensureWired = (): void => {
   });
 
   playlistsStore.onChange(() => {
-    if (open && (phase === 'playlists')) renderPlaylists();
+    if (open && phase === 'playlists' && deletingId === null) renderPlaylists();
   });
 
   window.addEventListener(
@@ -366,6 +390,15 @@ const ensureWired = (): void => {
     (e) => {
       if (!open) return;
       if (root !== null && root.contains(e.target as Node)) return;
+      if (
+        e.button === 2 &&
+        in3d &&
+        root !== null &&
+        root.parentElement !== null &&
+        root.parentElement.contains(e.target as Node)
+      ) {
+        return;
+      }
       closeSongMenu();
     },
     true,
@@ -376,8 +409,20 @@ const ensureWired = (): void => {
     (e) => {
       if (!open || phase === 'typing') return;
       if (e.key !== 'Escape') return;
+      if (deletingId !== null) return;
       e.preventDefault();
       e.stopPropagation();
+      if (phase === 'confirmDelete') {
+        deleteTargetId = null;
+        phase = 'playlists';
+        renderPlaylists();
+        return;
+      }
+      if (phase === 'queue' || phase === 'playlists') {
+        phase = 'fork';
+        renderFork();
+        return;
+      }
       closeSongMenu();
     },
     true,
@@ -400,6 +445,11 @@ const ensureWired = (): void => {
 export function openSongMenu(opts: { track: IndexedTrack; host: HTMLElement | null; row: HTMLElement | null; phase?: 'fork' | 'queue' }): void {
   ensureWired();
   window.clearTimeout(closeTimer);
+  window.clearTimeout(fadeTimer);
+  if (open && opts.host !== null && root !== null && root.parentElement === opts.host) {
+    closeSongMenu();
+    return;
+  }
   track = opts.track;
   highlightId = opts.track.id;
   deleteTargetId = null;
@@ -408,7 +458,13 @@ export function openSongMenu(opts: { track: IndexedTrack; host: HTMLElement | nu
   if (root === null) {
     root = document.createElement('div');
     root.className = 'song-menu';
+    root.addEventListener('pointerdown', (e) => e.stopPropagation());
+    root.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
   }
+  root.classList.remove('closing');
   root.classList.add(in3d ? 'song-menu-3d' : 'song-menu-chrome');
   root.classList.remove(in3d ? 'song-menu-chrome' : 'song-menu-3d');
 
@@ -441,7 +497,7 @@ export function closeSongMenu(): void {
   if (node === null) return;
   node.classList.remove('on');
   node.classList.add('closing');
-  window.setTimeout(() => {
+  fadeTimer = window.setTimeout(() => {
     node.remove();
     node.classList.remove('closing');
   }, FADE_MS);

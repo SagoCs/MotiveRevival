@@ -98,6 +98,30 @@ for (let i = 0; i < 20; i++) {
   await sleep(700);
 }
 
+const revived = await evalJs(`(async () => {
+  const A = window.__songActions;
+  if (A.queueSnapshot().upcoming.length > 0) return 'ready';
+  document.querySelector('#mode-tabs button[data-mode="songs"]')?.click();
+  await new Promise((r) => setTimeout(r, 400));
+  if (!document.body.classList.contains('river-v2-active')) document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'F9', bubbles: true }));
+  await new Promise((r) => setTimeout(r, 600));
+  const playing = window.__riverV2Lab?.playingId?.() ?? null;
+  const cards = Array.from(document.querySelectorAll('.rv2-card'));
+  const c = cards.find((x) => x.dataset.id !== playing && x.getBoundingClientRect().height > 60);
+  if (c === undefined) return 'no card';
+  const r = c.getBoundingClientRect();
+  return { tapX: r.left + r.width / 2, tapY: r.top + r.height / 2 };
+})()`);
+if (revived !== 'ready' && typeof revived === 'object' && revived !== null) {
+  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: revived.tapX, y: revived.tapY, button: 'left', clickCount: 1 });
+  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: revived.tapX, y: revived.tapY, button: 'left', clickCount: 1 });
+  await sleep(700);
+  await evalJs(`document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+  await sleep(400);
+}
+const reviveState = await evalJs(`window.__songActions.queueSnapshot().upcoming.length > 0 ? (typeof ${JSON.stringify(revived)} === 'object' ? 'revived' : 'ready') : 'still-empty'`);
+check('queue context revived when the session ended at the last track', reviveState === 'ready' || reviveState === 'revived', reviveState);
+
 const QUEUE_TEST = `(() => {
   const A = window.__songActions;
   const before = A.queueSnapshot();
@@ -135,10 +159,10 @@ const q = await evalJs(QUEUE_TEST);
 if (q === null || q.fatal !== undefined) {
   check('queue test preconditions', false, JSON.stringify(q));
 } else {
-  check('queueNext dedupes before insert', q.dedupeOutcome === 'alreadyQueued', q.dedupeOutcome);
+  check('queueNext pulls a scheduled song to plays-next', q.dedupeOutcome === 'moved', q.dedupeOutcome);
   check('tail removal succeeds', q.removedTail === true);
   check('queueNext inserts as plays-next', q.insert === 'queued' && q.insertedAtFront, JSON.stringify(q));
-  check('second queueNext dedupes (single copy)', q.dedupeAfterInsert === 'alreadyQueued' && q.countAfter === 1);
+  check('second queueNext sees it already next (single copy)', q.dedupeAfterInsert === 'alreadyNext' && q.countAfter === 1);
   check('reorder moves the row', q.movedOk);
   check('reorder back restores it', q.backOk);
   check('remove restores the original queue', q.removed && q.restored, JSON.stringify(q.sizes));

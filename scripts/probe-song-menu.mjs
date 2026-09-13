@@ -103,6 +103,32 @@ await sleep(500);
 await evalJs(`if (!document.body.classList.contains('river-v2-active')) document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'F9', bubbles: true }))`);
 await sleep(800);
 check('v2 river live (F9)', await evalJs(`document.body.classList.contains('river-v2-active')`));
+await evalJs(`document.querySelectorAll('[data-probe-pick]').forEach((c) => { delete c.dataset.probePick; })`);
+
+const qState = await evalJs(`(() => { const s = window.__songActions.queueSnapshot(); return { up: s.upcoming.length, total: s.ids.length, lib: window.__songActions.libraryTracks().length }; })()`);
+if (qState.up === 0 || qState.total !== qState.lib) {
+  await evalJs(`(() => {
+    const lab = window.__riverV2Lab;
+    const count = window.__songActions.libraryTracks().length;
+    lab?.river()?.glideTo(Math.floor(count / 2));
+  })()`);
+  await sleep(1400);
+  const tap = await evalJs(`(() => {
+    const playing = window.__riverV2Lab?.playingId?.() ?? null;
+    const cards = Array.from(document.querySelectorAll('.rv2-card'));
+    const c = cards.find((x) => x.dataset.id !== playing && x.getBoundingClientRect().height > 60);
+    if (c === undefined) return null;
+    const r = c.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  })()`);
+  if (tap !== null) {
+    await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: tap.x, y: tap.y, button: 'left', clickCount: 1 });
+    await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: tap.x, y: tap.y, button: 'left', clickCount: 1 });
+    await sleep(700);
+    await evalJs(`document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+    await sleep(400);
+  }
+}
 
 const glide = await evalJs(`(() => {
   const lab = window.__riverV2Lab;
@@ -121,8 +147,9 @@ for (let attempt = 0; attempt < 10 && card === null; attempt++) {
   card = await evalJs(`(() => {
     const cards = Array.from(document.querySelectorAll('.rv2-card'));
     const upcoming = new Set(window.__songActions.queueSnapshot().upcoming);
-    const visible = cards.filter((c) => { const r = c.getBoundingClientRect(); return r.width > 150 && r.height > 30 && !c.classList.contains('committed') && upcoming.has(c.dataset.id); });
-    const c = visible.sort((a, b) => Math.abs(a.getBoundingClientRect().left + a.getBoundingClientRect().width / 2 - window.innerWidth / 2) - Math.abs(b.getBoundingClientRect().left + b.getBoundingClientRect().width / 2 - window.innerWidth / 2))[0];
+    const tallest = Math.max(...cards.map((c) => c.getBoundingClientRect().height));
+    const visible = cards.filter((c) => { const r = c.getBoundingClientRect(); return r.width > 150 && r.height > tallest * 0.62 && !c.classList.contains('committed') && upcoming.has(c.dataset.id); });
+    const c = visible.sort((a, b) => b.getBoundingClientRect().height - a.getBoundingClientRect().height)[0];
     if (c === undefined) return null;
     c.dataset.probePick = '1';
     c.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
@@ -145,7 +172,48 @@ const menu = await evalJs(`(() => {
 check('right-click materializes the panel inside the card', menu.mounted === true && menu.is3d === true && menu.on === true);
 check('fork shows the two intents', JSON.stringify(menu.btns) === JSON.stringify(['Add to queue', 'Add to playlist']), JSON.stringify(menu.btns));
 
-await evalJs(`(() => { const b = Array.from(document.querySelectorAll('.sm-fork-btn')).find((x) => x.textContent === 'Add to queue'); b.click(); })()`);
+const geo = await evalJs(`(() => {
+  const card = document.querySelector('[data-probe-pick="1"]');
+  const m = card?.querySelector(':scope > .song-menu');
+  if (m === null) return null;
+  const cr = card.getBoundingClientRect();
+  const mr = m.getBoundingClientRect();
+  const fork = m.querySelector('.sm-fork')?.getBoundingClientRect();
+  return {
+    w: mr.width,
+    hGap: Math.abs(mr.height - cr.height),
+    centerOff: fork ? Math.abs((fork.top + fork.height / 2) - (mr.top + mr.height / 2)) : -1,
+  };
+})()`);
+check('panel width is 280 in card space', geo !== null && geo.w > 275 && geo.w < 305, geo ? `w=${geo.w.toFixed(1)}` : 'no menu');
+check('panel stretches to the full card height', geo !== null && geo.hGap < 4, geo ? `gap=${geo.hGap.toFixed(2)}` : 'no menu');
+check('fork sits centered in the tall panel', geo !== null && geo.centerOff >= 0 && geo.centerOff < 8, geo ? `off=${geo.centerOff.toFixed(1)}` : 'no menu');
+
+const swallow = await evalJs(`(() => {
+  const m = document.querySelector('.song-menu');
+  if (m === null) return { open: false };
+  m.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+  return { open: true };
+})()`);
+await sleep(400);
+const swallowAfter = await evalJs(`(() => {
+  const m = document.querySelector('.song-menu');
+  return { alive: m !== null, fork: m?.querySelector('.sm-fork') !== null };
+})()`);
+check('right-click inside the panel leaves it alone', swallow.open === true && swallowAfter.alive === true && swallowAfter.fork === true, JSON.stringify(swallowAfter));
+
+const titleBefore = await evalJs(`document.title`);
+const copiesBefore = await evalJs(`window.__songActions.queueSnapshot().ids.filter((x) => x === document.querySelector('[data-probe-pick="1"]')?.dataset.id).length`);
+const forkBtn = await evalJs(`(() => {
+  const b = Array.from(document.querySelectorAll('.sm-fork-btn')).find((x) => x.textContent === 'Add to queue');
+  if (b === undefined) return null;
+  const r = b.getBoundingClientRect();
+  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+})()`);
+if (forkBtn !== null) {
+  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: forkBtn.x, y: forkBtn.y, button: 'left', clickCount: 1 });
+  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: forkBtn.x, y: forkBtn.y, button: 'left', clickCount: 1 });
+}
 await sleep(350);
 const queuePhase = await evalJs(`(() => {
   const m = document.querySelector('.song-menu');
@@ -157,10 +225,14 @@ const queuePhase = await evalJs(`(() => {
   return { open: true, head, rows, newCount, newName };
 })()`);
 check('queue path opens the live queue view', queuePhase.open === true && queuePhase.head === 'UP NEXT' && queuePhase.rows > 0, JSON.stringify({ head: queuePhase.head, rows: queuePhase.rows }));
+const titleAfterQueue = await evalJs(`document.title`);
+check('real mouse click reached the button without playing the card', queuePhase.open === true && titleAfterQueue === titleBefore, JSON.stringify({ titleBefore, titleAfterQueue }));
+const topOfQueue = await evalJs(`window.__songActions.queueSnapshot().upcoming[0]`);
+check('add to queue pulls the card song to plays-next', topOfQueue === card.id, JSON.stringify({ topOfQueue, cardId: card.id }));
 check('queue view highlights the card song (dedupe, no flood)', queuePhase.newCount === 1 && queuePhase.newName === card.title, JSON.stringify({ newCount: queuePhase.newCount, newName: queuePhase.newName }));
 
-const qAfter = await evalJs(`(() => { const s = window.__songActions.queueSnapshot(); return { total: s.ids.length, copies: s.ids.filter((x) => x === ${JSON.stringify(card.id)}).length }; })()`);
-check('no duplicate entered the queue', qAfter.copies === 1, JSON.stringify(qAfter));
+const qAfter = await evalJs(`(() => { const s = window.__songActions.queueSnapshot(); const id = document.querySelector('[data-probe-pick="1"]')?.dataset.id ?? ''; return { total: s.ids.length, copies: s.ids.filter((x) => x === id).length }; })()`);
+check('no duplicate entered the queue', qAfter.copies === copiesBefore, JSON.stringify({ copiesBefore, after: qAfter }));
 
 const drag = await evalJs(`(() => {
   const m = document.querySelector('.song-menu');
@@ -191,15 +263,76 @@ check('row x removes from the queue', removed === 0);
 
 await evalJs(`document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
 await sleep(400);
-check('escape closes the panel', await evalJs(`document.querySelector('.song-menu') === null`));
+const backTo = await evalJs(`(() => {
+  const m = document.querySelector('.song-menu');
+  return { open: m !== null, fork: m?.querySelector('.sm-fork') !== null, list: m?.querySelector('.sm-list') !== null };
+})()`);
+check('escape steps back from the queue to the fork', backTo.open === true && backTo.fork === true && backTo.list === false, JSON.stringify(backTo));
+
+const race = await evalJs(`(() => {
+  const c = Array.from(document.querySelectorAll('.rv2-card')).find((x) => x.dataset.probePick === '1');
+  if (c === undefined) return { picked: false };
+  document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  c.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+  const openNow = c.querySelector(':scope > .song-menu') !== null;
+  return { picked: true, openNow };
+})()`);
+await sleep(450);
+const raceAfter = await evalJs(`(() => {
+  const m = document.querySelector('.song-menu');
+  return { alive: m !== null, on: m?.classList.contains('on') ?? false };
+})()`);
+check('re-opening during the close fade survives', race.picked === true && race.openNow === true && raceAfter.alive === true && raceAfter.on === true, JSON.stringify({ ...race, ...raceAfter }));
+
+await evalJs(`document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+await sleep(400);
+
+const guard = await evalJs(`(async () => {
+  const lab = window.__riverV2Lab;
+  const count = window.__songActions.libraryTracks().length;
+  lab.river().glideTo(Math.floor(count / 2));
+  await new Promise((r) => setTimeout(r, 1400));
+  const cards = Array.from(document.querySelectorAll('.rv2-card'));
+  const tallest = Math.max(...cards.map((c) => c.getBoundingClientRect().height));
+  const band = cards.filter((c) => { const h = c.getBoundingClientRect().height; return h > tallest * 0.2 && h < tallest * 0.45; });
+  const c = band[0];
+  if (c === undefined) return { found: false };
+  c.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+  return { found: true, h: Math.round(c.getBoundingClientRect().height), tallest: Math.round(tallest), anyMenu: document.querySelector('.song-menu') !== null };
+})()`);
+check('cards below the readability line decline the menu', guard.found === true && guard.anyMenu === false, JSON.stringify(guard));
+
+const toggle = await evalJs(`(() => {
+  const cards = Array.from(document.querySelectorAll('.rv2-card'));
+  const tallest = Math.max(...cards.map((c) => c.getBoundingClientRect().height));
+  const c = cards.filter((x) => { const r = x.getBoundingClientRect(); return r.height > tallest * 0.62 && !x.classList.contains('committed'); }).sort((a, b) => b.getBoundingClientRect().height - a.getBoundingClientRect().height)[0];
+  if (c === undefined) return { picked: false };
+  c.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+  const first = c.querySelector(':scope > .song-menu') !== null;
+  c.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+  return { picked: true, first };
+})()`);
+await sleep(400);
+const toggleGone = await evalJs(`document.querySelector('.song-menu') === null`);
+check('right-click the same card toggles closed', toggle.picked === true && toggle.first === true && toggleGone === true, JSON.stringify(toggle));
 
 await evalJs(`(() => {
   const cards = Array.from(document.querySelectorAll('.rv2-card'));
-  const c = cards.find((x) => x.dataset.probePick === '1') ?? cards.find((x) => { const r = x.getBoundingClientRect(); return r.width > 150 && r.height > 30 && !x.classList.contains('committed'); });
+  const tallest = Math.max(...cards.map((c) => c.getBoundingClientRect().height));
+  const c = cards.filter((x) => { const r = x.getBoundingClientRect(); return r.width > 150 && r.height > tallest * 0.62 && !x.classList.contains('committed'); }).sort((a, b) => b.getBoundingClientRect().height - a.getBoundingClientRect().height)[0];
   if (c !== undefined) { c.dataset.probePick = '1'; c.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })); }
 })()`);
 await sleep(350);
-await evalJs(`(() => { const b = Array.from(document.querySelectorAll('.sm-fork-btn')).find((x) => x.textContent === 'Add to playlist'); if (b !== undefined) b.click(); })()`);
+const plBtn = await evalJs(`(() => {
+  const b = Array.from(document.querySelectorAll('.sm-fork-btn')).find((x) => x.textContent === 'Add to playlist');
+  if (b === undefined) return null;
+  const r = b.getBoundingClientRect();
+  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+})()`);
+if (plBtn !== null) {
+  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: plBtn.x, y: plBtn.y, button: 'left', clickCount: 1 });
+  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: plBtn.x, y: plBtn.y, button: 'left', clickCount: 1 });
+}
 await sleep(350);
 const plPhase = await evalJs(`(() => {
   const m = document.querySelector('.song-menu');
@@ -210,7 +343,112 @@ const plPhase = await evalJs(`(() => {
 })()`);
 check('playlist path lists playlists with New playlist first', plPhase.head === 'ADD TO PLAYLIST' && plPhase.rows > 0 && plPhase.firstName === 'New playlist', JSON.stringify(plPhase));
 
-await evalJs(`(() => { document.querySelector('.sm-row-new').click(); })()`);
+await evalJs(`(async () => {
+  const A = window.__songActions;
+  for (const pl of A.playlists().filter((x) => x.name === '__probe_del')) await A.removePlaylist(pl.id);
+  const track = A.libraryTracks().find((t) => t.id === A.queueSnapshot().ids[0]);
+  await A.createPlaylistWithTrack('__probe_del', track);
+})()`);
+await sleep(400);
+const xBtn = await evalJs(`(() => {
+  const rows = Array.from(document.querySelectorAll('.sm-list .sm-row'));
+  const row = rows.find((r) => r.querySelector('.sm-name')?.textContent === '__probe_del');
+  const x = row?.querySelector('.sm-x');
+  if (x === undefined || x === null) return null;
+  row.scrollIntoView({ block: 'nearest' });
+  const r = x.getBoundingClientRect();
+  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+})()`);
+if (xBtn !== null) {
+  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: xBtn.x, y: xBtn.y, button: 'left', clickCount: 1 });
+  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: xBtn.x, y: xBtn.y, button: 'left', clickCount: 1 });
+}
+await sleep(350);
+const inline = await evalJs(`(() => {
+  const m = document.querySelector('.song-menu');
+  const btns = m ? Array.from(m.querySelectorAll('.sm-confirm-pair .sm-mini')).map((b) => b.textContent) : [];
+  return { head: m?.querySelector('.sm-head')?.textContent ?? null, btns, nameKept: m?.querySelector('.sm-confirming .sm-name')?.textContent ?? null };
+})()`);
+check('delete confirm arms inline on the row', inline.head === 'ADD TO PLAYLIST' && JSON.stringify(inline.btns) === JSON.stringify(['Confirm', 'Cancel']) && inline.nameKept === '__probe_del', JSON.stringify(inline));
+
+const cancelBtn = await evalJs(`(() => {
+  const b = Array.from(document.querySelectorAll('.sm-mini')).find((x) => x.textContent === 'Cancel');
+  if (b === undefined) return null;
+  const r = b.getBoundingClientRect();
+  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+})()`);
+if (cancelBtn !== null) {
+  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: cancelBtn.x, y: cancelBtn.y, button: 'left', clickCount: 1 });
+  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: cancelBtn.x, y: cancelBtn.y, button: 'left', clickCount: 1 });
+}
+await sleep(350);
+const afterCancel = await evalJs(`(() => {
+  const m = document.querySelector('.song-menu');
+  const rows = Array.from(m?.querySelectorAll('.sm-list .sm-row') ?? []);
+  return { pairGone: m?.querySelector('.sm-confirm-pair') === null, rowBack: rows.some((r) => r.querySelector('.sm-name')?.textContent === '__probe_del') };
+})()`);
+check('cancel returns to the list with the playlist intact', afterCancel.pairGone === true && afterCancel.rowBack === true, JSON.stringify(afterCancel));
+
+const xBtn2 = await evalJs(`(() => {
+  const rows = Array.from(document.querySelectorAll('.sm-list .sm-row'));
+  const row = rows.find((r) => r.querySelector('.sm-name')?.textContent === '__probe_del');
+  const x = row?.querySelector('.sm-x');
+  if (x === undefined || x === null) return null;
+  row.scrollIntoView({ block: 'nearest' });
+  const r = x.getBoundingClientRect();
+  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+})()`);
+if (xBtn2 !== null) {
+  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: xBtn2.x, y: xBtn2.y, button: 'left', clickCount: 1 });
+  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: xBtn2.x, y: xBtn2.y, button: 'left', clickCount: 1 });
+}
+await sleep(300);
+const confirmBtn = await evalJs(`(() => {
+  const b = Array.from(document.querySelectorAll('.sm-mini')).find((x) => x.textContent === 'Confirm');
+  if (b === undefined) return null;
+  const r = b.getBoundingClientRect();
+  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+})()`);
+if (confirmBtn !== null) {
+  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: confirmBtn.x, y: confirmBtn.y, button: 'left', clickCount: 1 });
+  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: confirmBtn.x, y: confirmBtn.y, button: 'left', clickCount: 1 });
+}
+await sleep(300);
+const deleting = await evalJs(`(() => {
+  const m = document.querySelector('.song-menu');
+  const row = m?.querySelector('.sm-deleted');
+  return { menuOpen: m !== null, word: row?.querySelector('.sm-deleted-word')?.textContent ?? null };
+})()`);
+check('confirm speaks Deleted on the row with the menu staying open', deleting.menuOpen === true && deleting.word === 'Deleted', JSON.stringify(deleting));
+await sleep(1300);
+const settled = await evalJs(`(() => {
+  const m = document.querySelector('.song-menu');
+  return { menuOpen: m !== null, animating: m?.querySelector('.sm-deleted') !== null, gone: window.__songActions.playlists().every((x) => x.name !== '__probe_del') };
+})()`);
+check('deleted row fades out and the list settles', settled.menuOpen === true && settled.animating === false && settled.gone === true, JSON.stringify(settled));
+
+await evalJs(`document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+await sleep(350);
+const plBtn2 = await evalJs(`(() => {
+  const b = Array.from(document.querySelectorAll('.sm-fork-btn')).find((x) => x.textContent === 'Add to playlist');
+  if (b === undefined) return null;
+  const r = b.getBoundingClientRect();
+  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+})()`);
+if (plBtn2 !== null) {
+  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: plBtn2.x, y: plBtn2.y, button: 'left', clickCount: 1 });
+  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: plBtn2.x, y: plBtn2.y, button: 'left', clickCount: 1 });
+}
+await sleep(350);
+
+const newRow = await evalJs(`(() => {
+  const r = document.querySelector('.sm-row-new')?.getBoundingClientRect();
+  return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
+})()`);
+if (newRow !== null) {
+  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: newRow.x, y: newRow.y, button: 'left', clickCount: 1 });
+  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: newRow.x, y: newRow.y, button: 'left', clickCount: 1 });
+}
 await sleep(250);
 const typing = await evalJs(`(async () => {
   for (let i = 0; i < 12; i++) {

@@ -56,6 +56,7 @@ const MIN_CARD_H = 56;
 const MIN_PERSPECTIVE = 600;
 const LENS_WIDTH = 1.2;
 const LENS_STRENGTH = 0.5;
+const CONTEXT_MIN_RATIO = 0.55;
 const TABLE_STEP = 0.05;
 const TABLE_MAX = 16;
 const WHEEL_GAIN = 2.8;
@@ -343,9 +344,9 @@ export function createRiverV2(): RiverV2Handle {
       });
     });
     el.addEventListener('contextmenu', (event) => {
-      if (!shown) return;
-      if (el.getBoundingClientRect().height < 24) return;
       event.preventDefault();
+      if (!shown) return;
+      if (el.getBoundingClientRect().height < cardH * CONTEXT_MIN_RATIO) return;
       if (contextCb !== null) contextCb(entry.id, el);
     });
     return {
