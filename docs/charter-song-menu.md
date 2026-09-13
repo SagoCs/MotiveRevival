@@ -1,6 +1,6 @@
 # Charter — The Song Menu (queue + playlist actions)
 
-Status: 3D mount BUILT and refined through live use (2026-09-13) — full-card panel, readability guard, plays-next queueing, inline delete, Escape ladder all landed. Chrome mount PENDING (next session).
+Status: FULLY DELIVERED (2026-09-13) — both mounts live, `queuePanel.ts` retired, every surface sings the same verbs.
 
 ## Architecture
 
@@ -20,7 +20,7 @@ One component (`ui/songMenu.ts`), one state machine, two mounts. Form follows sp
 
 **3D mount (BUILT, v2 river):** panel is a child of the right-clicked card, anchored to its left (`right: calc(100% + 20px)`), inheriting the card's full transform — moves and warps in lockstep, zero independent motion (inheritance beats simulation; never chase a moving target with per-frame reads). Sizing (2026-09-13): width 280px, height = exactly the card's height (`top: 0; bottom: 0`), no floor — the readability guard guarantees the menu is never hosted on an unreadable card. Small phases (fork, confirm, word) sit vertically centered; lists fill the panel and scroll inside. Trigger: right-button RELEASE (`contextmenu`) — the press-trigger idea was retired by owner ruling: everything else fires on release, so press-firing would feel weird. The guard is the readability line (owner design): cards rendering under ~55% of full card height decline the menu — below that line cards are dissolving into the edge fade and their titles are unreadable, so no decision could be made anyway; the jarring tiny-card-big-menu pairing cannot exist. Right-clicking the same card toggles closed; right-clicking a different card moves the menu; right-clicks inside the panel are swallowed (they once reached the card underneath and both reset the menu and — via pointer capture — committed the card: real mouse clicks on the fork buttons played the song). The panel never grows below its card.
 
-**Chrome mount (PENDING):** flat, row-anchored, on summon rows + album stage cells (replacing the old flat menu), styled in the summon drawer's grammar (art-strip playlist rows, `── ──` hairline header) — the fork rows are already that grammar (stacked, frameless, hairline-divided, left-aligned). The transport queue button opens it directly in queue phase — **the old queue panel (`ui/queuePanel.ts`) retires**. Transport stays the queue's constant-access home ("the queue is what you hear").
+**Chrome mount (BUILT 2026-09-13):** flat panel, right-anchored to the row and viewport-clamped, styled in the summon drawer's grammar — the fork rows ARE that grammar (stacked, frameless, hairline-divided, left-aligned). Surfaces: summon song rows, album stage cells, playlist detail rows, the dormant flat list (parity until Phase 3 retires it), all through `attachSongMenu(row, track)`. The transport queue button opens the menu directly in queue phase — left-aligned above the button (the button lives at the transport's left end; right-aligning pushed the menu off-screen), growing upward — and lights only while it owns the menu (the anchor row rides `song-menu-opened`/`song-menu-closed` on the appBus). `queuePanel.ts` and `queue.css` are deleted. **Summon layering (locked rulings, implemented):** the summon stays open through every menu action; the summon's press-dismissal stands down while the menu is open (its capture handler used to see the menu's real presses — the menu lives at body level, outside the drawer — and closed the summon the moment the user pressed Add to playlist); an outside press closes only the menu, the next press closes the summon; summon keyboard activity closes the menu; non-song rows decline the menu (song-rows-only). Toggle identity extends to chrome rows: right-click the same row toggles closed, a different row moves the menu. The Escape ladder respects a track-less queue entry (from the transport, the queue view closes directly — a fork with no song context could not act).
 
 ## State machine (locked, amended 2026-09-13)
 
@@ -31,9 +31,9 @@ One component (`ui/songMenu.ts`), one state machine, two mounts. Form follows sp
 - **No motes. No Play (card click plays). No Go to album (arrives with drill-through).**
 - All feedback words in one voice: "Added" / "Deleted", accent-glow, then fade.
 
-## PENDING (chrome mount)
+## PENDING
 
-1. **Chrome mount:** summon rows + album stage cells + transport button (queue phase); retire `queuePanel.ts`. Watch-outs recorded from design discussion: the summon's own Escape/close handling must yield to the menu's ladder while the menu is open (capture-order guard); right-click must not dismiss the summon drawer; wheel-scrolling the drawer outside the panel should not read as dismissal without discussion; drawer activation-dismissal and menu dismissal need a layered-close order.
+Nothing — the charter is delivered. Future riders live with their movements: drill-through arrivals come with Movement X, the flat-list menu retires with IX Phase 3.
 
 ## Cosmology decisions (recorded)
 
