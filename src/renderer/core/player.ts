@@ -119,6 +119,10 @@ export class PlayerService {
     return this.queue;
   }
 
+  get queuePosition(): number {
+    return this.queueIndex;
+  }
+
   get queueIndexAt(): number {
     return this.queueIndex;
   }
@@ -239,6 +243,13 @@ export class PlayerService {
 
   appendToQueue(track: IndexedTrack): void {
     this.queue.push(track);
+    this.emitQueueState();
+    this.bus.emit('queueMutated', {});
+  }
+
+  insertUpcoming(track: IndexedTrack, offset = 0): void {
+    if (!Number.isInteger(offset) || offset < 0) return;
+    this.queue.splice(this.queueIndex + 1 + offset, 0, track);
     this.emitQueueState();
     this.bus.emit('queueMutated', {});
   }

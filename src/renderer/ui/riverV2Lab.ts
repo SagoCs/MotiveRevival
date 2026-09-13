@@ -3,6 +3,7 @@ import { mediaUrl, player } from '../core/player';
 import { appBus } from '../core/appBus';
 import { createRiverV2 } from './riverV2';
 import { openNowPlaying } from './overlay';
+import { openSongMenu } from './songMenu';
 import type { RiverV2Entry, RiverV2Region } from './riverV2';
 import type { IndexedTrack } from '../../shared/types';
 
@@ -71,6 +72,14 @@ export function initRiverV2Lab(): void {
       if (river === null) {
         river = createRiverV2();
         river.onHome(() => river?.glideTo(homeIndex()));
+        river.onEntryContext((id, card) => {
+          if (river === null) return;
+          const result = libraryStore.result;
+          if (result === null || !result.ok) return;
+          const track = result.tracks.find((t) => t.id === id);
+          if (track === undefined) return;
+          openSongMenu({ track, host: card, row: null });
+        });
         river.onEntryActivated((id) => {
           if (river === null) return;
           const result = libraryStore.result;

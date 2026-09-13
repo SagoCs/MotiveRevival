@@ -28,6 +28,7 @@ export interface RiverV2Handle {
   setVisible(visible: boolean): void;
   onHome(cb: () => void): void;
   onEntryActivated(cb: (id: string) => void): void;
+  onEntryContext(cb: (id: string, card: HTMLDivElement) => void): void;
   setCommitted(id: string | null): void;
   entryRect(id: string): DOMRect | null;
   hideEntry(id: string): void;
@@ -95,6 +96,7 @@ export function createRiverV2(): RiverV2Handle {
   let suppressDbl = 0;
   let homeCb: (() => void) | null = null;
   let entryCb: ((id: string) => void) | null = null;
+  let contextCb: ((id: string, card: HTMLDivElement) => void) | null = null;
   let committedId: string | null = null;
   let curve = 0.75;
   let tiltMax = 52;
@@ -340,6 +342,12 @@ export function createRiverV2(): RiverV2Handle {
         if (entryCb !== null) entryCb(entry.id);
       });
     });
+    el.addEventListener('contextmenu', (event) => {
+      if (!shown) return;
+      if (el.getBoundingClientRect().height < 24) return;
+      event.preventDefault();
+      if (contextCb !== null) contextCb(entry.id, el);
+    });
     return {
       el,
       id: entry.id,
@@ -452,6 +460,9 @@ export function createRiverV2(): RiverV2Handle {
     },
     onEntryActivated(cb: (id: string) => void): void {
       entryCb = cb;
+    },
+    onEntryContext(cb: (id: string, card: HTMLDivElement) => void): void {
+      contextCb = cb;
     },
     setCommitted(id: string | null): void {
       committedId = id;

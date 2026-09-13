@@ -8,6 +8,7 @@ import './styles/base.css';
 import './styles/shell.css';
 import './styles/river.css';
 import './styles/riverV2.css';
+import './styles/songMenu.css';
 
 import { player } from './core/player';
 import { appBus } from './core/appBus';
@@ -28,6 +29,7 @@ import { initArrowMarkers } from './ui/arrowMarkers';
 import { initSongRiver } from './ui/songRiver';
 import { initRiverV2Lab } from './ui/riverV2Lab';
 import { initUniverse } from './ui/universe';
+import './core/songActions';
 
 window.addEventListener('error', (e) => {
   fatal(`Uncaught: ${e.message}`);

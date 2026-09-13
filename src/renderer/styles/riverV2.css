@@ -31,7 +31,6 @@ body.river-v2-active #song-river {
 .rv2-card {
   position: absolute;
   top: 0;
-  overflow: hidden;
   border-radius: 4px;
   border: 1px solid color-mix(in srgb, var(--moon) 20%, rgba(210, 218, 255, 0.14));
   background: linear-gradient(170deg, rgba(17, 23, 46, 0.82), rgba(7, 10, 22, 0.9));
@@ -60,6 +59,8 @@ body.river-v2-active #song-river {
 .rv2-art {
   position: absolute;
   inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
 }
 
 .rv2-art img {

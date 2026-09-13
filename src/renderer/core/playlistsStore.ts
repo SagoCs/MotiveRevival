@@ -110,12 +110,13 @@ class PlaylistsStore {
     this.emit();
   }
 
-  async addTrack(playlistId: string, ref: PlaylistTrackRef): Promise<void> {
+  async addTrack(playlistId: string, ref: PlaylistTrackRef): Promise<'added' | 'present' | 'missing'> {
     const pl = this.find(playlistId);
-    if (pl === null) return;
-    if (pl.tracks.some((t) => t.trackId === ref.trackId)) return;
+    if (pl === null) return 'missing';
+    if (pl.tracks.some((t) => t.trackId === ref.trackId)) return 'present';
     pl.tracks.push({ trackId: ref.trackId, absPath: ref.absPath });
     await this.touch(playlistId);
+    return 'added';
   }
 
   async removeTrack(playlistId: string, index: number): Promise<void> {

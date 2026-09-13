@@ -1793,6 +1793,21 @@ body:has(#playlist-layer.open) .transport-lyric {
   color: var(--moon);
 }
 
+#search-oracle .oracle-row.preview-pending .song-title {
+  color: var(--moon-bright);
+}
+
+#search-oracle .oracle-row.previewing {
+  box-shadow:
+    inset 0 0 22px color-mix(in srgb, var(--acc-glow) 7%, transparent),
+    0 0 20px color-mix(in srgb, var(--acc-glow) 14%, transparent);
+}
+
+#search-oracle .oracle-row.previewing .song-title {
+  color: var(--moon-bright);
+  text-shadow: 0 0 16px color-mix(in srgb, var(--acc-glow) 55%, transparent);
+}
+
 #search-oracle .oracle-row:hover .song-title,
 #search-oracle .oracle-row.oracle-keyboard-selected .song-title {
   color: var(--moon-bright);

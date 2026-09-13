@@ -173,7 +173,7 @@ export function initBrowser(onCompactLyric?: (text: string | null, upcoming: boo
   appBus.on('universe-open-all', () => {
     if (detailOpen) closeDetail();
     state.mode = 'songs';
-    preview.enabled = false;
+    syncPreviewEnabled();
     setUniverseVisible(false);
     setArtistFilter(null);
     syncTabs();
@@ -185,7 +185,7 @@ export function initBrowser(onCompactLyric?: (text: string | null, upcoming: boo
     if (artist === undefined) return;
     if (detailOpen) closeDetail();
     state.mode = 'albums';
-    preview.enabled = false;
+    syncPreviewEnabled();
     setUniverseVisible(false);
     setArtistFilter(artist.key);
     syncTabs();
@@ -196,7 +196,7 @@ export function initBrowser(onCompactLyric?: (text: string | null, upcoming: boo
     openDetail(id);
   });
 
-  preview.enabled = state.mode === 'songs';
+  syncPreviewEnabled();
   wireTabs();
   wireSortChips();
   wireSearch();
@@ -226,7 +226,7 @@ function wireTabs(): void {
         return;
       }
       state.mode = mode;
-      preview.enabled = mode === 'songs';
+      syncPreviewEnabled();
       if (mode === 'universe' && detailOpen) closeDetail();
       setUniverseVisible(mode === 'universe');
       if (mode !== 'albums') setArtistFilter(null);
@@ -249,6 +249,10 @@ function wireSortChips(): void {
       render();
     });
   }
+}
+
+function syncPreviewEnabled(): void {
+  preview.enabled = state.mode === 'songs' || isOracleOpen();
 }
 
 function isOracleOpen(): boolean {
@@ -288,6 +292,7 @@ function openOracle(): void {
   summonZone.classList.add('active');
   summonZone.classList.add('summon-animate');
   summonVeil().classList.add('on');
+  syncPreviewEnabled();
   updateSummonWidth();
   oracleInput.focus();
 }
@@ -300,6 +305,8 @@ function closeOracle(): void {
   summonZone.classList.remove('active');
   summonZone.classList.add('summon-animate');
   summonVeilEl?.classList.remove('on');
+  preview.cancel();
+  syncPreviewEnabled();
   oracleInput.value = '';
   oracleInput.blur();
   updateSummonWidth();
