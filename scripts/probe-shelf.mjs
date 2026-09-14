@@ -284,15 +284,185 @@ for (let i = 1; i < sampler.length; i++) {
 console.log(`motion continuity: ${continuityOk ? 'within travel bound' : 'VIOLATED'}`);
 if (!continuityOk) failures.push('motion continuity violated (card moved further than scroll travel)');
 
+const RULER = ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
+const rulerState = () => evalJs(`(() => {
+  const bar = document.querySelector('#shelf-ruler');
+  if (bar === null) return null;
+  const keys = [...bar.querySelectorAll('.shelf-ruler-key')];
+  const barRect = bar.getBoundingClientRect();
+  const keyRects = keys.map((k) => k.getBoundingClientRect());
+  return {
+    keys: keys.length,
+    order: keys.map((k) => k.dataset.letter).join(''),
+    clearButtons: bar.querySelectorAll('.shelf-ruler-clear').length,
+    dead: keys.filter((k) => k.classList.contains('dead')).map((k) => k.dataset.letter),
+    lit: keys.filter((k) => k.classList.contains('lit')).map((k) => k.dataset.letter),
+    barTop: barRect.top,
+    barBottom: barRect.bottom,
+    lensTop: document.querySelector('#shelf-lens').getBoundingClientRect().top,
+    dimmed: document.querySelectorAll('.shelf-card.dimmed').length,
+    minKeyW: Math.min(...keyRects.map((r) => r.width)),
+    minKeyH: Math.min(...keyRects.map((r) => r.height)),
+    stripCx: (keyRects[0].left + keyRects[keyRects.length - 1].right) / 2,
+    fontSize: getComputedStyle(keys[0]).fontSize,
+    fontW: getComputedStyle(keys[0]).fontWeight,
+    capW: (() => { const el = document.querySelector('.shelf-card .shelf-name'); return el === null ? null : getComputedStyle(el).fontWeight; })(),
+    lensW: getComputedStyle(document.querySelector('#shelf-lens button')).fontWeight,
+  };
+})()`);
+const clickKey = (letter) => evalJs(`document.querySelector('#shelf-ruler button[data-letter="${letter}"]')?.click()`);
+const expectedDead = (letters) => RULER.filter((l) => !new Set(letters).has(l));
+
+const entries = await evalJs('window.__shelf.letters()');
+let ruler = await rulerState();
+console.log(`ruler: ${ruler.keys} keys, ${ruler.dead.length} sleeping, order ${ruler.order.slice(0, 4)}..., top=${Math.round(ruler.barTop)}, key ${ruler.minKeyW.toFixed(0)}x${ruler.minKeyH.toFixed(0)} @${ruler.fontSize}`);
+if (ruler === null) failures.push('ruler missing');
+else {
+  if (ruler.keys !== 27) failures.push(`ruler key count ${ruler.keys} != 27`);
+  if (ruler.order !== '#ABCDEFGHIJKLMNOPQRSTUVWXYZ') failures.push(`ruler order wrong: ${ruler.order.slice(0, 5)}...`);
+  if (ruler.clearButtons !== 0) failures.push('ruler clear button must not exist (Esc clears)');
+  if (ruler.fontSize !== '14px') failures.push(`ruler font size ${ruler.fontSize} != 14px`);
+  if (ruler.fontW !== '300' || ruler.capW !== '300' || ruler.lensW !== '300') failures.push(`shelf text weight not 300 (ruler ${ruler.fontW}, caption ${ruler.capW}, lens ${ruler.lensW})`);
+  if (ruler.minKeyW < 23 || ruler.minKeyH < 24) failures.push(`ruler key targets too small (${ruler.minKeyW.toFixed(0)}x${ruler.minKeyH.toFixed(0)})`);
+  if (Math.abs(ruler.stripCx - hook.viewW / 2) > 1.5) failures.push(`visible letter strip off center by ${(ruler.stripCx - hook.viewW / 2).toFixed(1)}px`);
+  if (!(ruler.barTop >= 52 && ruler.barBottom <= 100)) failures.push(`ruler not seated under the bezel (top ${Math.round(ruler.barTop)})`);
+  if (ruler.lensTop < ruler.barBottom - 2) failures.push('lens switcher not seated under the ruler');
+  const wantDead = expectedDead(entries);
+  if (JSON.stringify([...ruler.dead].sort()) !== JSON.stringify([...wantDead].sort())) failures.push(`sleeping letters wrong (${ruler.dead.length} vs ${wantDead.length} expected)`);
+}
+
+const litLetter = entries[0];
+if (ruler !== null && ruler.dead.length > 0) {
+  await clickKey(ruler.dead[0]);
+  await sleep(400);
+  const afterDead = await rulerState();
+  if (afterDead.lit.length !== 0) failures.push(`sleeping letter ${ruler.dead[0]} was lightable`);
+}
+await clickKey(litLetter);
+await sleep(1700);
+ruler = await rulerState();
+const afterLight = await evalJs(`({ lit: window.__shelf.lit(), centerLetter: window.__shelf.letters()[window.__shelf.center()], n: window.__shelf.names().length })`);
+console.log(`light "${litLetter}": lit=${JSON.stringify(afterLight.lit)}, center letter=${afterLight.centerLetter}, dimmed=${ruler.dimmed}/${afterLight.n}`);
+if (JSON.stringify(afterLight.lit) !== JSON.stringify([litLetter])) failures.push('letter did not light');
+if (afterLight.centerLetter !== litLetter) failures.push(`shelf did not glide to the lit letter (center ${afterLight.centerLetter})`);
+if (ruler.dimmed !== afterLight.n - 1) failures.push(`dim count wrong (${ruler.dimmed} of ${afterLight.n - 1} expected)`);
+const dimOpacity = await evalJs(`(() => { const f = document.querySelector('.shelf-card.dimmed .shelf-face'); return f === null ? null : getComputedStyle(f).opacity; })()`);
+console.log(`ghost face opacity: ${dimOpacity}`);
+if (dimOpacity === null || Math.abs(parseFloat(dimOpacity) - 0.13) > 0.01) failures.push(`ghost dim opacity wrong (${dimOpacity})`);
+
+const ghost = await evalJs(`(() => {
+  const dimmed = [...document.querySelectorAll('.shelf-card.dimmed')];
+  const mid = innerWidth / 2;
+  for (const el of dimmed) {
+    if (el.style.visibility === 'hidden') continue;
+    const r = el.getBoundingClientRect();
+    if (r.width > 60 && r.left >= 0 && r.right <= innerWidth && Math.abs(r.left + r.width / 2 - mid) < innerWidth * 0.3) {
+      return { id: el.dataset.id, x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+    }
+  }
+  return null;
+})()`);
+const beforeGhost = await evalJs(`({ center: window.__shelf.names()[window.__shelf.center()], selected: window.__shelf.selected() })`);
+if (ghost !== null) {
+  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: ghost.x, y: ghost.y, button: 'left', clickCount: 1 });
+  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: ghost.x, y: ghost.y, button: 'left', clickCount: 1 });
+  await sleep(1700);
+  const afterGhost = await evalJs(`({ center: window.__shelf.names()[window.__shelf.center()], selected: window.__shelf.selected() })`);
+  console.log(`ghost tap: center "${afterGhost.center}" vs "${beforeGhost.center}"`);
+  if (afterGhost.center !== beforeGhost.center || afterGhost.selected !== beforeGhost.selected) failures.push('ghost card answered a tap (dimmed cards must be inert)');
+} else {
+  console.log('ghost tap: no on-screen ghost to probe');
+}
+
+const second = entries.find((l) => l !== litLetter);
+await clickKey(second);
+await sleep(1700);
+const afterSecond = await evalJs(`({ lit: window.__shelf.lit(), centerLetter: window.__shelf.letters()[window.__shelf.center()] })`);
+console.log(`multi "${second}": lit=${JSON.stringify(afterSecond.lit)}, center letter=${afterSecond.centerLetter}`);
+if (JSON.stringify([...afterSecond.lit].sort()) !== JSON.stringify([litLetter, second].sort())) failures.push('multi-select union failed');
+if (afterSecond.centerLetter !== second) failures.push('second letter did not glide to center');
+
+const flingCenterX = Math.round(hook.viewW / 2);
+const flingCenterY = Math.round(52 + (hook.viewH - 52 - 62) / 2);
+for (let i = 0; i < 5; i++) {
+  await send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: flingCenterX, y: flingCenterY, deltaX: 0, deltaY: -300 });
+  await sleep(80);
+}
+await sleep(2200);
+const afterFling = await evalJs(`({ centerLetter: window.__shelf.letters()[window.__shelf.center()], pos: window.__shelf.scroll() })`);
+console.log(`snap-to-lit after fling: center letter=${afterFling.centerLetter}, pos=${afterFling.pos.toFixed(2)}`);
+if (![litLetter, second].includes(afterFling.centerLetter)) failures.push(`settle landed on a ghost (${afterFling.centerLetter})`);
+
+await clickKey(second);
+await sleep(500);
+const afterToggle = await evalJs('window.__shelf.lit()');
+console.log(`toggle off "${second}": lit=${JSON.stringify(afterToggle)}`);
+if (JSON.stringify(afterToggle) !== JSON.stringify([litLetter])) failures.push('lit letter did not toggle off');
+
+await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+await sleep(500);
+const afterEscClear = await rulerState();
+console.log(`escape clears: lit=${JSON.stringify(afterEscClear.lit)}, dimmed=${afterEscClear.dimmed}`);
+if (afterEscClear.lit.length !== 0 || afterEscClear.dimmed !== 0) failures.push('escape did not clear the lit letters');
+
 await evalJs(`document.querySelector('#shelf-lens button:nth-child(2)')?.click()`);
 await sleep(900);
-const lens2 = await evalJs(`({ lens: window.__shelf.lens(), names: window.__shelf.names() })`);
-console.log(`playlists lens: ${lens2.lens}, entries: ${lens2.names.length}`);
+const lens2 = await evalJs(`({ lens: window.__shelf.lens(), names: window.__shelf.names(), letters: window.__shelf.letters(), lit: window.__shelf.lit() })`);
+ruler = await rulerState();
+console.log(`playlists lens: ${lens2.lens}, entries: ${lens2.names.length}, lit after switch=${JSON.stringify(lens2.lit)}`);
 if (lens2.lens !== 'playlists') failures.push('lens switch failed');
+if (lens2.lit.length !== 0) failures.push('lit letters did not clear on lens switch');
+const plWantDead = expectedDead(lens2.letters);
+if (JSON.stringify([...ruler.dead].sort()) !== JSON.stringify([...plWantDead].sort())) failures.push('playlists ruler sleeping letters wrong');
+let plOrdered = true;
+for (let i = 1; i < lens2.names.length; i++) {
+  if (bucketOf(lens2.names[i - 1]) !== bucketOf(lens2.names[i])) continue;
+  if (byNameCmp(lens2.names[i - 1], lens2.names[i]) > 0) plOrdered = false;
+}
+if (!plOrdered) failures.push('playlists not A-Z ordered with # last');
+
+const scratchId = await evalJs(`(async () => {
+  const A = window.__songActions;
+  if (!A || A.libraryTracks().length === 0) return null;
+  const prior = A.playlists().find((x) => x.name === '__probe_scratch');
+  if (prior) await A.removePlaylist(prior.id);
+  await A.createPlaylistWithTrack('__probe_scratch', A.libraryTracks()[0]);
+  return A.playlists().find((x) => x.name === '__probe_scratch')?.id ?? null;
+})()`, true);
+await sleep(600);
+const plScratch = await evalJs(`({ names: window.__shelf.names(), letters: window.__shelf.letters() })`);
+ruler = await rulerState();
+const plAwake = RULER.filter((l) => !ruler.dead.includes(l));
+console.log(`scratch playlist: entries=${plScratch.names.length}, awake=${JSON.stringify(plAwake)}`);
+if (scratchId === null) failures.push('scratch playlist not created (no library tracks?)');
+else {
+  if (plScratch.names.length !== 1) failures.push(`scratch playlist missing from the playlists field (${plScratch.names.length})`);
+  if (plScratch.letters[0] !== '#') failures.push(`scratch playlist letter bucket wrong (${plScratch.letters[0]})`);
+  if (JSON.stringify(plAwake) !== JSON.stringify(['#'])) failures.push(`ruler did not wake for the new playlist (${JSON.stringify(plAwake)})`);
+  await clickKey('#');
+  await sleep(900);
+  const plLit = await evalJs(`({ lit: window.__shelf.lit(), centerLetter: window.__shelf.letters()[window.__shelf.center()] })`);
+  console.log(`playlists ruler light #: lit=${JSON.stringify(plLit.lit)}, center letter=${plLit.centerLetter}`);
+  if (JSON.stringify(plLit.lit) !== JSON.stringify(['#']) || plLit.centerLetter !== '#') failures.push('playlists ruler letter click failed');
+  await clickKey('#');
+  await sleep(300);
+  const plUnlit = await evalJs('window.__shelf.lit()');
+  if (plUnlit.length !== 0) failures.push('playlists ruler toggle-off failed');
+  await evalJs(`window.__songActions.removePlaylist(${JSON.stringify(scratchId)})`);
+  await sleep(600);
+  const plGone = await evalJs('window.__shelf.names()');
+  ruler = await rulerState();
+  console.log(`scratch removed: entries=${plGone.length}, sleeping=${ruler.dead.length}`);
+  if (plGone.length !== 0) failures.push('scratch playlist not removed');
+  if (ruler.dead.length !== 27) failures.push('ruler did not re-sleep after playlist removal');
+}
+
 await evalJs(`document.querySelector('#shelf-lens button:nth-child(1)')?.click()`);
 await sleep(700);
 const lens3 = await evalJs('window.__shelf.lens()');
 if (lens3 !== 'artists') failures.push('lens switch back failed');
+
 
 await evalJs(`document.querySelector('#mode-tabs button[data-mode="songs"]')?.click()`);
 await sleep(900);

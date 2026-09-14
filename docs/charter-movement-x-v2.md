@@ -50,13 +50,12 @@ The app boots into the shelf. A horizontal field of squares with the river's mom
 
 **The Artists field.** One square per primary artist, arranged **A–Z** (case-insensitive) with a **#** bucket at the far end for digits, symbols, and non-Latin names. A square's face is **the artist's newest album's art** — one art, never a mosaic — with the artist's name inked beneath. The shelf speaks "who this artist is now": a new release visibly changes their face.
 
-**The Playlists field.** One square per playlist. Face = the playlist's **first song's album art** (the same one-art cleanliness ruling), name and song-count inked beneath. No letter ruler here — the field is small and summon covers lookup. (A soft mosaic of member art is the parked alternative if first-song art ever feels misleading.)
+**The Playlists field.** One square per playlist. Face = the playlist's **first song's album art** (the same one-art cleanliness ruling), name and song-count inked beneath. A–Z by name with the # bucket, and the letter ruler serves this field too (amended 2026-09-14 — same instrument, same gestures, letters wake and sleep with the store).
 
-**The letter ruler (Artists field only).** Twenty-six letters plus **#**, riding one edge of the field (bottom edge proposed — it doubles as a ruler for the shelf's span; the visual-verification law applies to anything near the bottom edge). Dim at rest; brightens under the pointer; **glows when active**.
+**The letter ruler (BUILT 2026-09-14 as Phase 1.5, pulled forward from Phase 5; amended by owner rulings).** Twenty-six letters plus **#** leading the strip, seated under the bezel with the ARTISTS/PLAYLISTS switcher beneath it (the bottom-edge seat retired: the transport's lyric preview owns that zone and the bottom edge carries the taskbar hazard). **Strong dim** is the law: lit letters stay lit and everything else fades to a ~13% ghost — ghosts are inert and the settle-snap considers only lit entries, so the focus never speaks for a ghost. Letters with no entries sleep: fainter, inert, unlightable. Names fold accents before bucketing (Björk → B); **#** serves digits, symbols, and non-Latin scripts, equal citizen. **Esc is the only clear** — the ✕ button was built and retired by ruling (its hidden layout box was found shoving the visible letters 18.8px off center). Serves both lenses; the playlists field is A–Z by name with the same bucket. All shelf instrument text is Sora 300, matched to the summon's voice.
 
-- Click one or more letters (multi-select = union): the shelf **glides** to center that letter's cluster and the rest of the field **softly dims** — nothing ever vanishes. Dim, never filter: a lit cluster on a dimmed field reads as intention; a nearly-empty field reads as a bug; the glowing letters *are* the visible state.
-- Click a lit letter to unlight it. **Esc clears** the dim before stepping back. A small ✕ at the ruler's end clears all at once.
-- **#** is a real bucket, an equal citizen in the strip.
+- Click one or more letters (multi-select = union): the shelf **glides** to center that letter's cluster and the rest of the field dims to ghosts — nothing ever vanishes. Dim, never filter: a lit cluster on a dimmed field reads as intention; the glowing letters *are* the visible state.
+- Click a lit letter to unlight it. **Esc clears** the dim — the only clear.
 
 ### 3.1 Phase 1 specification — the artists field
 
@@ -152,7 +151,7 @@ Each phase carries probe-verifiable acceptance; nothing is verified by eye alone
 - **Phase 2 — The Album place.** FLIP fill → veil → staggered river; auto-drill for one-album artists; anchor line; album openings route through it (stage's role absorbed).
 - **Phase 3 — The Artist place.** The discography river and the push-cascade entrance, reversible on Esc.
 - **Phase 4 — The Playlists lens + playlist place.** Spectrum rows, drag-reorder, ghost rows, square management menu.
-- **Phase 5 — The letter ruler.** Glide-and-dim, multi-select, # bucket, Esc/✕ clear.
+- **Phase 5 — The letter ruler.** BUILT EARLY as Phase 1.5 (2026-09-14): strong dim, sleeping letters, snap-to-lit, # first, Esc-only clear — see the letter ruler section in §3 and the README ledger.
 - **Phase 6 — Summon landing law + graduation.** Song results open their album place; tabs retire in order; bezel → summon-only. Ledger and AGENTS stamped at each sign-off.
 
 ---

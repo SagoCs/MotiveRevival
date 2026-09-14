@@ -123,7 +123,7 @@
 
 .shelf-name {
   font-family: var(--font-display);
-  font-weight: 600;
+  font-weight: 300;
   font-size: 15px;
   line-height: 1.2;
   letter-spacing: 0.02em;
@@ -157,10 +157,63 @@
   opacity: 1;
 }
 
+.shelf-card.dimmed .shelf-face,
+.shelf-card.dimmed .shelf-bloom,
+.shelf-card.dimmed .shelf-caption,
+.shelf-card.dimmed .shelf-ledger {
+  opacity: 0.13;
+  transition: opacity 420ms var(--ease-drift);
+}
+
+#shelf-ruler {
+  position: fixed;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: clamp(4px, 0.6vw, 10px);
+  z-index: 25;
+}
+
+#shelf-ruler .shelf-ruler-key {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 6px 0;
+  min-width: 24px;
+  text-align: center;
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: 14px;
+  line-height: 1;
+  letter-spacing: 0.05em;
+  color: var(--moon-faint);
+  transition:
+    color 300ms var(--ease-drift),
+    text-shadow 300ms var(--ease-drift);
+}
+
+#shelf-ruler .shelf-ruler-key:hover {
+  color: var(--moon);
+}
+
+#shelf-ruler .shelf-ruler-key.lit {
+  color: var(--moon-bright);
+  text-shadow: 0 0 14px var(--acc-glow);
+}
+
+#shelf-ruler .shelf-ruler-key.dead,
+#shelf-ruler .shelf-ruler-key.dead:hover {
+  color: color-mix(in srgb, var(--moon-faint) 40%, transparent);
+  cursor: default;
+}
+
 #shelf-lens {
   position: fixed;
   left: 50%;
-  bottom: 84px;
+  top: 98px;
   transform: translateX(-50%);
   display: flex;
   gap: 26px;
@@ -174,7 +227,7 @@
   padding: 6px 2px;
   cursor: pointer;
   font-family: var(--font-display);
-  font-weight: 600;
+  font-weight: 300;
   font-size: 11px;
   letter-spacing: 0.22em;
   text-transform: uppercase;

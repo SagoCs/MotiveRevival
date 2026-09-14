@@ -410,6 +410,10 @@ function wireGlobalKeys(): void {
         e.preventDefault();
         return;
       }
+      if (shelfSurface.clearOnEscape()) {
+        e.preventDefault();
+        return;
+      }
       return;
     }
 

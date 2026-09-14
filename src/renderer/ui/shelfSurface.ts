@@ -3,6 +3,7 @@ import { libraryStore } from '../core/libraryStore';
 import { mediaUrl, player } from '../core/player';
 import { primaryOf } from '../core/searchIndex';
 import { playlistsStore } from '../core/playlistsStore';
+import { fold } from '../core/fold';
 import { uiTheme } from '../core/uiTheme';
 import { deriveAccent } from '../core/palette';
 import { createShelf } from './shelf';
@@ -11,6 +12,7 @@ import type { IndexedTrack } from '../../shared/types';
 
 const BEZEL_H = 52;
 const TIMELINE_H = 62;
+const RULER_LETTERS: string[] = ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')];
 
 type Lens = 'artists' | 'playlists';
 
@@ -28,6 +30,8 @@ let artistEntries: ShelfEntry[] = [];
 let artistTones = new Map<string, FaceTone>();
 let playlistEntries: ShelfEntry[] = [];
 let playlistTones = new Map<string, FaceTone>();
+let litLetters = new Set<string>();
+let rulerKeys = new Map<string, HTMLButtonElement>();
 
 const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`;
 
@@ -42,10 +46,15 @@ const byName = (a: string, b: string): number => {
   return la === lb ? (a < b ? -1 : a > b ? 1 : 0) : la < lb ? -1 : 1;
 };
 
-const letterBucket = (name: string): number => {
-  const code = name.charAt(0).toUpperCase().charCodeAt(0);
-  return code >= 65 && code <= 90 ? 0 : 1;
+const letterOf = (name: string): string => {
+  const folded = fold(name.trim());
+  const ch = (folded.charAt(0) || '#').toUpperCase();
+  return ch >= 'A' && ch <= 'Z' ? ch : '#';
 };
+
+const letterBucket = (name: string): number => (letterOf(name) === '#' ? 1 : 0);
+
+const awakeLetters = (): Set<string> => new Set(currentEntries().map((e) => letterOf(e.name)));
 
 const buildArtistEntries = (): void => {
   const result = libraryStore.result;
@@ -105,7 +114,9 @@ const buildArtistEntries = (): void => {
 const buildPlaylistEntries = (): void => {
   playlistEntries = [];
   playlistTones = new Map();
-  const playlists = [...playlistsStore.list()].sort((a, b) => byName(a.name, b.name));
+  const playlists = [...playlistsStore.list()].sort(
+    (a, b) => letterBucket(a.name) - letterBucket(b.name) || byName(a.name, b.name),
+  );
   for (const pl of playlists) {
     const resolved = playlistsStore.resolve(pl.tracks);
     const first = resolved.find((r): r is { track: IndexedTrack } => 'track' in r);
@@ -145,8 +156,16 @@ const focusIndex = (): number => {
 
 const applyEntries = (): void => {
   if (shelf === null) return;
-  shelf.setEntries(currentEntries());
-  shelf.scrollTo(focusIndex());
+  const entries = currentEntries();
+  shelf.setEntries(entries);
+  let target = focusIndex();
+  if (litLetters.size > 0) {
+    const litIdx = entries.findIndex((e) => litLetters.has(letterOf(e.name)));
+    if (litIdx >= 0) target = litIdx;
+  }
+  shelf.scrollTo(target);
+  syncRuler();
+  syncLit();
 };
 
 const pushTone = (): void => {
@@ -169,13 +188,6 @@ const highlight = (index: number): void => {
   const accent = deriveAccent(tone?.palette ?? null, tone?.weights);
   shelf?.setSelected(entry.id, { ledger: accent.b, ring: accent.a, glow: accent.g });
   pushTone();
-};
-
-const setLens = (next: Lens): void => {
-  if (lens === next || shelf === null) return;
-  lens = next;
-  syncLensButtons();
-  applyEntries();
 };
 
 let lensButtons: { artists: HTMLButtonElement; playlists: HTMLButtonElement } | null = null;
@@ -203,6 +215,70 @@ const buildLensSwitcher = (root: HTMLElement): void => {
   syncLensButtons();
 };
 
+const syncRuler = (): void => {
+  const awake = awakeLetters();
+  for (const [letter, key] of rulerKeys) {
+    key.classList.toggle('dead', !awake.has(letter));
+    key.classList.toggle('lit', litLetters.has(letter));
+  }
+};
+
+const syncLit = (): void => {
+  if (shelf === null) return;
+  if (litLetters.size === 0) {
+    shelf.setLitIds(null);
+    return;
+  }
+  shelf.setLitIds(currentEntries().filter((e) => litLetters.has(letterOf(e.name))).map((e) => e.id));
+};
+
+const clearLit = (): void => {
+  if (litLetters.size === 0) return;
+  litLetters.clear();
+  syncRuler();
+  syncLit();
+};
+
+const onLetterClick = (letter: string): void => {
+  if (!active) return;
+  if (!awakeLetters().has(letter)) return;
+  if (litLetters.has(letter)) {
+    litLetters.delete(letter);
+    syncRuler();
+    syncLit();
+    return;
+  }
+  litLetters.add(letter);
+  syncRuler();
+  syncLit();
+  const idx = currentEntries().findIndex((e) => letterOf(e.name) === letter);
+  if (idx >= 0) shelf?.glideTo(idx);
+};
+
+const buildLetterRuler = (root: HTMLElement): void => {
+  const bar = document.createElement('div');
+  bar.id = 'shelf-ruler';
+  for (const letter of RULER_LETTERS) {
+    const key = document.createElement('button');
+    key.type = 'button';
+    key.className = 'shelf-ruler-key';
+    key.dataset.letter = letter;
+    key.textContent = letter;
+    key.addEventListener('click', () => onLetterClick(letter));
+    bar.append(key);
+    rulerKeys.set(letter, key);
+  }
+  root.append(bar);
+};
+
+const setLens = (next: Lens): void => {
+  if (lens === next || shelf === null) return;
+  lens = next;
+  clearLit();
+  syncLensButtons();
+  applyEntries();
+};
+
 const currentRegion = (): ShelfRegion => ({
   x: 0,
   y: BEZEL_H,
@@ -227,6 +303,11 @@ export const shelfSurface = {
     browserVisible = next;
     applyVisibility();
   },
+  clearOnEscape(): boolean {
+    if (!active || litLetters.size === 0) return false;
+    clearLit();
+    return true;
+  },
 };
 
 export function initShelfSurface(): void {
@@ -236,6 +317,9 @@ export function initShelfSurface(): void {
     if (!active) return;
     const idx = currentEntries().findIndex((e) => e.id === id);
     if (idx < 0 || idx === shelf?.centerIndex()) return;
+    const entry = currentEntries()[idx];
+    if (entry === undefined) return;
+    if (litLetters.size > 0 && !litLetters.has(letterOf(entry.name))) return;
     highlight(idx);
     shelf?.glideTo(idx);
   });
@@ -245,7 +329,10 @@ export function initShelfSurface(): void {
   });
   shelf.mount(currentRegion(), window.devicePixelRatio || 1);
   const rootEl = document.getElementById('shelf');
-  if (rootEl !== null) buildLensSwitcher(rootEl);
+  if (rootEl !== null) {
+    buildLetterRuler(rootEl);
+    buildLensSwitcher(rootEl);
+  }
   buildArtistEntries();
   buildPlaylistEntries();
   applyEntries();
@@ -257,12 +344,22 @@ export function initShelfSurface(): void {
 
   libraryStore.onChange(() => {
     buildArtistEntries();
-    if (lens === 'artists') applyEntries();
+    if (lens === 'artists') {
+      for (const letter of [...litLetters]) {
+        if (!awakeLetters().has(letter)) litLetters.delete(letter);
+      }
+      applyEntries();
+    }
   });
 
   playlistsStore.onChange(() => {
     buildPlaylistEntries();
-    if (lens === 'playlists') applyEntries();
+    if (lens === 'playlists') {
+      for (const letter of [...litLetters]) {
+        if (!awakeLetters().has(letter)) litLetters.delete(letter);
+      }
+      applyEntries();
+    }
   });
 
   (window as unknown as { __shelf?: unknown }).__shelf = {
@@ -270,6 +367,8 @@ export function initShelfSurface(): void {
     lens: () => lens,
     names: () => currentEntries().map((e) => e.name),
     entries: () => currentEntries(),
+    letters: () => currentEntries().map((e) => letterOf(e.name)),
+    lit: () => [...litLetters],
     scroll: () => shelf?.scrollPosition() ?? 0,
     center: () => shelf?.centerIndex() ?? 0,
     selected: () => selectedId,

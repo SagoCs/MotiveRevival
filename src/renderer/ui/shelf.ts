@@ -31,6 +31,7 @@ export interface ShelfHandle {
   centerIndex(): number;
   setVisible(visible: boolean): void;
   setSelected(id: string | null, colors?: { ledger: string; ring: string; glow: string }): void;
+  setLitIds(ids: string[] | null): void;
   onEntryTap(cb: (id: string) => void): void;
   onSettle(cb: (index: number) => void): void;
   entryRect(id: string): DOMRect | null;
@@ -109,6 +110,7 @@ export function createShelf(): ShelfHandle {
   let tapCb: ((id: string) => void) | null = null;
   let settleCb: ((index: number) => void) | null = null;
   let selectedId: string | null = null;
+  let litIds: Set<string> | null = null;
   let curve = 0.72;
   let tiltMax = 15;
   let fadeHold = 0.58;
@@ -228,10 +230,30 @@ export function createShelf(): ShelfHandle {
     wake();
   };
 
+  const snapTarget = (predicted: number): number => {
+    const n = cards.length;
+    if (n === 0) return 0;
+    const base = wrapped() ? predicted : clamp(predicted, 0, maxIndex());
+    if (litIds === null || litIds.size === 0 || litIds.size >= n) return Math.round(base);
+    let best = Math.round(base);
+    let bestDist = Infinity;
+    for (const card of cards) {
+      if (!litIds.has(card.id)) continue;
+      const raw = Math.abs(card.index - base);
+      const d = wrapped() ? Math.abs(wrapDist(card.index - base, n)) : raw;
+      if (d < bestDist) {
+        bestDist = d;
+        best = card.index;
+      }
+    }
+    return best;
+  };
+
+  const glideTargetFrom = (wanted: number): number => (wrapped() ? position + wrapDist(wanted - position, cards.length) : wanted);
+
   const settleToMomentum = (): void => {
     const predicted = position + velocity / (DECAY * slotW);
-    let target = Math.round(predicted);
-    if (!wrapped()) target = clamp(target, 0, maxIndex());
+    const target = glideTargetFrom(snapTarget(predicted));
     const travel = Math.abs(target - position);
     const duration = clamp(travel * 900, 260, SETTLE_TIME);
     velocity = 0;
@@ -261,7 +283,7 @@ export function createShelf(): ShelfHandle {
           position += (velocity * dt) / slotW;
           if (Math.abs(velocity) < CRAWL) {
             velocity = 0;
-            startGlide(Math.round(position), SNAP_DURATION);
+            startGlide(glideTargetFrom(snapTarget(position)), SNAP_DURATION);
             moving = gliding;
           } else moving = true;
         }
@@ -378,7 +400,7 @@ export function createShelf(): ShelfHandle {
       }
       if (Math.abs(velocity) < CRAWL) {
         velocity = 0;
-        startGlide(Math.round(position), SNAP_DURATION);
+        startGlide(glideTargetFrom(snapTarget(position)), SNAP_DURATION);
       } else {
         settleToMomentum();
       }
@@ -394,6 +416,10 @@ export function createShelf(): ShelfHandle {
     el.addEventListener('pointermove', onMove);
     el.addEventListener('pointerup', finish);
     el.addEventListener('pointercancel', cancel);
+  };
+
+  const applyLitClasses = (): void => {
+    for (const card of cards) card.el.classList.toggle('dimmed', litIds !== null && !litIds.has(card.id));
   };
 
   const buildCard = (entry: ShelfEntry, index: number, host: HTMLDivElement): Card => {
@@ -504,6 +530,7 @@ export function createShelf(): ShelfHandle {
       entries.forEach((entry, index) => cards.push(buildCard(entry, index, host)));
       position = wrapped() ? mod(position, cards.length) : clamp(position, 0, maxIndex());
       if (selectedId !== null && !entries.some((e) => e.id === selectedId)) selectedId = null;
+      applyLitClasses();
       derive();
     },
     scrollTo(index: number): void {
@@ -549,6 +576,10 @@ export function createShelf(): ShelfHandle {
           card.bloomEl.style.boxShadow = `0 0 0 1px ${colors.ring}, 0 0 34px ${colors.glow}`;
         }
       }
+    },
+    setLitIds(ids: string[] | null): void {
+      litIds = ids !== null && ids.length > 0 ? new Set(ids) : null;
+      applyLitClasses();
     },
     onEntryTap(cb: (id: string) => void): void {
       tapCb = cb;
