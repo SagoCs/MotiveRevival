@@ -434,11 +434,14 @@ if (labReady === 'ok') {
 
   const cx = Math.round(region.x + region.w / 2);
   const clickCardId = await evalJs(`(() => { const el = document.elementFromPoint(${cx}, ${vy})?.closest('.rv2-card'); return el?.dataset.id ?? null; })()`);
+  const upcomingBefore = await evalJs('window.__songActions.queueSnapshot().upcoming.length');
   await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: cx, y: vy, button: 'left', clickCount: 1 });
   await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: cx, y: vy, button: 'left', clickCount: 1 });
   await sleep(1100);
   const playingId = await evalJs('__riverV2Lab.playingId()');
   check('click plays the clicked song', clickCardId !== null && playingId === clickCardId, `playing ${playingId} vs clicked ${clickCardId}`);
+  const upcomingAfter = await evalJs('window.__songActions.queueSnapshot().upcoming.length');
+  check('click assigns no queue (the click law)', upcomingAfter === upcomingBefore, `upcoming ${upcomingBefore} -> ${upcomingAfter}`);
   const committedIdx = await evalJs(`document.querySelector('#river-v2 .rv2-card.committed')?.dataset.index ?? null`);
   const homeNow = await evalJs('__riverV2Lab.homeIndex()');
   const posAfterClick = await evalJs('__riverV2Lab.river().scrollPosition()');

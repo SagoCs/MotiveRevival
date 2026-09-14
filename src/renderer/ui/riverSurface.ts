@@ -84,7 +84,7 @@ export function initRiverSurface(): void {
     if (track === undefined) return;
     const cur = player.currentTrack;
     if (cur === null || cur.absPath !== track.absPath) {
-      player.setContext(result.tracks, idx);
+      player.playSingle(track);
     } else {
       openNowPlaying();
     }

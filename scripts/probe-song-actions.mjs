@@ -98,27 +98,18 @@ for (let i = 0; i < 20; i++) {
   await sleep(700);
 }
 
-const revived = await evalJs(`(async () => {
+const seeded = await evalJs(`(async () => {
   const A = window.__songActions;
   if (A.queueSnapshot().upcoming.length > 0) return 'ready';
-  document.querySelector('#mode-tabs button[data-mode="songs"]')?.click();
-  await new Promise((r) => setTimeout(r, 900));
-  const playing = window.__riverV2Lab?.playingId?.() ?? null;
-  const cards = Array.from(document.querySelectorAll('.rv2-card'));
-  const c = cards.find((x) => x.dataset.id !== playing && x.getBoundingClientRect().height > 60);
-  if (c === undefined) return 'no card';
-  const r = c.getBoundingClientRect();
-  return { tapX: r.left + r.width / 2, tapY: r.top + r.height / 2 };
-})()`);
-if (revived !== 'ready' && typeof revived === 'object' && revived !== null) {
-  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: revived.tapX, y: revived.tapY, button: 'left', clickCount: 1 });
-  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: revived.tapX, y: revived.tapY, button: 'left', clickCount: 1 });
-  await sleep(700);
-  await evalJs(`document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
-  await sleep(400);
-}
-const reviveState = await evalJs(`window.__songActions.queueSnapshot().upcoming.length > 0 ? (typeof ${JSON.stringify(revived)} === 'object' ? 'revived' : 'ready') : 'still-empty'`);
-check('queue context revived when the session ended at the last track', reviveState === 'ready' || reviveState === 'revived', reviveState);
+  const tracks = A.libraryTracks();
+  if (tracks.length < 2) return 'no tracks';
+  A.queueNext(tracks[0]);
+  A.queueNext(tracks[1]);
+  return 'seeded';
+})()`, true);
+await sleep(300);
+const seedState = await evalJs(`window.__songActions.queueSnapshot().upcoming.length`);
+check('manual queue seeds through the song actions (the click law leaves upcoming empty until the user adds)', seedState >= 2, `upcoming ${seedState}`);
 
 const QUEUE_TEST = `(() => {
   const A = window.__songActions;

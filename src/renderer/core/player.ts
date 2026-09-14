@@ -158,6 +158,21 @@ export class PlayerService {
     this.bus.emit('trackChanged', { track });
   }
 
+  playSingle(track: IndexedTrack): void {
+    const upcomingAt = this.queue.findIndex((t, i) => i > this.queueIndex && t.id === track.id);
+    if (upcomingAt >= 0) {
+      this.playFrom(upcomingAt);
+      return;
+    }
+    const behindAt = this.queue.findIndex((t) => t.id === track.id);
+    if (behindAt >= 0) {
+      this.queue.splice(behindAt, 1);
+      this.queueIndex -= 1;
+    }
+    this.queue.splice(this.queueIndex + 1, 0, track);
+    this.playFrom(this.queueIndex + 1);
+  }
+
   setVolume(value: number): void {
     this.volume = clamp(value, 0, 1);
     this.bus.emit('volume', { volume: this.volume });

@@ -661,7 +661,7 @@ function oracleSongRow(track: import('../../shared/types').IndexedTrack): HTMLEl
     }
     closeOracle();
     preview.hardStop();
-    playFromList(track, row);
+    player.playSingle(track);
     appBus.emit('reveal-playing', {});
   });
   return row;
@@ -1171,21 +1171,9 @@ function songRow(
       return;
     }
     preview.hardStop();
-    playFromList(track, row);
+    player.playSingle(track);
   });
   return row;
-}
-
-function playFromList(
-  track: import('../../shared/types').IndexedTrack,
-  sourceRow?: HTMLElement,
-): void {
-  const index = lastSongList.findIndex((t) => t.id === track.id);
-  if (index >= 0) {
-    player.setContext(lastSongList, index);
-  } else {
-    player.setContext([track], 0);
-  }
 }
 
 function reconcilePlayingRows(): void {
