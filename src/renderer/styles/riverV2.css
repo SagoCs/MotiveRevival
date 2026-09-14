@@ -2,7 +2,7 @@ body.song-river-active #carousel-content {
   visibility: hidden;
 }
 
-#river-v2 {
+.rv2-root {
   position: fixed;
   z-index: 16;
   display: none;
@@ -11,8 +11,12 @@ body.song-river-active #carousel-content {
   mask-image: linear-gradient(to bottom, transparent 0, #000 var(--rv2-fade, 120px), #000 calc(100% - var(--rv2-fade, 120px)), transparent 100%);
 }
 
-#river-v2.on {
+.rv2-root.on {
   display: block;
+}
+
+#artist-river {
+  z-index: 26;
 }
 
 .rv2-world {
@@ -75,7 +79,11 @@ body.song-river-active #carousel-content {
 .rv2-veil {
   position: absolute;
   inset: 0;
-  background: linear-gradient(175deg, rgba(13, 18, 36, 0.16) 30%, rgba(5, 8, 18, 0.6) 100%);
+  background: linear-gradient(
+    175deg,
+    color-mix(in srgb, var(--rv2-tone, transparent) 16%, rgba(13, 18, 36, 0.16)) 30%,
+    color-mix(in srgb, var(--rv2-tone, transparent) 24%, rgba(5, 8, 18, 0.6)) 100%
+  );
 }
 
 .rv2-text {

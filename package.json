@@ -10,7 +10,9 @@
     "start": "npm run build && electron .",
     "start:fresh": "npm run build && node scripts/start-fresh.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "node scripts/test.mjs"
+    "test": "node scripts/test.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "battery": "node scripts/smoke.mjs --all"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.0.0",

@@ -104,28 +104,16 @@ check('v2 river live on Songs', await evalJs(`document.getElementById('river-v2'
 await evalJs(`document.querySelectorAll('[data-probe-pick]').forEach((c) => { delete c.dataset.probePick; })`);
 
 const qState = await evalJs(`(() => { const s = window.__songActions.queueSnapshot(); return { up: s.upcoming.length, total: s.ids.length, lib: window.__songActions.libraryTracks().length }; })()`);
-if (qState.up === 0 || qState.total !== qState.lib) {
+if (qState.up < 3) {
   await evalJs(`(() => {
-    const lab = window.__riverV2Lab;
-    const count = window.__songActions.libraryTracks().length;
-    lab?.river()?.glideTo(Math.floor(count / 2));
+    const A = window.__songActions;
+    const tracks = A.libraryTracks();
+    const base = Math.floor(tracks.length / 2);
+    A.queueNext(tracks[base]);
+    A.queueNext(tracks[base + 1]);
+    A.queueNext(tracks[base + 2]);
   })()`);
-  await sleep(1400);
-  const tap = await evalJs(`(() => {
-    const playing = window.__riverV2Lab?.playingId?.() ?? null;
-    const cards = Array.from(document.querySelectorAll('.rv2-card'));
-    const c = cards.find((x) => x.dataset.id !== playing && x.getBoundingClientRect().height > 60);
-    if (c === undefined) return null;
-    const r = c.getBoundingClientRect();
-    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
-  })()`);
-  if (tap !== null) {
-    await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: tap.x, y: tap.y, button: 'left', clickCount: 1 });
-    await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: tap.x, y: tap.y, button: 'left', clickCount: 1 });
-    await sleep(700);
-    await evalJs(`document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
-    await sleep(400);
-  }
+  await sleep(300);
 }
 
 const glide = await evalJs(`(() => {
@@ -232,9 +220,30 @@ check('queue view highlights the card song (dedupe, no flood)', queuePhase.newCo
 const qAfter = await evalJs(`(() => { const s = window.__songActions.queueSnapshot(); const id = document.querySelector('[data-probe-pick="1"]')?.dataset.id ?? ''; return { total: s.ids.length, copies: s.ids.filter((x) => x === id).length }; })()`);
 check('no duplicate entered the queue', qAfter.copies === copiesBefore, JSON.stringify({ copiesBefore, after: qAfter }));
 
+const menuPhaseAtDrag = await evalJs(`(() => {
+  const m = document.querySelector('.song-menu');
+  if (m === null) return 'menu-closed';
+  if (m.querySelector('.sm-list .sm-row') !== null) return 'ready';
+  if (m.querySelector('.sm-fork') !== null) return 'fork';
+  return 'head:' + (m.querySelector('.sm-head')?.textContent ?? 'none');
+})()`);
+if (menuPhaseAtDrag === 'fork') {
+  const forkBtn = await evalJs(`(() => {
+    const b = Array.from(document.querySelectorAll('.sm-fork-btn')).find((x) => x.textContent === 'Add to queue');
+    if (b === undefined) return null;
+    const r = b.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  })()`);
+  if (forkBtn !== null) {
+    await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: forkBtn.x, y: forkBtn.y, button: 'left', clickCount: 1 });
+    await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: forkBtn.x, y: forkBtn.y, button: 'left', clickCount: 1 });
+    await sleep(350);
+  }
+}
 const drag = await evalJs(`(() => {
   const m = document.querySelector('.song-menu');
-  const row = m.querySelector('.sm-list .sm-row');
+  const row = m?.querySelector('.sm-list .sm-row');
+  if (m === undefined || m === null || row === null || row === undefined) return { fatal: 'queue view unavailable', phase: ${JSON.stringify('see menuPhaseAtDrag')} };
   const rect = row.getBoundingClientRect();
   const before = window.__songActions.queueSnapshot().upcoming.slice(0, 4);
   const y0 = rect.top + rect.height / 2;
@@ -252,7 +261,12 @@ const drag = await evalJs(`(() => {
   const restored = window.__songActions.queueSnapshot().upcoming.slice(0, 4);
   return { movedOff, stillThere, sameSet, restored: JSON.stringify(restored) === JSON.stringify(before) };
 })()`);
-check('drag reorder moves the row and restores', drag.movedOff === true && drag.stillThere === true && drag.sameSet === true && drag.restored === true, JSON.stringify(drag));
+if (drag.fatal !== undefined) {
+  console.log(`menu phase at drag step: ${menuPhaseAtDrag}`);
+  check('drag reorder moves the row and restores', false, JSON.stringify(drag));
+} else {
+  check('drag reorder moves the row and restores', drag.movedOff === true && drag.stillThere === true && drag.sameSet === true && drag.restored === true, JSON.stringify(drag));
+}
 
 await evalJs(`(() => { const x = document.querySelector('.song-menu .sm-row.sm-new .sm-x'); if (x) x.click(); })()`);
 await sleep(300);

@@ -7,6 +7,8 @@ export interface AppEventMap {
   'reveal-playing': Record<string, never>;
   'song-menu-opened': { row: HTMLElement | null };
   'song-menu-closed': Record<string, never>;
+  'artist-river-opened': { artist: string };
+  'artist-river-closed': { artist: string };
 }
 
 export const appBus = new Bus<AppEventMap>();

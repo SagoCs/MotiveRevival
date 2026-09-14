@@ -26,6 +26,7 @@ import { renderTabCards, searchPlaylists, closePlaylistLayer, isPlaylistLayerOpe
 import { attachSongMenu, closeSongMenu, isSongMenuOpen } from './songMenu';
 import { riverSurface } from './riverSurface';
 import { shelfSurface } from './shelfSurface';
+import { artistRiverSurface } from './artistRiverSurface';
 import type { Playlist } from '../../shared/types';
 
 type Mode = 'albums' | 'artists' | 'songs' | 'playlists' | 'shelf';
@@ -407,6 +408,10 @@ function wireGlobalKeys(): void {
       }
       if (isPlaylistLayerOpen()) {
         closePlaylistLayer();
+        e.preventDefault();
+        return;
+      }
+      if (artistRiverSurface.close()) {
         e.preventDefault();
         return;
       }
@@ -919,6 +924,7 @@ function render(immediate = false): void {
   preview.cancel();
   uiTheme.popPreview();
   const runSwap = (): void => {
+    if (renderedMode !== state.mode) artistRiverSurface.close();
     syncRiver();
     syncShelf();
     const frag = document.createDocumentFragment();

@@ -1,4 +1,5 @@
 import '../styles/shelf.css';
+import { appBus } from '../core/appBus';
 import { libraryStore } from '../core/libraryStore';
 import { mediaUrl, player } from '../core/player';
 import { primaryOf } from '../core/searchIndex';
@@ -7,6 +8,7 @@ import { fold } from '../core/fold';
 import { uiTheme } from '../core/uiTheme';
 import { deriveAccent } from '../core/palette';
 import { createShelf } from './shelf';
+import { artistRiverSurface } from './artistRiverSurface';
 import type { ShelfEntry, ShelfRegion } from './shelf';
 import type { IndexedTrack } from '../../shared/types';
 
@@ -23,6 +25,7 @@ interface FaceTone {
 
 let shelf: ReturnType<typeof createShelf> | null = null;
 let browserVisible = false;
+let artistRiverOpen = false;
 let active = false;
 let lens: Lens = 'artists';
 let selectedId: string | null = null;
@@ -287,7 +290,7 @@ const currentRegion = (): ShelfRegion => ({
 });
 
 const applyVisibility = (): void => {
-  active = browserVisible;
+  active = browserVisible && !artistRiverOpen;
   shelf?.setVisible(active);
   document.body.classList.toggle('shelf-active', active);
   if (!active) {
@@ -316,9 +319,15 @@ export function initShelfSurface(): void {
   shelf.onEntryTap((id) => {
     if (!active) return;
     const idx = currentEntries().findIndex((e) => e.id === id);
-    if (idx < 0 || idx === shelf?.centerIndex()) return;
+    if (idx < 0) return;
     const entry = currentEntries()[idx];
     if (entry === undefined) return;
+    if (idx === shelf?.centerIndex()) {
+      if (lens !== 'artists') return;
+      if (litLetters.size > 0 && !litLetters.has(letterOf(entry.name))) return;
+      artistRiverSurface.open(entry.name);
+      return;
+    }
     if (litLetters.size > 0 && !litLetters.has(letterOf(entry.name))) return;
     highlight(idx);
     shelf?.glideTo(idx);
@@ -360,6 +369,18 @@ export function initShelfSurface(): void {
       }
       applyEntries();
     }
+  });
+
+  appBus.on('artist-river-opened', () => {
+    artistRiverOpen = true;
+    applyVisibility();
+  });
+
+  appBus.on('artist-river-closed', ({ artist }) => {
+    artistRiverOpen = false;
+    applyVisibility();
+    const idx = artistEntries.findIndex((e) => e.name === artist);
+    if (idx >= 0) shelf?.glideTo(idx);
   });
 
   (window as unknown as { __shelf?: unknown }).__shelf = {

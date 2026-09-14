@@ -27,6 +27,7 @@ import { initWindowControls } from './ui/windowControls';
 import { initArrowMarkers } from './ui/arrowMarkers';
 import { initRiverSurface } from './ui/riverSurface';
 import { initShelfSurface } from './ui/shelfSurface';
+import { initArtistRiverSurface } from './ui/artistRiverSurface';
 import './core/songActions';
 
 window.addEventListener('error', (e) => {
@@ -54,6 +55,7 @@ function boot(): void {
   initArrowMarkers();
   initRiverSurface();
   initShelfSurface();
+  initArtistRiverSurface();
 
   const arrowAnchor = (side: number): { x: number; y: number } | null => {
     const row = document.querySelector<HTMLElement>('.song-row.playing');
@@ -165,7 +167,7 @@ function boot(): void {
   let lastSessionSave = 0;
   const saveSession = (position: number): void => {
     if (player.currentTrack === null) return;
-    void window.mr.storageSet('session:v1', {
+    void window.mr.storageSet('session:v2', {
       paths: player.queueTracks.map((t) => t.absPath),
       index: player.queueIndexAt,
       position,
@@ -186,16 +188,28 @@ function boot(): void {
     if (result.ok) enqueueIdle(result.tracks);
     if (!sessionRestored && result.ok && result.tracks.length > 0) {
       sessionRestored = true;
-      void window.mr.storageGet('session:v1').then((raw) => {
-        const saved = raw as { paths?: string[]; index?: number; position?: number } | null;
-        if (saved === null || !Array.isArray(saved.paths) || saved.paths.length === 0) return;
-        const byPath = new Map(result.tracks.map((t) => [t.absPath, t]));
-        const queue = saved.paths
-          .map((p) => byPath.get(p))
-          .filter((t): t is IndexedTrack => t !== undefined);
-        if (queue.length === 0) return;
-        const index = Math.min(Math.max(saved.index ?? 0, 0), queue.length - 1);
-        player.restoreContext(queue, index, Math.max(0, saved.position ?? 0));
+      void window.mr.storageGet('session:v2').then((raw) => {
+        const saved = raw as { paths?: string[]; index?: number; position?: number } | null | undefined;
+        if (saved != null && Array.isArray(saved.paths) && saved.paths.length > 0) {
+          const byPath = new Map(result.tracks.map((t) => [t.absPath, t]));
+          const queue = saved.paths
+            .map((p) => byPath.get(p))
+            .filter((t): t is IndexedTrack => t !== undefined);
+          if (queue.length === 0) return;
+          const index = Math.min(Math.max(saved.index ?? 0, 0), queue.length - 1);
+          player.restoreContext(queue, index, Math.max(0, saved.position ?? 0));
+          return;
+        }
+        void window.mr.storageGet('session:v1').then((legacy) => {
+          const savedLegacy = legacy as { paths?: string[]; index?: number; position?: number } | null | undefined;
+          if (savedLegacy == null || !Array.isArray(savedLegacy.paths)) return;
+          const legacyIndex = Math.min(Math.max(savedLegacy.index ?? 0, 0), savedLegacy.paths.length - 1);
+          const resumePath = savedLegacy.paths[legacyIndex];
+          if (typeof resumePath !== 'string') return;
+          const track = result.tracks.find((t) => t.absPath === resumePath);
+          if (track === undefined) return;
+          player.restoreContext([track], 0, Math.max(0, savedLegacy.position ?? 0));
+        });
       });
     }
   });

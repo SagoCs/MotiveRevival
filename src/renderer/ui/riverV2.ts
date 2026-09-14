@@ -3,6 +3,7 @@ export interface RiverV2Entry {
   title: string;
   meta: string[];
   art: string | null;
+  tone?: string | null;
 }
 
 export interface RiverV2Region {
@@ -18,7 +19,7 @@ export interface RiverV2Layout {
 }
 
 export interface RiverV2Handle {
-  mount(region: RiverV2Region, dpr: number): void;
+  mount(region: RiverV2Region, dpr: number, rootId?: string): void;
   setRegion(region: RiverV2Region, dpr?: number): void;
   setEntries(entries: RiverV2Entry[]): void;
   scrollTo(index: number): void;
@@ -312,6 +313,7 @@ export function createRiverV2(): RiverV2Handle {
     el.dataset.index = String(index);
     el.dataset.id = entry.id;
     if (entry.id === committedId) el.classList.add('committed');
+    if (entry.tone !== undefined && entry.tone !== null) el.style.setProperty('--rv2-tone', entry.tone);
     if (entry.art !== null) {
       const art = document.createElement('div');
       art.className = 'rv2-art';
@@ -389,10 +391,11 @@ export function createRiverV2(): RiverV2Handle {
   };
 
   return {
-    mount(next: RiverV2Region, nextDpr: number): void {
+    mount(next: RiverV2Region, nextDpr: number, rootId = 'river-v2'): void {
       if (root === null || world === null || voidEl === null) {
         root = document.createElement('div');
-        root.id = 'river-v2';
+        root.id = rootId;
+        root.className = 'rv2-root';
         voidEl = document.createElement('div');
         voidEl.className = 'rv2-void';
         world = document.createElement('div');

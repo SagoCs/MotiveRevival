@@ -56,7 +56,7 @@
 
 .song-menu-chrome {
   position: fixed;
-  z-index: 39;
+  z-index: 41;
   transform: translateY(-6px);
 }
 

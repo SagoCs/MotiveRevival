@@ -357,7 +357,12 @@ const ghost = await evalJs(`(() => {
     if (el.style.visibility === 'hidden') continue;
     const r = el.getBoundingClientRect();
     if (r.width > 60 && r.left >= 0 && r.right <= innerWidth && Math.abs(r.left + r.width / 2 - mid) < innerWidth * 0.3) {
-      return { id: el.dataset.id, x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+      const px = Math.round(r.left + r.width / 2);
+      const py = Math.round(r.top + r.height / 2);
+      const top = document.elementFromPoint(px, py)?.closest('.shelf-card');
+      if (top !== null && top.dataset.id === el.dataset.id) {
+        return { id: el.dataset.id, x: px, y: py };
+      }
     }
   }
   return null;
