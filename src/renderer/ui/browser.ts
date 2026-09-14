@@ -25,9 +25,10 @@ import { createLyrics } from './lyrics';
 import { renderTabCards, searchPlaylists, closePlaylistLayer, isPlaylistLayerOpen, openDetail } from './playlistsView';
 import { attachSongMenu, closeSongMenu, isSongMenuOpen } from './songMenu';
 import { riverSurface } from './riverSurface';
+import { shelfSurface } from './shelfSurface';
 import type { Playlist } from '../../shared/types';
 
-type Mode = 'albums' | 'artists' | 'songs' | 'playlists';
+type Mode = 'albums' | 'artists' | 'songs' | 'playlists' | 'shelf';
 type SortKey = 'alpha' | 'duration' | 'artist';
 
 const SORT_LABELS: Record<Mode, [string, string, string]> = {
@@ -35,6 +36,7 @@ const SORT_LABELS: Record<Mode, [string, string, string]> = {
   artists: ['A–Z', 'Longest', 'Tracks'],
   songs: ['A–Z', 'Longest', 'Artist'],
   playlists: ['A–Z', 'Longest', 'Tracks'],
+  shelf: ['A–Z', 'Longest', 'Tracks'],
 };
 
 interface BrowserState {
@@ -199,6 +201,7 @@ function wireTabs(): void {
       }
       state.mode = mode;
       syncPreviewEnabled();
+      if (mode === 'shelf' && detailOpen) closeDetail();
       if (mode !== 'albums') setArtistFilter(null);
       closeSortPopover();
       syncTabs();
@@ -754,12 +757,12 @@ function syncChips(): void {
   const labels = SORT_LABELS[state.mode];
   const chipsNav = document.querySelector<HTMLElement>('#sort-chips');
   if (chipsNav !== null) {
-    chipsNav.classList.toggle('is-disabled', state.mode === 'playlists');
+    chipsNav.classList.toggle('is-disabled', state.mode === 'playlists' || state.mode === 'shelf');
   }
   let i = 0;
   for (const chip of document.querySelectorAll<HTMLButtonElement>('#sort-chips button')) {
     const key = chip.dataset.sort as SortKey | undefined;
-    chip.classList.toggle('active', key === state.sort && state.mode !== 'playlists');
+    chip.classList.toggle('active', key === state.sort && state.mode !== 'playlists' && state.mode !== 'shelf');
     chip.textContent = labels[i] ?? '';
     i += 1;
   }
@@ -904,14 +907,25 @@ function syncRiver(): void {
   riverSurface.setBrowserVisible(state.mode === 'songs' && libraryOk && idx.songs.length > 0 && !detailOpen);
 }
 
+function syncShelf(): void {
+  shelfSurface.setBrowserVisible(state.mode === 'shelf' && !detailOpen);
+}
+
 function render(immediate = false): void {
   preview.cancel();
   uiTheme.popPreview();
   const runSwap = (): void => {
     syncRiver();
+    syncShelf();
     const frag = document.createDocumentFragment();
-    if ((!libraryOk || idx.songs.length === 0) && state.mode !== 'playlists') {
+    if ((!libraryOk || idx.songs.length === 0) && state.mode !== 'playlists' && state.mode !== 'shelf') {
       renderEmptyLibrary(frag);
+      carousel.setContent(frag);
+      syncFilterChip();
+      renderedMode = state.mode;
+      return;
+    }
+    if (state.mode === 'shelf') {
       carousel.setContent(frag);
       syncFilterChip();
       renderedMode = state.mode;

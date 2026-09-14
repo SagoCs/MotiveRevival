@@ -27,4 +27,10 @@ export const uiTheme = {
   popPreview(): void {
     apply(base ?? deriveAccent(null), horizonBase);
   },
+  pushSelection(palette: readonly string[] | null, weights?: readonly number[]): void {
+    apply(deriveAccent(palette, weights), deriveHorizon(palette, weights));
+  },
+  popSelection(): void {
+    apply(base ?? deriveAccent(null), horizonBase);
+  },
 };

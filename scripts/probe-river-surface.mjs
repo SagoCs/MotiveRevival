@@ -314,17 +314,21 @@ if (labReady === 'ok') {
   check('shorten: band symmetric near list start', Math.abs(above - below) <= 1, `${above} above / ${below} below at anchor 2 of 30`);
   const maxOff = Math.max(...sh.visible.map((r) => Math.abs((r.t + r.b) / 2 - cyS)));
   check('shorten: band compressed near edge', maxOff < sh.region.h * 0.375, `max offset ${maxOff.toFixed(0)}px vs half region ${(sh.region.h / 2).toFixed(0)}px`);
+  await evalJs('__riverV2Lab.river()?.setCommitted(null)');
   await evalJs('__riverV2Lab.river().scrollTo(15)');
   await sleep(1100);
+  const wNow = await evalJs('innerWidth');
+  await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: Math.round(wNow * 0.78), y: 26 });
+  await sleep(1000);
   const edgeRegion = (await state()).region;
   const edgeShot = await send('Page.captureScreenshot', { format: 'png' });
   const eimg = decode(Buffer.from(edgeShot.data, 'base64'));
   let litTop = 0;
   let litBottom = 0;
   for (let y = 0; y < eimg.height; y += 2) {
-    if (y < edgeRegion.y + 1 || y >= edgeRegion.y + edgeRegion.h - 1) continue;
+    if (y < edgeRegion.y + 1 || y >= edgeRegion.y + edgeRegion.h - 40) continue;
     const inTop = y <= edgeRegion.y + 34;
-    const inBottom = y >= edgeRegion.y + edgeRegion.h - 35;
+    const inBottom = y >= edgeRegion.y + edgeRegion.h - 75;
     if (!inTop && !inBottom) continue;
     for (let x = 0; x < eimg.width; x += 4) {
       const i = y * eimg.stride + x * 3;
