@@ -1,7 +1,7 @@
 # Movement X — The Universe, Rechartered
 ### The Library as Worlds
 
-**Status:** Rechartered 2026-09-13, pending owner stamp. Supersedes `docs/charter-movement-x.md`, which stays on disk as the rejected-direction record (same disposition as the Listening View charter).
+**Status:** Rechartered 2026-09-13, pending owner stamp. Supersedes `docs/charter-movement-x.md`, which stays on disk as the rejected-direction record (same disposition as the Listening View charter). **Amended 2026-09-14:** the letter ruler built early as Phase 1.5; the discography and album place redesigned away before being built — one river species serves everything (§2, §4, §5).
 
 **The one-sentence law:** *the shelf is where you choose, the river is what you see, the queue is what you hear.*
 
@@ -25,16 +25,18 @@ What survives from the spike: nothing visual, but the MKII star recipe remains b
 ```
 THE SHELF   (home — a horizontal field of squares, two lenses)
  ├─ ARTISTS lens     A–Z … # — one square per artist
- │    └─ ARTIST PLACE   the discography: album cards, newest first, subtle 3-D
- │         └─ ALBUM PLACE   inside one world: blurred art + the vertical song river
+ │    └─ ARTIST RIVER   every song the artist made, grouped by album (newest first),
+ │                      each album a color band — "song · album" cards
+ │                      └─ ALBUM DIM   summon-only: the whole river, one album's
+ │                         sections lit, the rest ghosts, scroll bounded; Esc removes
  └─ PLAYLISTS lens   one square per playlist
-      └─ PLAYLIST PLACE   a flat world: blurred art + the song river (personal spectrum)
+      └─ PLAYLIST RIVER   the same river species — the personal spectrum
 
 THE SUMMON   over everything; every result has a world to land in
 ESC          always steps back exactly one stage; the ladder ends at the shelf
 ```
 
-One grammar everywhere: **squares → place → Esc.** Every container opens the same way; every place climbs back the same way. Nothing in this charter introduces a second navigation grammar.
+One grammar everywhere: **squares → river → Esc.** (Amended 2026-09-14: the discography and the album place were redesigned away before being built — the river is not a place you visit, it is the only content surface, and albums are a dim state over it.) Every container opens the same way; every surface climbs back the same way. Nothing in this charter introduces a second navigation grammar.
 
 ---
 
@@ -75,33 +77,43 @@ Everything Phase 1 builds, decided on paper before code. The graduated river is 
 
 **Faces.** Newest album's art requested at **full resolution** — 128px thumbnails upscale to mush, and the face is the content — loaded lazily so a hidden shelf costs nothing at boot.
 
-**Scope boundary.** Phase 1 is the field and the focus feel only: no discography (Phase 3), no album place (Phase 2), no letter ruler (Phase 5), no playlist places (Phase 4). The Playlists lens exists with real squares and the center-focus highlight; entry is a no-op. The new surface registers with the motion-flag system at birth. One performance law stamped during the build: the focus bloom animates **opacity on a pre-rastered layer, never the shadow itself** — an animated box-shadow re-rasterizes its blur every frame and grows the layer's texture mid-bloom (measured: a 45% frame-rate collapse and two dropped frames; after the fix, 36/36 buckets at 144Hz, zero hitches).
+**Scope boundary.** Phase 1 is the field and the focus feel only: no discography (Phase 3 — since retired into Phase 2), no album place (Phase 2 — since redesigned into the artist river), no letter ruler (Phase 5 — since built as Phase 1.5), no playlist places (Phase 4). The Playlists lens exists with real squares and the center-focus highlight; entry is a no-op. The new surface registers with the motion-flag system at birth. One performance law stamped during the build: the focus bloom animates **opacity on a pre-rastered layer, never the shadow itself** — an animated box-shadow re-rasterizes its blur every frame and grows the layer's texture mid-bloom (measured: a 45% frame-rate collapse and two dropped frames; after the fix, 36/36 buckets at 144Hz, zero hitches).
 
 ---
 
-## 4. The Artist Place — the discography
+## 4. The Artist River
 
-**Entrance (owner-specified choreography).** Clicking an artist square: the square blurs and **turns into their newest album** (their face — always the last album). Then the older albums **slide in from the left, pushing each along** — the song-river's card-push trick, so only visible cards are real and the animation is equally fast at two albums or two hundred — until the assembly settles with **the most recent album in front**. The cards carry the river's subtle 3-D tilt. Esc runs the whole sentence in reverse: cards slide back out, the square re-forms, the shelf glides home.
+**Amended 2026-09-14 (owner redesign): the discography is gone.** There is no album level between the shelf and the songs. Clicking an artist square opens **the artist river**: every song credited to the artist, **grouped by album, albums newest-first, tracks in album order** — each album reads as one contiguous **color band**, every card tinted by its album's tone (quiet dial to start; art stays the light source). Cards carry two lines: **song name, album name**.
 
-**The place itself.** A horizontal river of album cards, **newest first**, one per album. Clicking a card falls into that album's place (below). The color-band song river once sketched for this level is superseded — artists are worlds made of worlds; songs live one level down.
+**Entrance — part-and-zoom (owner-specified choreography).** The squares to the left and right of the chosen artist **slide away to the sides and fade out** — simultaneously with the zoom, one motion, not a sequence — while the chosen square **zooms to full extension** — no early handoff — and at completion **crossfades into the blurred-art veil** (the expanded view's backdrop recipe: static blur applied at the end state, compositor drift, never an animated blur). The handoff is art-into-itself: the square's face and the veil are the same image — the newest album's art — so the seam should be invisible if the timing is right. The artist's name caption fades out partway up as the veil takes over. The artist's songs rise as the vertical river over it. **Esc reverses the whole sentence smoothly**: the songs sink, the veil sharpens back into the square, the shelf squares slide home — and the shelf **re-centers on the artist just left** (the shelf opens where you are; owner-ruled 2026-09-14). **Reversibility is an acceptance requirement, not garnish** — the collapse is the same timeline run backwards, with no cuts and no snaps.
 
-**Auto-drill.** An artist with exactly **one album** skips this place entirely: their square lands directly in the album place, the artist's name still shown as the anchor. No point standing in a discography of one. (Single-song albums already open straight through — the `openSingleStage` precedent.)
+### 4.1 Phase 2 specification — the artist river
+
+**Entry.** A full-bleed surface over whatever is on screen (shelf, or a summon in flight), following the established pattern: mounted at boot, visibility driven by the browser, dormancy body flag. Esc walks home exactly one stage.
+
+**The feed.** Every track whose primary artist (the credits rule) is the chosen artist. Ordering: albums newest-first, tracks in album order, so tone bands are contiguous. One-album artists need no special case — their river simply holds one band. Bands are **per-artist-per-album**: on a split/collab album, the band holds this artist's tracks only (confirmed 2026-09-14 — it is their world).
+
+**Start position.** A plain entry lands at the **top — the newest album's first song** (owner-ruled 2026-09-14). The summon-song landing is the exception that already has its own law: centered on that song.
+
+**Cards.** Two lines — song name, album name — over the river's existing caption grammar, all Sora. The card's wash leans ~15–20% toward the album's prominence-weighted tone (`selectTone`); the dial is tuned live with the owner. The playing card wears the committed accent bloom; hover stays a static highlight plus the pause-with-resume preview; the song menu mounts on every row.
+
+**Click law (amended 2026-09-14, owner ruling: "no queue at all").** Single-click plays — and assigns **no queue**. The queue holds only what the user manually adds through the song menu (play next, add to queue); when the manual queue runs dry, playback rests. This is the click law river-wide, library river included. Playlists' play-all is the standing exception — a playlist is already a hand-curated list, so playing it as its own context is the manual assignment.
+
+**Laws carried.** Motion continuity (a card never moves further in a frame than the scroll traveled), device-pixel-grid positions, compositor-only writes, edge dissolve, the full input grammar — ported by feeding the existing river contract, not by forking it.
+
+**Scope boundary.** The library's Songs river keeps its current dress for now (re-dress with the shared card recipe is a later pass, owner-ruled). No playlist river yet (Phase 4). No letter ruler inside rivers — the summon is lookup. The entrance timeline is the only genuinely new machinery.
+
+**Acceptance.** Probe-verifiable: reverse-timeline identity (collapse matches the entrance run in reverse), motion continuity on the new feed, band-tint pixels per album tone, Esc ladder (river → shelf), entrance frame cost measured.
 
 ---
 
-## 5. The Album Place — inside one world
+## 5. The Album Dim
 
-**Required.** Not optional polish: a summon result must land somewhere, and "the album's own world" is the honest answer. It is reached two ways — a summon album result, or an album card inside an artist place.
+**Amended 2026-09-14: there is no album place, and no album gesture inside the river.** The only road to "just this album" is the summon.
 
-**Choreography.** The album art **expands to fill the screen** (the measured FLIP morph, Movement VI machinery), and as it settles it **dims and blurs into the veil** — the expanded view's blurred-backdrop recipe: static blur, compositor drift, never an animated blur. A **void scrim** sits between veil and rows so high-luminance ink never fights art. The rows **stagger up from the depth** (the river contract's reveal timeline — chartered in river v2, now with its first consumer). Esc reverses everything: rows dissolve, the veil sharpens back into the square, the square glides home.
+A summon album result opens **that artist's river — the entire river** — with only the sections pertaining to that album lit. The dim is part of the entrance, never a second state after it: the river **rises already dimmed** (owner-ruled 2026-09-14), non-album sections ghosts from the first frame, scroll bounded from the first frame. If the artist's river is already open, there is no re-entrance — the dim crossfades in over the standing river (~400ms). Every other section is the ruler's ghost: 13% opacity, inert. **Scroll is bounded**: the infinite ring retires, the view clamps at the lit album's first and last song, and the Shorten squash compresses those ends — an album has ends. Ghosts at the edges show where you are; the scroll refuses to leave. **Esc removes the dim** (one stage back to the whole artist river); Esc again climbs to the shelf.
 
-**Content.** The vertical song river: this album's songs, with the identity anchor **Album · Year** (artist included when arrived via summon) inked small in the song's tint above the river.
-
-**Row dressing.** All rows wear **one color family** — the album's own tone, washed over the scrim (the owner's original "colored rows" image; calm because it is a single hue). This is a taste dial: if the first live look feels loud, the alternative is neutral moon-ink rows with the environment carrying all color, playing row in full accent.
-
-**Laws carried over untouched.** The playing row wears the committed accent bloom; hover is a static highlight plus the pause-with-resume preview (hover never recolors); a click plays with **the album as queue context**; the song menu mounts on every row (the existing river mount).
-
-**Succession.** At parity this place **replaces the detail stage** (Movement IV's two-pane stage), which then retires along with the Albums tab it served.
+While a dim is active the focused card's ledger may whisper **Album · Year** (taste call at build — the album's name already rides every lit card; only the year is new information). All river laws carry unchanged: bloom, static hover + preview, song menu, click-to-play.
 
 ---
 
@@ -109,7 +121,7 @@ Everything Phase 1 builds, decided on paper before code. The graduated river is 
 
 **One less layer.** A playlist has no discography — it is flat: personally ordered songs scattered across albums. So there is no cascade entrance and no middle level. The square fills the screen and blurs into its first song's album art, and the songs **rise directly as the vertical river**.
 
-**The personal spectrum.** Each row wears **its own song's album tone** — the multi-color idea the artist place gave up lives here, where it belongs: a playlist reads as a spectrum of the worlds it pulls from. The owner's color-coding instinct, at its best address.
+**The personal spectrum.** Each row wears **its own song's album tone** — a playlist reads as a spectrum of the worlds it pulls from. The owner's color-coding instinct, at its best address. Cards carry the shared two-line recipe (song name, album name) — the same species as the artist river.
 
 **Anchor and laws.** Anchor line: **name · count**. Drag to reorder with the queue's gap-based grammar (insertion line, one drop one persist). Song menu on every row. Ghost rows for missing files stay dimmed (existing resolution). Click plays with **the playlist as queue context**. Esc: rows dissolve, the art sharpens into the square, back to the Playlists field.
 
@@ -123,10 +135,10 @@ The bezel graduates to **summon-only** — the standing endgame, now the whole c
 
 **The landing law: every result has a world.**
 
-- Artist result → the artist place (discography).
-- Album result → the album place.
-- Song result → **plays, and opens its album place centered on that song** — a summon never lands you in nowhere (proposed behavior, confirm at build).
-- Playlist result → the playlist place, without flipping the lens; Esc from there returns to whatever field you left.
+- Artist result → the artist river (§4).
+- Album result → the artist's river with the album dimmed-in (§5).
+- Song result → **plays, and opens its artist's river centered on that song** — a summon never lands you in nowhere (proposed behavior, confirm at build).
+- Playlist result → the playlist river, without flipping the lens; Esc from there returns to whatever field you left.
 
 The summon is for *knowing* the name; the letter ruler is for *half-remembering* it; no instrument at all is for wandering. Three finding modes, one field.
 
@@ -136,7 +148,7 @@ The summon is for *knowing* the name; the letter ruler is for *half-remembering*
 
 **Retires with the sky (Phase 0):** the universe surface (`universe.ts`, `universe/` modules, `universe.css`), the sky layout math and its probe (`verify-sky-layout.mjs`), the temporary UNIVERSE tab. Branch history preserves everything; the MKII repo is untouched.
 
-**Retires at graduation:** the tab row (Albums, Artists, Songs, Playlists), the flat list and its arrows, the detail stage (replaced by the album place), the playlist tab and detail layer (replaced by the Playlists lens + playlist place). Dormant behind body flags until parity, never deleted mid-flight.
+**Retires at graduation:** the tab row (Albums, Artists, Songs, Playlists), the flat list and its arrows, the detail stage (absorbed by the artist river and its album dim), the playlist tab and detail layer (replaced by the Playlists lens + playlist river). Dormant behind body flags until parity, never deleted mid-flight.
 
 **Carries over (proven machinery this charter reuses):** the river v2 contract (parametric depth, card-push recycling, glide physics, reveal/collapse timeline); carousel momentum; the FLIP card-to-fullscreen morph; the blurred-backdrop recipes and their performance laws; index v7 prominence weights and the summon's row-tone washes; the song menu and `songActions` intent layer; the playlist store (CRUD, ghosts, gap-reorder); the preview pause-with-resume machinery (its gating learns the new surfaces); moments/motes under the motion-flag law.
 
@@ -148,22 +160,22 @@ Each phase carries probe-verifiable acceptance; nothing is verified by eye alone
 
 - **Phase 0 — Disposition of the sky.** Retire the universe surface and probes, bank the verdict in the ledger. Small, reversible, first.
 - **Phase 1 — The Artists field.** Built to the §3.1 specification: temporary SHELF tab; horizontal depth grammar (billboard recession with gentle tilt, self-similar packing, Shorten squash, small-set pinning, edge dissolve); six-to-eight full-res faces; boot focus + selection layer with glide-to-center; lens switcher (Playlists lens lightly populated, entry a no-op); motion-continuity acceptance bar ported from the river. River stays live until parity.
-- **Phase 2 — The Album place.** FLIP fill → veil → staggered river; auto-drill for one-album artists; anchor line; album openings route through it (stage's role absorbed).
-- **Phase 3 — The Artist place.** The discography river and the push-cascade entrance, reversible on Esc.
+- **Phase 2 — The Artist river (spec §4.1; absorbs the former album place and discography, redesigned 2026-09-14).** Part-and-zoom entrance to full extension with the veil crossfade; album-grouped, album-tinted river with two-line cards; the summon album dim with bounded scroll; fully reversible collapse. Probe-verifiable: reverse-timeline identity, motion continuity, bounded clamp, band-tint pixels, Esc ladder.
+- **Phase 3 — RETIRED INTO PHASE 2 (2026-09-14 redesign).** The discography river and its push-cascade entrance never build; albums are color bands in the artist river, not a level.
 - **Phase 4 — The Playlists lens + playlist place.** Spectrum rows, drag-reorder, ghost rows, square management menu.
 - **Phase 5 — The letter ruler.** BUILT EARLY as Phase 1.5 (2026-09-14): strong dim, sleeping letters, snap-to-lit, # first, Esc-only clear — see the letter ruler section in §3 and the README ledger.
-- **Phase 6 — Summon landing law + graduation.** Song results open their album place; tabs retire in order; bezel → summon-only. Ledger and AGENTS stamped at each sign-off.
+- **Phase 6 — Summon landing law + graduation.** Song results open their artist's river centered on the song; tabs retire in order; bezel → summon-only. Ledger and AGENTS stamped at each sign-off.
 
 ---
 
 ## 10. Open questions (parked riders)
 
-1. **The all-songs surface.** Does any "play everything" view survive, or do summon + albums + playlists cover it? (Today's Songs river's fate rides on this.)
+1. **The all-songs surface.** ANSWERED 2026-09-14: the library's Songs river survives as the unfiltered whole-library river; it takes the shared two-line album-tinted card recipe in a later pass (owner-ruled, not in Phase 2).
 2. **Switcher** — wordpair vs. dots; seat; lens persistence across boots.
-3. **Album-place row dressing** — one color family vs. neutral ink; decide on the first live look.
+3. **Album row dressing** — SUPERSEDED 2026-09-14 by the artist river's tint dial (~15–20% lean toward the album tone to start; tuned live).
 4. **Playlist square art** — first-song art vs. soft mosaic.
 5. **Playlist management menu** — exact contents and behavior of the square's right-click menu.
-6. **Song-result landing** — the glide-to-song detail inside the album place.
+6. **Song-result landing** — the glide-to-song detail inside the artist's river.
 7. **Sorting** — the shelf is A–Z by ruling; whether any alternate arrangement ever exists (probably not; the ruler assumes A–Z).
 
 ---
