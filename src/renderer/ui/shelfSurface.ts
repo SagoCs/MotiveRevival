@@ -375,7 +375,7 @@ export function initShelfSurface(): void {
         return;
       }
       highlight(idx);
-      shelf?.glideTo(idx);
+      shelf?.glideTo(idx, 1.9);
       return;
     }
     if (idx === shelf?.centerIndex()) {
@@ -384,7 +384,7 @@ export function initShelfSurface(): void {
     }
     pendingGesture = { name: entry.name, art: entry.art, idx };
     highlight(idx);
-    shelf?.glideTo(idx);
+    shelf?.glideTo(idx, 1.9);
   });
   shelf.onSettle((index) => {
     if (!active) return;
