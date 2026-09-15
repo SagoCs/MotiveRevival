@@ -74,9 +74,10 @@ const beatOne = await evalJs(`(() => {
   };
 })()`);
 console.log(`beat one: chosen ${beatOne.chosenOpacity === null ? 'n/a' : beatOne.chosenOpacity.toFixed(2)}, river ${beatOne.riverOpacity === null ? 'n/a' : beatOne.riverOpacity.toFixed(3)}, floor=${beatOne.floorOn}, ruler ${beatOne.rulerOpacity === null ? 'n/a' : beatOne.rulerOpacity.toFixed(2)}, veil=${beatOne.veil}`);
-if (beatOne.chosenOpacity === null || beatOne.chosenOpacity < 0.95) failures.push('chosen square did not stand through beat one');
-if (beatOne.rulerOpacity === null || beatOne.rulerOpacity < 0.5) failures.push('instruments did not stay lit through beat one');
-if (beatOne.floorOn) failures.push('floor rose before beat two');
+if (beatOne.chosenOpacity === null || !(beatOne.chosenOpacity < 0.9)) failures.push('chosen square did not dissolve with the slide');
+if (beatOne.riverOpacity === null || !(beatOne.riverOpacity > 0.02)) failures.push('river did not rise with the dissolve');
+if (beatOne.rulerOpacity === null || beatOne.rulerOpacity > 0.9) failures.push('instruments did not fade with the dissolve');
+if (beatOne.floorOn) failures.push('floor rose before the square was gone');
 if (beatOne.veil) failures.push('veil still exists after the parting redesign');
 await sleep(440);
 const beatTwo = await evalJs(`(() => {
@@ -93,9 +94,10 @@ const beatTwo = await evalJs(`(() => {
   };
 })()`);
 console.log(`beat two: chosen ${beatTwo.chosenOpacity === null ? 'n/a' : beatTwo.chosenOpacity.toFixed(2)}, river ${beatTwo.riverOpacity === null ? 'n/a' : beatTwo.riverOpacity.toFixed(2)}, floor=${beatTwo.floorOn}, ruler ${beatTwo.rulerOpacity === null ? 'n/a' : beatTwo.rulerOpacity.toFixed(2)}`);
-if (beatTwo.chosenOpacity === null || !(beatTwo.chosenOpacity < beatOne.chosenOpacity - 0.15)) failures.push('chosen square did not fade in beat two');
-if (!beatTwo.floorOn) failures.push('floor did not rise with beat two');
-if (beatTwo.rulerOpacity === null || beatTwo.rulerOpacity > 0.9) failures.push('instruments did not fade with beat two');
+if (beatTwo.chosenOpacity === null || beatTwo.chosenOpacity > 0.05) failures.push('chosen square did not finish dissolving');
+if (beatTwo.riverOpacity === null || beatTwo.riverOpacity < 0.99) failures.push('river did not finish rising');
+if (!beatTwo.floorOn) failures.push('floor did not seal the world');
+if (beatTwo.rulerOpacity === null || beatTwo.rulerOpacity > 0.05) failures.push('instruments still visible at rest');
 await sleep(900);
 
 const opened = await evalJs(`(() => {
@@ -210,9 +212,7 @@ const homeIdx = await evalJs(`window.__artistRiver.ids().indexOf(${JSON.stringif
 await evalJs(`document.querySelector('#artist-river .rv2-void')?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));`);
 await sleep(1700);
 const scrollAfterHome = await evalJs(`window.__artistRiver.scroll()`);
-const n = feed.n;
-const diff = Math.abs((scrollAfterHome - homeIdx) % n);
-const homeOk = Math.min(diff, n - diff) < 0.06;
+const homeOk = Math.abs(scrollAfterHome - homeIdx) < 0.06;
 console.log(`dblclick home: scroll ${scrollAfterHome.toFixed(2)} vs playing index ${homeIdx}`);
 if (!homeOk) failures.push(`double-click did not center the playing song (scroll ${scrollAfterHome.toFixed(2)}, index ${homeIdx})`);
 

@@ -294,6 +294,8 @@ const applyVisibility = (): void => {
   shelf?.setVisible(browserVisible || artistRiverOpen);
   document.body.classList.toggle('shelf-active', active);
   if (!active) {
+    pendingGesture = null;
+    pendingFocus = null;
     uiTheme.popSelection();
   } else {
     pushTone();
@@ -311,8 +313,13 @@ export const shelfSurface = {
     clearLit();
     return true;
   },
-  step(dir: 1 | -1): void {
-    if (!active || shelf?.isBusy() === true) return;
+  step(dir: 1 | -1, repeat = false): void {
+    if (!active) return;
+    if (repeat) {
+      shelf?.stepHold(dir);
+      return;
+    }
+    if (shelf?.isBusy() === true) return;
     const n = artistEntries.length;
     if (n === 0) return;
     const idx = shelf?.centerIndex() ?? 0;
@@ -321,6 +328,30 @@ export const shelfSurface = {
     if (entry === undefined) return;
     highlight(next);
     shelf?.glideTo(next);
+  },
+  stepRelease(): void {
+    shelf?.stepRelease();
+  },
+  summonEnter(name: string, focus?: { dimToAlbum?: string; focusTrackId?: string }): boolean {
+    if (artistRiverSurface.isOpen()) {
+      artistRiverSurface.close();
+      window.setTimeout(() => {
+        shelfSurface.summonEnter(name, focus);
+      }, 340);
+      return true;
+    }
+    if (shelf === null || !active) return false;
+    shelf.cancelTransit();
+    if (lens !== 'artists') setLens('artists');
+    const idx = artistEntries.findIndex((e) => e.name === name);
+    if (idx < 0) return false;
+    const entry = artistEntries[idx];
+    if (entry === undefined) return false;
+    pendingFocus = focus ?? null;
+    highlight(idx);
+    shelf?.glideTo(idx, 1.9);
+    pendingGesture = { name: entry.name, idx };
+    return true;
   },
   activateCenter(): void {
     if (!active || shelf?.isBusy() === true || lens !== 'artists') return;
@@ -332,10 +363,12 @@ export const shelfSurface = {
   },
 };
 
-const ENTRANCE_HANDOVER_MS = 520;
+const ENTRANCE_RISE_MS = 140;
 
 let pendingGesture: { name: string; idx: number } | null = null;
+let pendingFocus: { dimToAlbum?: string; focusTrackId?: string } | null = null;
 let shelfRoot: HTMLElement | null = null;
+let shelfEnteredArtist = false;
 
 const gestMark = (s: string): void => {
   const w = window as unknown as { __gestDebug?: string };
@@ -346,11 +379,14 @@ const enterArtist = (entry: ShelfEntry, idx: number): void => {
   gestMark('E');
   highlight(idx);
   artistRiverSurface.prebuild(entry.name);
+  const focus = pendingFocus;
+  pendingFocus = null;
+  shelfEnteredArtist = true;
   shelf?.beginTransit(idx);
+  shelfRoot?.classList.add('instruments-off');
   window.setTimeout(() => {
-    shelfRoot?.classList.add('instruments-off');
-    artistRiverSurface.open(entry.name);
-  }, ENTRANCE_HANDOVER_MS);
+    artistRiverSurface.open(entry.name, focus ?? undefined);
+  }, ENTRANCE_RISE_MS);
 };
 
 export function initShelfSurface(): void {
@@ -471,10 +507,13 @@ export function initShelfSurface(): void {
     applyVisibility();
     shelfRoot?.classList.remove('instruments-off');
     const idx = artistEntries.findIndex((e) => e.name === artist);
-    if (idx >= 0) {
+    if (idx >= 0 && shelfEnteredArtist) {
+      shelfEnteredArtist = false;
       shelf?.beginReturn(idx, () => {
         shelf?.glideTo(idx);
       });
+    } else {
+      shelfEnteredArtist = false;
     }
   });
 

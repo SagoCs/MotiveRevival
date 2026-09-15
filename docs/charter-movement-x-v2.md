@@ -1,7 +1,7 @@
 # Movement X — The Universe, Rechartered
 ### The Library as Worlds
 
-**Status:** Rechartered 2026-09-13, pending owner stamp. Supersedes `docs/charter-movement-x.md`, which stays on disk as the rejected-direction record (same disposition as the Listening View charter). **Amended 2026-09-14:** the letter ruler built early as Phase 1.5; the discography and album place redesigned away before being built — one river species serves everything (§2, §4, §5). **Amended 2026-09-15:** the artist-river entrance rebuilt as **the parting** — staged fade beats, no zoom, the blurred-art veil retired (§4).
+**Status:** Rechartered 2026-09-13, pending owner stamp. Supersedes `docs/charter-movement-x.md`, which stays on disk as the rejected-direction record (same disposition as the Listening View charter). **Amended 2026-09-14:** the letter ruler built early as Phase 1.5; the discography and album place redesigned away before being built — one river species serves everything (§2, §4, §5). **Amended 2026-09-15:** the artist-river entrance rebuilt as **the parting** — staged fade beats, no zoom, the blurred-art veil retired (§4). **Amended 2026-09-16:** the artist river is bounded (ring retired) with span-aware depth; the summon landing law partially delivered — artist, album and song results land through the shelf ceremony (§7).
 
 **The one-sentence law:** *the shelf is where you choose, the river is what you see, the queue is what you hear.*
 
@@ -135,12 +135,12 @@ While a dim is active the focused card's ledger may whisper **Album · Year** (t
 
 The bezel graduates to **summon-only** — the standing endgame, now the whole chrome. Ranking stays as shipped (name-ladder, sections, per-section caps, deterministic ties).
 
-**The landing law: every result has a world.**
+**The landing law: every result has a world.** (Amended 2026-09-16: artist, album and song results land through the shelf ceremony — the summon closes, the shelf glides the artist's square to center at gesture speed with the horizon and ledger lighting during the glide, and on settle the full parting runs from the square; song results land the river scrolled to that song; album results rise already dimmed. Playlist result awaits Phase 4.)
 
-- Artist result → the artist river (§4).
-- Album result → the artist's river with the album dimmed-in (§5).
-- Song result → **plays, and opens its artist's river centered on that song** — a summon never lands you in nowhere (proposed behavior, confirm at build).
-- Playlist result → the playlist river, without flipping the lens; Esc from there returns to whatever field you left.
+- Artist result → the artist river (§4). DELIVERED 2026-09-16.
+- Album result → the artist's river with the album dimmed-in (§5). DELIVERED 2026-09-16.
+- Song result → **plays, and opens its artist's river centered on that song** — a summon never lands you in nowhere. DELIVERED 2026-09-16.
+- Playlist result → the playlist river, without flipping the lens; Esc from there returns to whatever field you left. (Phase 4.)
 
 The summon is for *knowing* the name; the letter ruler is for *half-remembering* it; no instrument at all is for wandering. Three finding modes, one field.
 
@@ -166,7 +166,7 @@ Each phase carries probe-verifiable acceptance; nothing is verified by eye alone
 - **Phase 3 — RETIRED INTO PHASE 2 (2026-09-14 redesign).** The discography river and its push-cascade entrance never build; albums are color bands in the artist river, not a level.
 - **Phase 4 — The Playlists lens + playlist place.** Spectrum rows, drag-reorder, ghost rows, square management menu.
 - **Phase 5 — The letter ruler.** BUILT EARLY as Phase 1.5 (2026-09-14): strong dim, sleeping letters, snap-to-lit, # first, Esc-only clear — see the letter ruler section in §3 and the README ledger.
-- **Phase 6 — Summon landing law + graduation.** Song results open their artist's river centered on the song; tabs retire in order; bezel → summon-only. Ledger and AGENTS stamped at each sign-off.
+- **Phase 6 — Summon landing law + graduation.** Song results open their artist's river centered on the song; tabs retire in order; bezel → summon-only. Ledger and AGENTS stamped at each sign-off. **PARTIALLY DELIVERED 2026-09-16:** artist, album and song results land through the shelf ceremony (see §7); playlist landing awaits Phase 4; graduation open.
 
 ---
 

@@ -25,8 +25,12 @@ export const riverSurface = {
     browserVisible = next;
     applyVisibility();
   },
-  step(dir: 1 | -1): void {
-    river?.step(dir);
+  step(dir: 1 | -1, repeat = false): void {
+    if (repeat) river?.stepHold(dir);
+    else river?.step(dir);
+  },
+  stepRelease(): void {
+    river?.stepRelease();
   },
   activateCenter(): void {
     if (river === null) return;

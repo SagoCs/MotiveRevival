@@ -18,6 +18,7 @@ export interface RiverV2Layout {
   visibleCount: number;
   depth: number;
   ring: boolean;
+  smallSetPin: boolean;
 }
 
 export interface RiverV2Handle {
@@ -25,7 +26,7 @@ export interface RiverV2Handle {
   setRegion(region: RiverV2Region, dpr?: number): void;
   setEntries(entries: RiverV2Entry[]): void;
   scrollTo(index: number): void;
-  glideTo(index: number): void;
+  glideTo(index: number, durationMs?: number): void;
   scrollPosition(): number;
   setLayout(layout: Partial<RiverV2Layout>): void;
   setVisible(visible: boolean): void;
@@ -34,7 +35,9 @@ export interface RiverV2Handle {
   onEntryContext(cb: (id: string, card: HTMLDivElement) => void): void;
   setCommitted(id: string | null): void;
   setDimSpan(first: number, last: number | null): void;
-  step(dir: 1 | -1): void;
+  step(dir: 1 | -1, repeat?: boolean): void;
+  stepHold(dir: 1 | -1): void;
+  stepRelease(): void;
   centerId(): string | null;
   entryRect(id: string): DOMRect | null;
   hideEntry(id: string): void;
@@ -65,6 +68,12 @@ const LENS_STRENGTH = 0.5;
 const CONTEXT_MIN_RATIO = 0.55;
 const TABLE_STEP = 0.05;
 const TABLE_MAX = 16;
+const SPAN_CURVE_FLOOR = 0.25;
+const SPAN_REACH_SONGS = 0.6;
+const STEP_CHAIN_MS = 240;
+const STEP_TAP_MS = 420;
+const STEP_HOLD_SPEED = 6;
+const STEP_HOLD_WATCHDOG_MS = 250;
 const WHEEL_GAIN = 2.8;
 const WHEEL_MAX = 13000;
 const DECAY = 3.1;
@@ -84,6 +93,7 @@ export function createRiverV2(): RiverV2Handle {
   let visibleCount = DEFAULT_VISIBLE_COUNT;
   let depth = DEFAULT_DEPTH;
   let ring = false;
+  let smallSetPin = true;
   let pxStep = 1;
   let slotH = 100;
   let cardW = 0;
@@ -107,12 +117,15 @@ export function createRiverV2(): RiverV2Handle {
   let contextCb: ((id: string, card: HTMLDivElement) => void) | null = null;
   let committedId: string | null = null;
   let dimSpan: { first: number; last: number } | null = null;
+  let holdDir = 0;
+  let lastHoldAt = 0;
   let curve = 0.75;
   let tiltMax = 52;
   let fadeHold = 0.6;
   let lensAmt = 0;
   let lensQ = 1 / (LENS_WIDTH * LENS_WIDTH);
   let depthTable: number[] = [0];
+  let depthTableFlat: number[] = [0];
 
   const maxIndex = (): number => Math.max(0, slabs.length - 1);
 
@@ -130,20 +143,20 @@ export function createRiverV2(): RiverV2Handle {
     const count = slabs.length;
     if (count === 0) return 0;
     if (wrapped()) return (((position % count) + count) % count);
-    if (count <= visibleCount) return (count - 1) / 2;
+    if (count <= visibleCount && smallSetPin) return (count - 1) / 2;
     return clamp(position, 0, count - 1);
   };
 
-  const depthAt = (dist: number): number => {
-    const cover = (depthTable.length - 1) * TABLE_STEP;
+  const depthAt = (table: number[], dist: number): number => {
+    const cover = (table.length - 1) * TABLE_STEP;
     if (dist > cover) return fadeRange * 2;
     const pos = dist / TABLE_STEP;
     const idx = Math.floor(pos);
-    const lastIdx = depthTable.length - 1;
-    if (idx >= lastIdx) return depthTable[lastIdx] ?? 0;
+    const lastIdx = table.length - 1;
+    if (idx >= lastIdx) return table[lastIdx] ?? 0;
     const frac = pos - idx;
-    const a = depthTable[idx] ?? 0;
-    const b = depthTable[idx + 1] ?? 0;
+    const a = table[idx] ?? 0;
+    const b = table[idx + 1] ?? 0;
     return a + (b - a) * frac;
   };
 
@@ -151,10 +164,13 @@ export function createRiverV2(): RiverV2Handle {
     if (world === null || slabs.length === 0) return;
     const anchor = anchorOf();
     const count = slabs.length;
+    const lo = dimSpan !== null ? dimSpan.first : 0;
+    const hi = dimSpan !== null ? dimSpan.last : count - 1;
+    const edge = Math.min(anchor - lo, hi - anchor);
+    const deep = clamp(edge / Math.max(1, visibleCount * SPAN_REACH_SONGS), 0, 1);
+    const effCurve = curve * (SPAN_CURVE_FLOOR + (1 - SPAN_CURVE_FLOOR) * deep);
     let effFade = fadeRange;
-    if (!wrapped() && count > visibleCount) {
-      const lo = dimSpan !== null ? dimSpan.first : 0;
-      const hi = dimSpan !== null ? dimSpan.last : count - 1;
+    if (!wrapped()) {
       const shortSide = Math.min(anchor - lo, hi - anchor);
       effFade = clamp(shortSide * slotH * 0.92, slotH * 1.25, fadeRange);
     }
@@ -164,10 +180,11 @@ export function createRiverV2(): RiverV2Handle {
       let dist = slab.index - anchor;
       if (wrapped()) dist = wrapDist(dist, count);
       const side = Math.sign(dist) || 1;
-      const yAbs = depthAt(Math.abs(dist) * remap);
+      const dAbs = Math.abs(dist) * remap;
+      const yAbs = depthAt(depthTable, dAbs) + (depthAt(depthTableFlat, dAbs) - depthAt(depthTable, dAbs)) * (1 - deep);
       const yOff = yAbs * ySquash;
       const n = Math.min(1, yAbs / fadeRange);
-      const scale = (1 - curve * n * n) * (1 + lensAmt * Math.exp(-dist * dist * lensQ));
+      const scale = (1 - effCurve * n * n) * (1 + lensAmt * Math.exp(-dist * dist * lensQ));
       const tilt = -side * tiltMax * Math.pow(n, 1.5);
       const opacity = (n <= fadeHold ? 1 : Math.max(0, 1 - Math.pow((n - fadeHold) / (1 - fadeHold), 2))) * (dimSpan !== null && (slab.index < dimSpan.first || slab.index > dimSpan.last) ? 0.13 : 1);
       const y = Math.round((centerY + side * yOff) / pxStep) * pxStep;
@@ -190,6 +207,23 @@ export function createRiverV2(): RiverV2Handle {
     }
   };
 
+  const beginGlide = (index: number, durationMs = 0): void => {
+    let target = index;
+    if (wrapped()) target = position + wrapDist(index - position, slabs.length);
+    else if (dimSpan !== null) target = clamp(index, dimSpan.first, dimSpan.last);
+    else target = clamp(index, 0, maxIndex());
+    const from = clamp(position, 0, maxIndex());
+    const delta = target - from;
+    if (delta === 0) return;
+    glideFrom = from;
+    glideDelta = delta;
+    glideStart = performance.now();
+    glideDuration = durationMs > 0 ? durationMs : Math.max(700, Math.min(3000, Math.abs(delta) / 0.9));
+    gliding = true;
+    velocity = 0;
+    wake();
+  };
+
   const wake = (): void => {
     if (!shown || raf !== 0) return;
     last = 0;
@@ -202,7 +236,14 @@ export function createRiverV2(): RiverV2Handle {
     last = ts;
     const dt = dtMs / 1000;
     if (slabs.length > 0) {
-      if (gliding) {
+      if (holdDir !== 0) {
+        if (performance.now() - lastHoldAt > STEP_HOLD_WATCHDOG_MS) {
+          holdDir = 0;
+          beginGlide(Math.round(position), 300);
+        } else {
+          position += holdDir * STEP_HOLD_SPEED * dt;
+        }
+      } else if (gliding) {
         const t = Math.min(1, (ts - glideStart) / glideDuration);
         position = glideFrom + glideDelta * (1 - Math.pow(1 - t, 4));
         if (t >= 1) {
@@ -225,7 +266,7 @@ export function createRiverV2(): RiverV2Handle {
       }
       layout();
     }
-    if (gliding || velocity !== 0) raf = window.requestAnimationFrame(step);
+    if (holdDir !== 0 || gliding || velocity !== 0) raf = window.requestAnimationFrame(step);
     else last = 0;
   };
 
@@ -248,16 +289,20 @@ export function createRiverV2(): RiverV2Handle {
     root.style.height = `${region.height}px`;
     root.style.setProperty('--rv2-fade', `${Math.round(region.height * 0.16)}px`);
     world.style.perspective = `${Math.round(Math.max(MIN_PERSPECTIVE, region.height * (1.3 - 0.45 * depth)))}px`;
-    const table: number[] = [0];
-    let acc = 0;
-    for (let x = TABLE_STEP; x <= TABLE_MAX + 1e-9; x += TABLE_STEP) {
-      const n = Math.min(1, acc / fadeRange);
-      const s = 1 - curve * n * n;
-      const t = (tiltMax * Math.pow(n, 1.5) * Math.PI) / 180;
-      acc += slotH * s * Math.cos(t) * TABLE_STEP;
-      table.push(acc);
-    }
-    depthTable = table;
+    const buildTable = (c: number): number[] => {
+      const table: number[] = [0];
+      let acc = 0;
+      for (let x = TABLE_STEP; x <= TABLE_MAX + 1e-9; x += TABLE_STEP) {
+        const n = Math.min(1, acc / fadeRange);
+        const s = 1 - c * n * n;
+        const t = (tiltMax * Math.pow(n, 1.5) * Math.PI) / 180;
+        acc += slotH * s * Math.cos(t) * TABLE_STEP;
+        table.push(acc);
+      }
+      return table;
+    };
+    depthTable = buildTable(curve);
+    depthTableFlat = buildTable(curve * SPAN_CURVE_FLOOR);
     for (const slab of slabs) {
       slab.el.style.width = `${cardW}px`;
       slab.el.style.height = `${cardH}px`;
@@ -296,6 +341,7 @@ export function createRiverV2(): RiverV2Handle {
         dragging = true;
         gliding = false;
         velocity = 0;
+        holdDir = 0;
       }
       position = dimSpan !== null
         ? clamp(startPos - dy / slotH, dimSpan.first, dimSpan.last)
@@ -413,6 +459,7 @@ export function createRiverV2(): RiverV2Handle {
         if (!shown) return;
         event.preventDefault();
         gliding = false;
+        holdDir = 0;
         velocity = clamp(velocity - event.deltaY * WHEEL_GAIN, -WHEEL_MAX, WHEEL_MAX);
         wake();
       },
@@ -469,21 +516,8 @@ export function createRiverV2(): RiverV2Handle {
       position = wrapped() ? (((index % slabs.length) + slabs.length) % slabs.length) : clamp(index, 0, maxIndex());
       layout();
     },
-    glideTo(index: number): void {
-      let target = index;
-      if (wrapped()) target = position + wrapDist(index - position, slabs.length);
-      else if (dimSpan !== null) target = clamp(index, dimSpan.first, dimSpan.last);
-      else target = clamp(index, 0, maxIndex());
-      const from = clamp(position, 0, maxIndex());
-      const delta = target - from;
-      if (delta === 0) return;
-      glideFrom = from;
-      glideDelta = delta;
-      glideStart = performance.now();
-      glideDuration = Math.max(700, Math.min(3000, Math.abs(delta) / 0.9));
-      gliding = true;
-      velocity = 0;
-      wake();
+    glideTo(index: number, durationMs = 0): void {
+      beginGlide(index, durationMs);
     },
     scrollPosition(): number {
       return position;
@@ -492,6 +526,7 @@ export function createRiverV2(): RiverV2Handle {
       if (typeof partial.visibleCount === 'number') visibleCount = clamp(Math.round(partial.visibleCount), 1, 12);
       if (typeof partial.depth === 'number') depth = clamp(partial.depth, 0, 2);
       if (typeof partial.ring === 'boolean') ring = partial.ring;
+      if (typeof partial.smallSetPin === 'boolean') smallSetPin = partial.smallSetPin;
       derive();
     },
     setVisible(next: boolean): void {
@@ -523,8 +558,23 @@ export function createRiverV2(): RiverV2Handle {
       position = dimSpan !== null ? clamp(position, dimSpan.first, dimSpan.last) : clamp(position, 0, maxIndex());
       derive();
     },
-    step(dir: 1 | -1): void {
-      this.glideTo(Math.round(this.scrollPosition()) + dir);
+    step(dir: 1 | -1, repeat = false): void {
+      const destination = gliding ? glideFrom + glideDelta : this.scrollPosition();
+      const target = (repeat ? Math.round(this.scrollPosition()) : Math.round(destination)) + dir;
+      this.glideTo(target, repeat ? STEP_CHAIN_MS : gliding ? STEP_CHAIN_MS : STEP_TAP_MS);
+    },
+    stepHold(dir: 1 | -1): void {
+      if (!shown || slabs.length === 0) return;
+      holdDir = dir;
+      lastHoldAt = performance.now();
+      gliding = false;
+      velocity = 0;
+      wake();
+    },
+    stepRelease(): void {
+      if (holdDir === 0) return;
+      holdDir = 0;
+      beginGlide(Math.round(clampPos(position)), 300);
     },
     centerId(): string | null {
       if (slabs.length === 0) return null;

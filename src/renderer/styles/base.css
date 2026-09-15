@@ -13,11 +13,6 @@ body {
   display: flex;
   flex-direction: column;
   background-color: var(--void-0);
-  background-image:
-    radial-gradient(1100px 700px at 85% -10%, rgba(124, 116, 224, 0.09), transparent 65%),
-    radial-gradient(900px 650px at -15% 30%, rgba(110, 231, 216, 0.055), transparent 60%),
-    radial-gradient(1000px 800px at 50% 115%, rgba(150, 130, 235, 0.06), transparent 62%);
-  background-attachment: fixed;
   color: var(--moon);
   font-family: var(--font-body);
   font-weight: 300;

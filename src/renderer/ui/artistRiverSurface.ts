@@ -15,9 +15,11 @@ const TIMELINE_H = 62;
 const SINK_MS = 240;
 const TRANSIT_RETURN_DELAY = 60;
 const TRANSIT_RETURN_TOTAL = SINK_MS + TRANSIT_RETURN_DELAY + 400;
+const FLOOR_DELAY_MS = 360;
 
 let river: ReturnType<typeof createRiverV2> | null = null;
 let floor: HTMLDivElement | null = null;
+let floorTimer = 0;
 let opened = false;
 let closing = false;
 let dimAlbum: string | null = null;
@@ -117,11 +119,7 @@ const playingFeedIndex = (): number => {
   return feed.findIndex((t) => t.id === cur.id);
 };
 
-const clampScroll = (): number => {
-  const pos = river?.scrollPosition() ?? 0;
-  const n = Math.max(1, feed.length);
-  return ((pos % n) + n) % n;
-};
+const clampScroll = (): number => river?.scrollPosition() ?? 0;
 
 export const artistRiverSurface = {
   prebuild(name: string): boolean {
@@ -139,7 +137,7 @@ export const artistRiverSurface = {
     document.getElementById('artist-river')?.classList.add('pre');
     return true;
   },
-  open(name: string, dimToAlbum: string | null = null): boolean {
+  open(name: string, opts?: { dimToAlbum?: string; focusTrackId?: string }): boolean {
     const fresh = !opened || artistName !== name;
     if (artistName !== name || feed.length === 0) {
       const tracks = buildFeed(name);
@@ -151,6 +149,10 @@ export const artistRiverSurface = {
     }
     const playing = playingFeedIndex();
     river?.scrollTo(playing >= 0 ? playing : 0);
+    if (opts?.focusTrackId !== undefined) {
+      const fi = feed.findIndex((t) => t.id === opts.focusTrackId);
+      if (fi >= 0) river?.scrollTo(fi);
+    }
     syncCommitted();
     opened = true;
     closing = false;
@@ -160,22 +162,30 @@ export const artistRiverSurface = {
       el.classList.add('pre');
       void el.offsetWidth;
       el.classList.remove('pre');
-      ensureFloor().classList.add('on');
+      if (floorTimer !== 0) window.clearTimeout(floorTimer);
+      floorTimer = window.setTimeout(() => {
+        floorTimer = 0;
+        if (opened && !closing) ensureFloor().classList.add('on');
+      }, FLOOR_DELAY_MS);
     }
-    if (dimToAlbum !== null) applyDim(dimToAlbum);
+    if (opts?.dimToAlbum !== undefined && opts.dimToAlbum !== null) applyDim(opts.dimToAlbum);
     appBus.emit('artist-river-opened', { artist: name });
     return true;
   },
   openDim(name: string, album: string): boolean {
-    return this.open(name, album);
+    return this.open(name, { dimToAlbum: album });
   },
   removeDim(): boolean {
     if (dimAlbum === null) return false;
     clearDim();
     return true;
   },
-  albumStep(dir: 1 | -1): void {
+  albumStep(dir: 1 | -1, repeat = false): void {
     if (!opened || feed.length === 0) return;
+    if (repeat) {
+      river?.stepHold(dir);
+      return;
+    }
     const current = Math.round(clampScroll());
     const bounds: number[] = [0];
     for (let i = 1; i < feed.length; i++) {
@@ -183,16 +193,24 @@ export const artistRiverSurface = {
     }
     let target: number;
     if (dir === 1) {
-      target = bounds.find((b) => b > current + 0.01) ?? bounds[0] ?? 0;
+      const next = bounds.find((b) => b > current + 0.01);
+      if (next === undefined) return;
+      target = next;
     } else {
       const below = bounds.filter((b) => b < current - 0.01);
-      target = below.length > 0 ? below[below.length - 1] ?? 0 : bounds[bounds.length - 1] ?? 0;
+      if (below.length === 0) return;
+      target = below[below.length - 1] ?? 0;
     }
     river?.glideTo(target);
   },
-  arrowStep(dir: 1 | -1): void {
+  arrowStep(dir: 1 | -1, repeat = false): void {
     if (!opened) return;
-    river?.step(dir);
+    if (repeat) river?.stepHold(dir);
+    else river?.step(dir);
+  },
+  arrowRelease(): void {
+    if (!opened) return;
+    river?.stepRelease();
   },
   activateCenter(): void {
     if (!opened) return;
@@ -212,6 +230,10 @@ export const artistRiverSurface = {
     closeCalls += 1;
     if (!opened || closing) return false;
     closing = true;
+    if (floorTimer !== 0) {
+      window.clearTimeout(floorTimer);
+      floorTimer = 0;
+    }
     floor?.classList.remove('on');
     document.getElementById('artist-river')?.classList.add('sinking');
     window.setTimeout(() => {
@@ -238,7 +260,7 @@ export const artistRiverSurface = {
 export function initArtistRiverSurface(): void {
   if (river !== null) return;
   river = createRiverV2();
-  river.setLayout({ ring: true });
+  river.setLayout({ smallSetPin: false });
   river.onHome(() => {
     const idx = playingFeedIndex();
     river?.glideTo(idx >= 0 ? idx : 0);
@@ -292,7 +314,7 @@ export function initArtistRiverSurface(): void {
     dimAlbum: () => dimAlbum,
     openDim: (name: string, album: string) => artistRiverSurface.openDim(name, album),
     removeDim: () => artistRiverSurface.removeDim(),
-    arrowStep: (dir: 1 | -1) => river?.step(dir),
+    arrowStep: (dir: 1 | -1, repeat = false) => artistRiverSurface.arrowStep(dir, repeat),
     albumStep: (dir: 1 | -1) => artistRiverSurface.albumStep(dir),
     centerId: () => river?.centerId() ?? null,
     artist: () => artistName,

@@ -29,6 +29,8 @@ export interface ShelfHandle {
   glideTo(index: number, speed?: number): void;
   scrollPosition(): number;
   centerIndex(): number;
+  stepHold(dir: 1 | -1): void;
+  stepRelease(): void;
   setVisible(visible: boolean): void;
   setSelected(id: string | null, colors?: { ledger: string; ring: string; glow: string }): void;
   setLitIds(ids: string[] | null): void;
@@ -71,12 +73,10 @@ interface Transit {
   slideDur: number;
 }
 
-const TRANSIT_FADE_OUT_MS = 280;
+const TRANSIT_FADE_OUT_MS = 520;
 const TRANSIT_SLIDE_OUT_MS = 520;
-const TRANSIT_FADE_IN_MS = 280;
+const TRANSIT_FADE_IN_MS = 520;
 const TRANSIT_SLIDE_HOME_MS = 560;
-const TRANSIT_RETURN_DELAY = 60;
-const TRANSIT_RETURN_BEAT_MS = 420;
 
 const DEFAULT_VISIBLE_COUNT = 7;
 const DEFAULT_DEPTH = 0.9;
@@ -98,6 +98,8 @@ const DRAG_DEAD = 8;
 const STAGGER_CAP = 420;
 const WHEEL_QUIET = 140;
 const SETTLE_TIME = Math.round(4000 / DECAY);
+const STEP_HOLD_SPEED = 6;
+const STEP_HOLD_WATCHDOG_MS = 250;
 
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
 
@@ -136,6 +138,8 @@ export function createShelf(): ShelfHandle {
   let selectedId: string | null = null;
   let litIds: Set<string> | null = null;
   let transit: Transit | null = null;
+  let holdDir = 0;
+  let lastHoldAt = 0;
   let curve = 0.72;
   let tiltMax = 15;
   let fadeHold = 0.58;
@@ -237,7 +241,7 @@ export function createShelf(): ShelfHandle {
       const trueOpacity = n <= fadeHold ? 1 : Math.max(0, 1 - Math.pow((n - fadeHold) / (1 - fadeHold), 2));
       const trueX = Math.round((side * xAbs * squash) / pxStep) * pxStep;
       const x = trueX + side * region.width * 0.7 * pSlide;
-      const opacity = trueOpacity * (1 - pSlide * 1.6);
+      const opacity = t.phase === 'open' ? trueOpacity * (1 - pSlide * 1.6) : trueOpacity * Math.min(1, (1 - pSlide) * 1.8);
       const scale = trueScale * (1 - 0.15 * pSlide);
       const art = `translate3d(${x.toFixed(3)}px, 0, 0) rotateY(${trueTilt.toFixed(3)}deg) scale(${scale.toFixed(4)})`;
       card.faceEl.style.transform = art;
@@ -375,7 +379,16 @@ export function createShelf(): ShelfHandle {
     const dt = dtMs / 1000;
     let moving = false;
     if (cards.length > 0) {
-      if (gliding) {
+      if (holdDir !== 0) {
+        if (performance.now() - lastHoldAt > STEP_HOLD_WATCHDOG_MS) {
+          holdDir = 0;
+          startGlide(glideTargetFrom(snapTarget(position)), SNAP_DURATION);
+          moving = gliding;
+        } else {
+          position += holdDir * STEP_HOLD_SPEED * dt;
+          moving = true;
+        }
+      } else if (gliding) {
         const t = Math.min(1, (ts - glideStart) / glideDuration);
         position = glideFrom + glideDelta * (1 - Math.pow(1 - t, 4));
         if (t >= 1) {
@@ -485,6 +498,7 @@ export function createShelf(): ShelfHandle {
         dragging = true;
         gliding = false;
         velocity = 0;
+        holdDir = 0;
       }
       const next = startPos - dx / slotW;
       position = wrapped() ? next : clamp(next, 0, maxIndex());
@@ -595,6 +609,7 @@ export function createShelf(): ShelfHandle {
         if (!shown || transit !== null) return;
         event.preventDefault();
         gliding = false;
+        holdDir = 0;
         lastWheelAt = performance.now();
         velocity = clamp(velocity - event.deltaY * WHEEL_GAIN, -WHEEL_MAX, WHEEL_MAX);
         wake();
@@ -676,6 +691,21 @@ export function createShelf(): ShelfHandle {
     centerIndex(): number {
       return centerIndexNow();
     },
+    stepHold(dir: 1 | -1): void {
+      if (!shown || cards.length === 0 || transit !== null) return;
+      holdDir = dir;
+      lastHoldAt = performance.now();
+      gliding = false;
+      velocity = 0;
+      resting = false;
+      wake();
+    },
+    stepRelease(): void {
+      if (holdDir === 0) return;
+      holdDir = 0;
+      resting = false;
+      startGlide(glideTargetFrom(snapTarget(position)), SNAP_DURATION);
+    },
     setVisible(visible: boolean): void {
       shown = visible;
       if (root !== null) root.hidden = !visible;
@@ -712,7 +742,7 @@ export function createShelf(): ShelfHandle {
       resting = true;
       position = index;
       const now = performance.now();
-      transit = { index, phase: 'open', fadeStart: now + TRANSIT_SLIDE_OUT_MS, fadeDur: TRANSIT_FADE_OUT_MS, slideStart: now, slideDur: TRANSIT_SLIDE_OUT_MS };
+      transit = { index, phase: 'open', fadeStart: now, fadeDur: TRANSIT_FADE_OUT_MS, slideStart: now, slideDur: TRANSIT_SLIDE_OUT_MS };
       renderTransit();
       const run = (): void => {
         if (transit === null) return;
@@ -736,7 +766,7 @@ export function createShelf(): ShelfHandle {
       resting = true;
       position = index;
       const now = performance.now();
-      transit = { index, phase: 'close', fadeStart: now + TRANSIT_RETURN_DELAY, fadeDur: TRANSIT_FADE_IN_MS, slideStart: now + TRANSIT_RETURN_BEAT_MS, slideDur: TRANSIT_SLIDE_HOME_MS };
+      transit = { index, phase: 'close', fadeStart: now, fadeDur: TRANSIT_FADE_IN_MS, slideStart: now, slideDur: TRANSIT_SLIDE_HOME_MS };
       renderTransit();
       const run = (): void => {
         if (transit === null) return;

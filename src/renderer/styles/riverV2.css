@@ -17,7 +17,7 @@ body.song-river-active #carousel-content {
 
 #artist-river {
   z-index: 26;
-  transition: opacity 420ms var(--ease-drift);
+  transition: opacity 360ms var(--ease-drift);
 }
 
 #artist-river.pre {
@@ -45,14 +45,14 @@ body.song-river-active #carousel-content {
   visibility: hidden;
   pointer-events: none;
   transition:
-    opacity 420ms var(--ease-drift),
-    visibility 0s linear 420ms;
+    opacity 280ms var(--ease-drift),
+    visibility 0s linear 280ms;
 }
 
 #artist-river-floor.on {
   opacity: 1;
   visibility: visible;
-  transition: opacity 420ms var(--ease-drift);
+  transition: opacity 280ms var(--ease-drift);
 }
 
 .rv2-world {

@@ -6,6 +6,7 @@ import { fuzzyScore, nameMatchScore } from '../core/fuzzy';
 import {
   buildSearchIndexes,
   fmtTotal,
+  primaryOf,
   type AlbumEntry,
   type ArtistEntry,
   type SearchIndexes,
@@ -432,24 +433,24 @@ function wireGlobalKeys(): void {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         const dir: 1 | -1 = e.key === 'ArrowDown' ? 1 : -1;
         if (artistRiverSurface.isOpen()) {
-          artistRiverSurface.arrowStep(dir);
+          artistRiverSurface.arrowStep(dir, e.repeat);
           e.preventDefault();
           return;
         }
         if (state.mode === 'songs' && !document.body.classList.contains('shelf-active')) {
-          riverSurface.step(dir);
+          riverSurface.step(dir, e.repeat);
           e.preventDefault();
           return;
         }
       }
       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
         if (artistRiverSurface.isOpen()) {
-          artistRiverSurface.albumStep(e.key === 'ArrowRight' ? 1 : -1);
+          artistRiverSurface.albumStep(e.key === 'ArrowRight' ? 1 : -1, e.repeat);
           e.preventDefault();
           return;
         }
         if (state.mode === 'shelf' && !artistRiverSurface.isOpen()) {
-          shelfSurface.step(e.key === 'ArrowRight' ? 1 : -1);
+          shelfSurface.step(e.key === 'ArrowRight' ? 1 : -1, e.repeat);
           e.preventDefault();
           return;
         }
@@ -496,6 +497,21 @@ function wireGlobalKeys(): void {
       summonZone.classList.remove('summon-animate');
       updateSummonWidth();
       renderOracleResults();
+    }
+  });
+
+  window.addEventListener('keyup', (e) => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    if (artistRiverSurface.isOpen()) {
+      artistRiverSurface.arrowRelease();
+      return;
+    }
+    if (state.mode === 'songs' && !document.body.classList.contains('shelf-active')) {
+      riverSurface.stepRelease();
+      return;
+    }
+    if (state.mode === 'shelf') {
+      shelfSurface.stepRelease();
     }
   });
 
@@ -678,6 +694,16 @@ function summonRowFor(hit: SummonHit): HTMLElement {
   return el('div', 'oracle-row');
 }
 
+function summonEnterArtist(name: string, focus?: { dimToAlbum?: string; focusTrackId?: string }): boolean {
+  if (state.mode !== 'shelf') {
+    state.mode = 'shelf';
+    syncTabs();
+    syncChips();
+    render();
+  }
+  return shelfSurface.summonEnter(name, focus);
+}
+
 function oracleSongRow(track: import('../../shared/types').IndexedTrack): HTMLElement {
   const row = el('div', 'oracle-row kind-song');
   row.dataset.interactive = '1';
@@ -708,14 +734,13 @@ function oracleSongRow(track: import('../../shared/types').IndexedTrack): HTMLEl
   attachSongMenu(row, track);
   row.addEventListener('click', () => {
     if (carousel.wasDrag()) return;
-    if (playingPath === track.absPath) {
-      closeOracle();
-      openNowPlaying();
-      return;
-    }
     closeOracle();
     preview.hardStop();
-    player.playSingle(track);
+    if (playingPath !== track.absPath) {
+      player.playSingle(track);
+    }
+    const name = primaryOf(track) ?? track.artist ?? null;
+    if (name !== null && summonEnterArtist(name, { focusTrackId: track.id })) return;
     appBus.emit('reveal-playing', {});
   });
   return row;
@@ -740,7 +765,7 @@ function oracleAlbumRow(album: AlbumEntry): HTMLElement {
   row.append(meta);
   row.addEventListener('click', () => {
     closeOracle();
-    if (artistRiverSurface.openDim(album.artist, album.name)) return;
+    if (summonEnterArtist(album.artist, { dimToAlbum: album.name })) return;
     openAlbum(album);
   });
   return row;
@@ -765,6 +790,7 @@ function oracleArtistRow(artist: ArtistEntry): HTMLElement {
   row.append(meta);
   row.addEventListener('click', () => {
     closeOracle();
+    if (summonEnterArtist(artist.name)) return;
     state.mode = 'albums';
     setArtistFilter(artist.key);
     syncTabs();
