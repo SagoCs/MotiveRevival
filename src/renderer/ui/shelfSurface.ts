@@ -322,6 +322,14 @@ export const shelfSurface = {
     highlight(next);
     shelf?.glideTo(next);
   },
+  activateCenter(): void {
+    if (!active || shelf?.isBusy() === true || lens !== 'artists') return;
+    const idx = shelf?.centerIndex() ?? -1;
+    const entry = currentEntries()[idx];
+    if (entry === undefined) return;
+    if (litLetters.size > 0 && !litLetters.has(letterOf(entry.name))) return;
+    enterArtist(entry, idx);
+  },
 };
 
 let pendingGesture: { name: string; art: string | null; idx: number } | null = null;

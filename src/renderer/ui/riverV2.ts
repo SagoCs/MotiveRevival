@@ -35,6 +35,7 @@ export interface RiverV2Handle {
   setCommitted(id: string | null): void;
   setDimSpan(first: number, last: number | null): void;
   step(dir: 1 | -1): void;
+  centerId(): string | null;
   entryRect(id: string): DOMRect | null;
   hideEntry(id: string): void;
   destroy(): void;
@@ -524,6 +525,12 @@ export function createRiverV2(): RiverV2Handle {
     },
     step(dir: 1 | -1): void {
       this.glideTo(Math.round(this.scrollPosition()) + dir);
+    },
+    centerId(): string | null {
+      if (slabs.length === 0) return null;
+      const anchor = anchorOf();
+      const slab = slabs.find((s) => s.index === Math.round(anchor));
+      return slab?.id ?? null;
     },
     entryRect(id: string): DOMRect | null {
       const slab = slabs.find((s) => s.id === id);

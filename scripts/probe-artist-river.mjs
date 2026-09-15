@@ -182,6 +182,19 @@ const homeOk = Math.min(diff, n - diff) < 0.06;
 console.log(`dblclick home: scroll ${scrollAfterHome.toFixed(2)} vs playing index ${homeIdx}`);
 if (!homeOk) failures.push(`double-click did not center the playing song (scroll ${scrollAfterHome.toFixed(2)}, index ${homeIdx})`);
 
+await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'ArrowDown', code: 'ArrowDown', windowsVirtualKeyCode: 40 });
+await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'ArrowDown', code: 'ArrowDown', windowsVirtualKeyCode: 40 });
+await sleep(900);
+const neighborId = await evalJs(`window.__artistRiver.centerId()`);
+await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+await sleep(900);
+const afterEnter = await evalJs(`(() => { const snap = window.__songActions.queueSnapshot(); return { current: snap.ids[snap.index] ?? null, upcoming: snap.upcoming.length }; })()`);
+console.log(`enter plays the centered song: current=${afterEnter.current === neighborId ? 'centered song' : afterEnter.current}`);
+if (afterEnter.current !== neighborId) failures.push('enter did not play the centered song');
+if (afterEnter.upcoming > expectedUpcoming) failures.push(`enter assigned a queue (upcoming ${afterEnter.upcoming} > ${expectedUpcoming})`);
+if (afterClick.upcoming !== expectedUpcoming) failures.push(`enter assigned a queue (${expectedUpcoming} -> ${afterEnter.upcoming ?? '?'})`);
+
 await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
 await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
 await sleep(1500);

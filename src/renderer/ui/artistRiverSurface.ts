@@ -222,6 +222,20 @@ export const artistRiverSurface = {
     if (!opened) return;
     river?.step(dir);
   },
+  activateCenter(): void {
+    if (!opened) return;
+    const id = river?.centerId() ?? null;
+    if (id === null) return;
+    const track = feed.find((t) => t.id === id);
+    if (track === undefined) return;
+    const cur = player.currentTrack;
+    if (cur === null || cur.absPath !== track.absPath) {
+      player.playSingle(track);
+      syncCommitted();
+    } else {
+      openNowPlaying();
+    }
+  },
   close(): boolean {
     closeCalls += 1;
     if (!opened || closing) return false;
@@ -310,6 +324,7 @@ export function initArtistRiverSurface(): void {
     removeDim: () => artistRiverSurface.removeDim(),
     arrowStep: (dir: 1 | -1) => river?.step(dir),
     albumStep: (dir: 1 | -1) => artistRiverSurface.albumStep(dir),
+    centerId: () => river?.centerId() ?? null,
     artist: () => artistName,
     titles: () => feed.map((t) => t.title),
     ids: () => feed.map((t) => t.id),

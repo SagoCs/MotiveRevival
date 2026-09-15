@@ -28,6 +28,22 @@ export const riverSurface = {
   step(dir: 1 | -1): void {
     river?.step(dir);
   },
+  activateCenter(): void {
+    if (river === null) return;
+    const id = river.centerId();
+    if (id === null) return;
+    const result = libraryStore.result;
+    if (result === null || !result.ok) return;
+    const track = result.tracks.find((t) => t.id === id);
+    if (track === undefined) return;
+    const cur = player.currentTrack;
+    if (cur === null || cur.absPath !== track.absPath) {
+      player.playSingle(track);
+      river.setCommitted(track.id);
+    } else {
+      openNowPlaying();
+    }
+  },
 };
 
 const entriesFrom = (tracks: IndexedTrack[]): RiverV2Entry[] =>

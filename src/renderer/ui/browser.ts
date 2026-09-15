@@ -454,6 +454,23 @@ function wireGlobalKeys(): void {
           return;
         }
       }
+      if (e.key === 'Enter') {
+        if (artistRiverSurface.isOpen()) {
+          artistRiverSurface.activateCenter();
+          e.preventDefault();
+          return;
+        }
+        if (state.mode === 'shelf') {
+          shelfSurface.activateCenter();
+          e.preventDefault();
+          return;
+        }
+        if (state.mode === 'songs') {
+          riverSurface.activateCenter();
+          e.preventDefault();
+          return;
+        }
+      }
     }
 
     if (!inInput && e.key === '/') {

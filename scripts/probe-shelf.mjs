@@ -259,6 +259,17 @@ const expectedCenter = (centerBefore + 1) % shelfCount;
 console.log(`arrow right: center ${centerBefore} -> ${centerAfter} (expected ${expectedCenter} of ${shelfCount})`);
 if (centerAfter !== expectedCenter) failures.push(`arrow right did not step one artist (${centerBefore} -> ${centerAfter})`);
 
+await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+await sleep(1600);
+const enterState = await evalJs(`({ open: window.__artistRiver.isOpen(), artist: window.__artistRiver.artist(), expected: window.__shelf.names()[${expectedCenter}] })`);
+console.log(`enter opens the centered artist: river=${enterState.open}, artist="${enterState.artist}" (expected "${enterState.expected}")`);
+if (!enterState.open) failures.push('enter did not open the artist river');
+if (enterState.artist !== enterState.expected) failures.push(`enter opened the wrong artist (${enterState.artist} vs ${enterState.expected})`);
+await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+await sleep(1700);
+
 const samplerPromise = evalJs(`(async () => {
   const frames = [];
   const t0 = performance.now();
