@@ -411,6 +411,10 @@ function wireGlobalKeys(): void {
         e.preventDefault();
         return;
       }
+      if (artistRiverSurface.removeDim()) {
+        e.preventDefault();
+        return;
+      }
       if (artistRiverSurface.close()) {
         e.preventDefault();
         return;
@@ -423,6 +427,29 @@ function wireGlobalKeys(): void {
     }
 
     if (e.ctrlKey || e.altKey || e.metaKey) return;
+
+    if (!inInput && !settingsOpen && !isOracleOpen() && !isOverlayOpen() && !detailOpen && !isPlaylistLayerOpen()) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        const dir: 1 | -1 = e.key === 'ArrowDown' ? 1 : -1;
+        if (artistRiverSurface.isOpen()) {
+          artistRiverSurface.arrowStep(dir);
+          e.preventDefault();
+          return;
+        }
+        if (state.mode === 'songs' && !document.body.classList.contains('shelf-active')) {
+          riverSurface.step(dir);
+          e.preventDefault();
+          return;
+        }
+      }
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        if (artistRiverSurface.isOpen()) {
+          artistRiverSurface.albumStep(e.key === 'ArrowRight' ? 1 : -1);
+          e.preventDefault();
+          return;
+        }
+      }
+    }
 
     if (!inInput && e.key === '/') {
       e.preventDefault();
@@ -691,6 +718,7 @@ function oracleAlbumRow(album: AlbumEntry): HTMLElement {
   row.append(meta);
   row.addEventListener('click', () => {
     closeOracle();
+    if (artistRiverSurface.openDim(album.artist, album.artFile, album.name)) return;
     openAlbum(album);
   });
   return row;

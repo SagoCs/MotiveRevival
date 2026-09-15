@@ -32,6 +32,11 @@ export interface ShelfHandle {
   setVisible(visible: boolean): void;
   setSelected(id: string | null, colors?: { ledger: string; ring: string; glow: string }): void;
   setLitIds(ids: string[] | null): void;
+  beginTransit(index: number, onDone: () => void): void;
+  beginReturn(index: number, onDone: () => void): void;
+  cancelTransit(): void;
+  isBusy(): boolean;
+  onVoidTap(cb: (taps: number) => void): void;
   onEntryTap(cb: (id: string) => void): void;
   onSettle(cb: (index: number) => void): void;
   entryRect(id: string): DOMRect | null;
@@ -56,6 +61,23 @@ interface Card {
   lastOpacity: number;
   lastZ: number;
 }
+
+interface Transit {
+  index: number;
+  phase: 'open' | 'hold' | 'close';
+  zoomStart: number;
+  zoomDur: number;
+  slideStart: number;
+  slideDur: number;
+  doneCb: (() => void) | null;
+}
+
+const TRANSIT_ZOOM_MS = 360;
+const TRANSIT_SLIDE_OUT_MS = 580;
+const TRANSIT_ZOOM_BACK_MS = 380;
+const TRANSIT_SLIDE_HOME_MS = 560;
+const TRANSIT_RETURN_DELAY = 60;
+const TRANSIT_ZOOM_MAX = 1.8;
 
 const DEFAULT_VISIBLE_COUNT = 7;
 const DEFAULT_DEPTH = 0.9;
@@ -108,9 +130,13 @@ export function createShelf(): ShelfHandle {
   let resting = true;
   let lastWheelAt = 0;
   let tapCb: ((id: string) => void) | null = null;
+  let voidTapCb: ((taps: number) => void) | null = null;
+  let voidTapTimer = 0;
+  let voidTapCount = 0;
   let settleCb: ((index: number) => void) | null = null;
   let selectedId: string | null = null;
   let litIds: Set<string> | null = null;
+  let transit: Transit | null = null;
   let curve = 0.72;
   let tiltMax = 15;
   let fadeHold = 0.58;
@@ -151,7 +177,95 @@ export function createShelf(): ShelfHandle {
     return a + (b - a) * frac;
   };
 
+  const clearTransitStyles = (): void => {
+    for (const card of cards) {
+      card.captionEl.style.opacity = '';
+      card.ledgerEl.style.opacity = '';
+    }
+  };
+
+  const renderTransit = (): void => {
+    if (world === null || transit === null) return;
+    const t = transit;
+    const now = performance.now();
+    let pZoom: number;
+    let pSlide: number;
+    if (t.phase === 'hold') {
+      pZoom = 1;
+      pSlide = 1;
+    } else {
+      const zoomRaw = clamp((now - t.zoomStart) / t.zoomDur, 0, 1);
+      const slideRaw = clamp((now - t.slideStart) / t.slideDur, 0, 1);
+      const zoomEased = 1 - Math.pow(1 - zoomRaw, 3);
+      const slideEased = 1 - Math.pow(1 - slideRaw, 3);
+      pZoom = t.phase === 'open' ? zoomEased : 1 - zoomEased;
+      pSlide = t.phase === 'open' ? slideEased : 1 - slideEased;
+    }
+    const zoom = Math.min(TRANSIT_ZOOM_MAX, (Math.hypot(region.width, region.height) / Math.max(1, cardSize)) * 1.06);
+    const anchor = anchorOf();
+    const count = cards.length;
+    let effFade = fadeRange;
+    if (!wrapped() && count > visibleCount) {
+      const shortSide = Math.min(anchor, count - 1 - anchor);
+      effFade = clamp(shortSide * slotW * 0.92, slotW * 1.25, fadeRange);
+    }
+    const remap = fadeRange / effFade;
+    const squash = effFade / fadeRange;
+    const capZoomOp = t.phase === 'open' ? clamp(1 - pZoom * 4, 0, 1) : clamp((0.7 - pZoom) * 3.3, 0, 1);
+    const capZoom = capZoomOp.toFixed(3);
+    const capSlideOp = t.phase === 'open' ? clamp(1 - pSlide * 2.5, 0, 1) : clamp((0.75 - pSlide) * 4, 0, 1);
+    const capSlide = capSlideOp.toFixed(3);
+    for (const card of cards) {
+      if (card.index === t.index) {
+        const baseScale = 1 + lensAmt;
+        const scale = baseScale + (zoom - baseScale) * pZoom;
+        const art = `translate3d(0, 0, 0) rotateY(0deg) scale(${scale.toFixed(4)})`;
+        card.faceEl.style.transform = art;
+        card.bloomEl.style.transform = art;
+        card.el.style.opacity = '1';
+        card.el.style.zIndex = '999';
+        card.el.style.visibility = 'visible';
+        card.captionEl.style.opacity = capZoom;
+        card.ledgerEl.style.opacity = capZoom;
+        card.lastX = 0;
+        card.lastScale = scale;
+        card.lastTilt = 0;
+        card.lastOpacity = 1;
+        card.lastZ = 999;
+        continue;
+      }
+      let dist = card.index - anchor;
+      if (wrapped()) dist = wrapDist(dist, count);
+      const side = Math.sign(dist) || 1;
+      const xAbs = distanceAt(Math.abs(dist) * remap);
+      const n = Math.min(1, xAbs / fadeRange);
+      const trueScale = (1 - curve * n * n) * (1 + lensAmt * Math.exp(-dist * dist * 4));
+      const trueTilt = side * tiltMax * Math.pow(n, 1.5);
+      const trueOpacity = n <= fadeHold ? 1 : Math.max(0, 1 - Math.pow((n - fadeHold) / (1 - fadeHold), 2));
+      const trueX = Math.round((side * xAbs * squash) / pxStep) * pxStep;
+      const x = trueX + side * region.width * 0.7 * pSlide;
+      const opacity = trueOpacity * (1 - pSlide * 1.6);
+      const scale = trueScale * (1 - 0.15 * pSlide);
+      const art = `translate3d(${x.toFixed(3)}px, 0, 0) rotateY(${trueTilt.toFixed(3)}deg) scale(${scale.toFixed(4)})`;
+      card.faceEl.style.transform = art;
+      card.bloomEl.style.transform = art;
+      card.el.style.opacity = opacity.toFixed(3);
+      card.el.style.zIndex = '1';
+      card.el.style.visibility = opacity <= 0 ? 'hidden' : 'visible';
+      card.captionEl.style.opacity = capSlide;
+      card.lastX = x;
+      card.lastScale = scale;
+      card.lastTilt = trueTilt;
+      card.lastOpacity = opacity;
+      card.lastZ = 1;
+    }
+  };
+
   const layout = (): void => {
+    if (transit !== null) {
+      renderTransit();
+      return;
+    }
     if (world === null || cards.length === 0) return;
     const anchor = anchorOf();
     const count = cards.length;
@@ -357,7 +471,7 @@ export function createShelf(): ShelfHandle {
   };
 
   const beginPan = (event: PointerEvent, el: HTMLDivElement, onTap: (() => void) | null): void => {
-    if (!shown || event.button !== 0) return;
+    if (!shown || transit !== null || event.button !== 0) return;
     const startX = event.clientX;
     const startPos = clamp(position, 0, maxIndex());
     let dragging = false;
@@ -484,7 +598,7 @@ export function createShelf(): ShelfHandle {
     root.addEventListener(
       'wheel',
       (event) => {
-        if (!shown) return;
+        if (!shown || transit !== null) return;
         event.preventDefault();
         gliding = false;
         lastWheelAt = performance.now();
@@ -494,7 +608,22 @@ export function createShelf(): ShelfHandle {
       { passive: false },
     );
     voidEl.addEventListener('pointerdown', (event) => {
-      beginPan(event, voidEl as HTMLDivElement, null);
+      beginPan(event, voidEl as HTMLDivElement, () => {
+        voidTapCount += 1;
+        if (voidTapTimer !== 0) window.clearTimeout(voidTapTimer);
+        if (voidTapCount >= 3) {
+          voidTapTimer = 0;
+          voidTapCount = 0;
+          voidTapCb?.(3);
+          return;
+        }
+        voidTapTimer = window.setTimeout(() => {
+          const taps = voidTapCount;
+          voidTapTimer = 0;
+          voidTapCount = 0;
+          if (taps >= 2) voidTapCb?.(taps);
+        }, 250);
+      });
     });
   };
 
@@ -524,6 +653,7 @@ export function createShelf(): ShelfHandle {
     },
     setEntries(entries: ShelfEntry[]): void {
       if (world === null) return;
+      transit = null;
       for (const card of cards) card.el.remove();
       cards = [];
       const host = world;
@@ -580,6 +710,62 @@ export function createShelf(): ShelfHandle {
     setLitIds(ids: string[] | null): void {
       litIds = ids !== null && ids.length > 0 ? new Set(ids) : null;
       applyLitClasses();
+    },
+    beginTransit(index: number, onZoomDone: () => void): void {
+      if (cards.length === 0 || index < 0 || index >= cards.length) {
+        onZoomDone();
+        return;
+      }
+      const now = performance.now();
+      transit = { index, phase: 'open', zoomStart: now, zoomDur: TRANSIT_ZOOM_MS, slideStart: now, slideDur: TRANSIT_SLIDE_OUT_MS, doneCb: onZoomDone };
+      const run = (): void => {
+        if (transit === null) return;
+        renderTransit();
+        const zoomRaw = clamp((performance.now() - transit.zoomStart) / transit.zoomDur, 0, 1);
+        if (zoomRaw >= 1) {
+          transit.phase = 'hold';
+          const done = transit.doneCb;
+          transit.doneCb = null;
+          done?.();
+        } else {
+          requestAnimationFrame(run);
+        }
+      };
+      requestAnimationFrame(run);
+    },
+    beginReturn(index: number, onDone: () => void): void {
+      if (cards.length === 0 || index < 0 || index >= cards.length) {
+        onDone();
+        return;
+      }
+      const now = performance.now();
+      transit = { index, phase: 'close', zoomStart: now + TRANSIT_RETURN_DELAY, zoomDur: TRANSIT_ZOOM_BACK_MS, slideStart: now + TRANSIT_RETURN_DELAY, slideDur: TRANSIT_SLIDE_HOME_MS, doneCb: onDone };
+      const run = (): void => {
+        if (transit === null) return;
+        renderTransit();
+        const now = performance.now();
+        if (now >= transit.zoomStart + transit.zoomDur && now >= transit.slideStart + transit.slideDur) {
+          transit = null;
+          clearTransitStyles();
+          layout();
+          onDone();
+          return;
+        }
+        requestAnimationFrame(run);
+      };
+      requestAnimationFrame(run);
+    },
+    cancelTransit(): void {
+      if (transit === null) return;
+      transit = null;
+      clearTransitStyles();
+      layout();
+    },
+    isBusy(): boolean {
+      return transit !== null;
+    },
+    onVoidTap(cb: (taps: number) => void): void {
+      voidTapCb = cb;
     },
     onEntryTap(cb: (id: string) => void): void {
       tapCb = cb;

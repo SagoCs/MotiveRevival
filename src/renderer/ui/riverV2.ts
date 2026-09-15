@@ -3,6 +3,7 @@ export interface RiverV2Entry {
   title: string;
   meta: string[];
   art: string | null;
+  artThumb?: string | null;
   tone?: string | null;
 }
 
@@ -16,6 +17,7 @@ export interface RiverV2Region {
 export interface RiverV2Layout {
   visibleCount: number;
   depth: number;
+  ring: boolean;
 }
 
 export interface RiverV2Handle {
@@ -31,6 +33,8 @@ export interface RiverV2Handle {
   onEntryActivated(cb: (id: string) => void): void;
   onEntryContext(cb: (id: string, card: HTMLDivElement) => void): void;
   setCommitted(id: string | null): void;
+  setDimSpan(first: number, last: number | null): void;
+  step(dir: 1 | -1): void;
   entryRect(id: string): DOMRect | null;
   hideEntry(id: string): void;
   destroy(): void;
@@ -78,6 +82,7 @@ export function createRiverV2(): RiverV2Handle {
   let dpr = 1;
   let visibleCount = DEFAULT_VISIBLE_COUNT;
   let depth = DEFAULT_DEPTH;
+  let ring = false;
   let pxStep = 1;
   let slotH = 100;
   let cardW = 0;
@@ -100,6 +105,7 @@ export function createRiverV2(): RiverV2Handle {
   let entryCb: ((id: string) => void) | null = null;
   let contextCb: ((id: string, card: HTMLDivElement) => void) | null = null;
   let committedId: string | null = null;
+  let dimSpan: { first: number; last: number } | null = null;
   let curve = 0.75;
   let tiltMax = 52;
   let fadeHold = 0.6;
@@ -109,9 +115,20 @@ export function createRiverV2(): RiverV2Handle {
 
   const maxIndex = (): number => Math.max(0, slabs.length - 1);
 
+  const wrapDist = (d: number, n: number): number => d - Math.round(d / n) * n;
+
+  const wrapped = (): boolean => ring && dimSpan === null && slabs.length >= 2;
+
+  const clampPos = (value: number): number => {
+    if (dimSpan !== null) return clamp(value, dimSpan.first, dimSpan.last);
+    if (wrapped()) return value;
+    return clamp(value, 0, maxIndex());
+  };
+
   const anchorOf = (): number => {
     const count = slabs.length;
     if (count === 0) return 0;
+    if (wrapped()) return (((position % count) + count) % count);
     if (count <= visibleCount) return (count - 1) / 2;
     return clamp(position, 0, count - 1);
   };
@@ -134,21 +151,24 @@ export function createRiverV2(): RiverV2Handle {
     const anchor = anchorOf();
     const count = slabs.length;
     let effFade = fadeRange;
-    if (count > visibleCount) {
-      const shortSide = Math.min(anchor, count - 1 - anchor);
+    if (!wrapped() && count > visibleCount) {
+      const lo = dimSpan !== null ? dimSpan.first : 0;
+      const hi = dimSpan !== null ? dimSpan.last : count - 1;
+      const shortSide = Math.min(anchor - lo, hi - anchor);
       effFade = clamp(shortSide * slotH * 0.92, slotH * 1.25, fadeRange);
     }
     const remap = fadeRange / effFade;
     const ySquash = effFade / fadeRange;
     for (const slab of slabs) {
-      const dist = Math.abs(slab.index - anchor);
-      const side = Math.sign(slab.index - anchor);
-      const yAbs = depthAt(dist * remap);
+      let dist = slab.index - anchor;
+      if (wrapped()) dist = wrapDist(dist, count);
+      const side = Math.sign(dist) || 1;
+      const yAbs = depthAt(Math.abs(dist) * remap);
       const yOff = yAbs * ySquash;
       const n = Math.min(1, yAbs / fadeRange);
       const scale = (1 - curve * n * n) * (1 + lensAmt * Math.exp(-dist * dist * lensQ));
       const tilt = -side * tiltMax * Math.pow(n, 1.5);
-      const opacity = n <= fadeHold ? 1 : Math.max(0, 1 - Math.pow((n - fadeHold) / (1 - fadeHold), 2));
+      const opacity = (n <= fadeHold ? 1 : Math.max(0, 1 - Math.pow((n - fadeHold) / (1 - fadeHold), 2))) * (dimSpan !== null && (slab.index < dimSpan.first || slab.index > dimSpan.last) ? 0.13 : 1);
       const y = Math.round((centerY + side * yOff) / pxStep) * pxStep;
       const zIdx = Math.round((1 - n) * 60);
       if (y !== slab.lastY || scale !== slab.lastScale || tilt !== slab.lastTilt) {
@@ -193,10 +213,14 @@ export function createRiverV2(): RiverV2Handle {
         if (Math.abs(velocity) < CRAWL) velocity = 0;
         position += (velocity * dt) / slotH;
       }
-      const clamped = clamp(position, 0, maxIndex());
-      if (clamped !== position) {
-        position = clamped;
-        if ((position <= 0 && velocity < 0) || (position >= maxIndex() && velocity > 0)) velocity = 0;
+      if (!wrapped()) {
+        const lo = dimSpan !== null ? dimSpan.first : 0;
+        const hi = dimSpan !== null ? dimSpan.last : maxIndex();
+        const clamped = clamp(position, lo, hi);
+        if (clamped !== position) {
+          position = clamped;
+          if ((position <= lo && velocity < 0) || (position >= hi && velocity > 0)) velocity = 0;
+        }
       }
       layout();
     }
@@ -272,7 +296,11 @@ export function createRiverV2(): RiverV2Handle {
         gliding = false;
         velocity = 0;
       }
-      position = clamp(startPos - dy / slotH, 0, maxIndex());
+      position = dimSpan !== null
+        ? clamp(startPos - dy / slotH, dimSpan.first, dimSpan.last)
+        : wrapped()
+          ? startPos - dy / slotH
+          : clamp(startPos - dy / slotH, 0, maxIndex());
       layout();
     };
     const detach = (): void => {
@@ -312,15 +340,27 @@ export function createRiverV2(): RiverV2Handle {
     el.className = entry.art === null ? 'rv2-card rv2-card-plain' : 'rv2-card';
     el.dataset.index = String(index);
     el.dataset.id = entry.id;
+    el.style.setProperty('--slab-index', String(index));
     if (entry.id === committedId) el.classList.add('committed');
     if (entry.tone !== undefined && entry.tone !== null) el.style.setProperty('--rv2-tone', entry.tone);
     if (entry.art !== null) {
       const art = document.createElement('div');
       art.className = 'rv2-art';
+      const artUrl = entry.art;
       const img = document.createElement('img');
-      img.src = entry.art;
       img.alt = '';
       img.decoding = 'async';
+      if (entry.artThumb !== undefined && entry.artThumb !== null) {
+        img.src = entry.artThumb;
+        const full = new Image();
+        full.decoding = 'async';
+        full.onload = (): void => {
+          img.src = artUrl;
+        };
+        full.src = artUrl;
+      } else {
+        img.src = artUrl;
+      }
       art.append(img);
       const veil = document.createElement('div');
       veil.className = 'rv2-veil';
@@ -416,6 +456,7 @@ export function createRiverV2(): RiverV2Handle {
     },
     setEntries(entries: RiverV2Entry[]): void {
       if (world === null) return;
+      dimSpan = null;
       for (const slab of slabs) slab.el.remove();
       slabs = [];
       const host = world;
@@ -424,11 +465,14 @@ export function createRiverV2(): RiverV2Handle {
       derive();
     },
     scrollTo(index: number): void {
-      position = clamp(index, 0, maxIndex());
+      position = wrapped() ? (((index % slabs.length) + slabs.length) % slabs.length) : clamp(index, 0, maxIndex());
       layout();
     },
     glideTo(index: number): void {
-      const target = clamp(index, 0, maxIndex());
+      let target = index;
+      if (wrapped()) target = position + wrapDist(index - position, slabs.length);
+      else if (dimSpan !== null) target = clamp(index, dimSpan.first, dimSpan.last);
+      else target = clamp(index, 0, maxIndex());
       const from = clamp(position, 0, maxIndex());
       const delta = target - from;
       if (delta === 0) return;
@@ -446,6 +490,7 @@ export function createRiverV2(): RiverV2Handle {
     setLayout(partial: Partial<RiverV2Layout>): void {
       if (typeof partial.visibleCount === 'number') visibleCount = clamp(Math.round(partial.visibleCount), 1, 12);
       if (typeof partial.depth === 'number') depth = clamp(partial.depth, 0, 2);
+      if (typeof partial.ring === 'boolean') ring = partial.ring;
       derive();
     },
     setVisible(next: boolean): void {
@@ -471,6 +516,14 @@ export function createRiverV2(): RiverV2Handle {
     setCommitted(id: string | null): void {
       committedId = id;
       for (const slab of slabs) slab.el.classList.toggle('committed', slab.id === id);
+    },
+    setDimSpan(first: number, last: number | null): void {
+      dimSpan = last === null || last < first ? null : { first, last };
+      position = dimSpan !== null ? clamp(position, dimSpan.first, dimSpan.last) : clamp(position, 0, maxIndex());
+      derive();
+    },
+    step(dir: 1 | -1): void {
+      this.glideTo(Math.round(this.scrollPosition()) + dir);
     },
     entryRect(id: string): DOMRect | null {
       const slab = slabs.find((s) => s.id === id);

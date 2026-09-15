@@ -291,7 +291,7 @@ const currentRegion = (): ShelfRegion => ({
 
 const applyVisibility = (): void => {
   active = browserVisible && !artistRiverOpen;
-  shelf?.setVisible(active);
+  shelf?.setVisible(browserVisible || artistRiverOpen);
   document.body.classList.toggle('shelf-active', active);
   if (!active) {
     uiTheme.popSelection();
@@ -313,6 +313,22 @@ export const shelfSurface = {
   },
 };
 
+let pendingGesture: { name: string; art: string | null; idx: number } | null = null;
+
+const gestMark = (s: string): void => {
+  const w = window as unknown as { __gestDebug?: string };
+  w.__gestDebug = (w.__gestDebug ?? '') + s;
+};
+
+const enterArtist = (entry: ShelfEntry, idx: number): void => {
+  gestMark('E');
+  highlight(idx);
+  artistRiverSurface.prebuild(entry.name, entry.art);
+  shelf?.beginTransit(idx, () => {
+    artistRiverSurface.open(entry.name, entry.art);
+  });
+};
+
 export function initShelfSurface(): void {
   if (shelf !== null) return;
   shelf = createShelf();
@@ -325,15 +341,64 @@ export function initShelfSurface(): void {
     if (idx === shelf?.centerIndex()) {
       if (lens !== 'artists') return;
       if (litLetters.size > 0 && !litLetters.has(letterOf(entry.name))) return;
-      artistRiverSurface.open(entry.name);
+      if (shelf?.isBusy() === true) return;
+      enterArtist(entry, idx);
       return;
     }
     if (litLetters.size > 0 && !litLetters.has(letterOf(entry.name))) return;
     highlight(idx);
     shelf?.glideTo(idx);
   });
+  shelf.onVoidTap((taps) => {
+    gestMark(String(taps));
+    if (!active) {
+      gestMark('i');
+      return;
+    }
+    if (taps < 2) {
+      pendingGesture = null;
+      return;
+    }
+    if (shelf?.isBusy() === true) return;
+    const cur = player.currentTrack;
+    if (cur === null) return;
+    const name = primaryOf(cur);
+    if (name === null) return;
+    const idx = artistEntries.findIndex((e) => e.name === name);
+    if (idx < 0) return;
+    const entry = artistEntries[idx];
+    if (entry === undefined) return;
+    if (taps === 2) {
+      pendingGesture = null;
+      if (idx === shelf?.centerIndex()) {
+        highlight(idx);
+        return;
+      }
+      highlight(idx);
+      shelf?.glideTo(idx);
+      return;
+    }
+    if (idx === shelf?.centerIndex()) {
+      enterArtist(entry, idx);
+      return;
+    }
+    pendingGesture = { name: entry.name, art: entry.art, idx };
+    highlight(idx);
+    shelf?.glideTo(idx);
+  });
   shelf.onSettle((index) => {
     if (!active) return;
+    const pending = pendingGesture;
+    if (pending !== null) {
+      pendingGesture = null;
+      if (index === pending.idx && lens === 'artists') {
+        const entry = currentEntries()[index];
+        if (entry !== undefined) {
+          enterArtist(entry, index);
+          return;
+        }
+      }
+    }
     highlight(index);
   });
   shelf.mount(currentRegion(), window.devicePixelRatio || 1);
@@ -380,7 +445,11 @@ export function initShelfSurface(): void {
     artistRiverOpen = false;
     applyVisibility();
     const idx = artistEntries.findIndex((e) => e.name === artist);
-    if (idx >= 0) shelf?.glideTo(idx);
+    if (idx >= 0) {
+      shelf?.beginReturn(idx, () => {
+        shelf?.glideTo(idx);
+      });
+    }
   });
 
   (window as unknown as { __shelf?: unknown }).__shelf = {

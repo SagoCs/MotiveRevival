@@ -19,9 +19,71 @@ body.song-river-active #carousel-content {
   z-index: 26;
 }
 
+#artist-river.pre {
+  opacity: 0.001;
+  pointer-events: none;
+}
+
+#artist-river.pre,
+#artist-river.pre .rv2-card,
+#artist-river.pre .rv2-void {
+  pointer-events: none;
+}
+
+#artist-river.sinking .rv2-card {
+  opacity: 0 !important;
+  transition: opacity 220ms var(--ease-drift);
+}
+
+#artist-river-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 420ms var(--ease-drift),
+    visibility 0s linear 420ms;
+}
+
+#artist-river-veil.on {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 560ms var(--ease-drift);
+}
+
+#artist-river-veil .arv-zoom {
+  position: absolute;
+  inset: 0;
+  transform: scale(1.05);
+  transition: transform 360ms var(--ease-drift);
+}
+
+#artist-river-veil.on .arv-zoom {
+  transform: scale(1.14);
+}
+
+#artist-river-veil .arv-zoom img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: blur(46px) saturate(1.08);
+  transform: scale(1.15);
+}
+
+#artist-river-veil .arv-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(5, 7, 14, 0.42), rgba(5, 7, 14, 0.66));
+}
+
 .rv2-world {
   position: absolute;
   inset: 0;
+  pointer-events: none;
 }
 
 .rv2-void {

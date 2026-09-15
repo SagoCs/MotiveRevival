@@ -17,11 +17,13 @@
 #shelf .shelf-void {
   position: absolute;
   inset: 0;
+  pointer-events: auto;
 }
 
 #shelf .shelf-world {
   position: absolute;
   inset: 0;
+  pointer-events: none;
   -webkit-mask-image: linear-gradient(
     90deg,
     transparent 0,
@@ -118,7 +120,8 @@
   align-items: center;
   text-align: center;
   pointer-events: none;
-  will-change: transform;
+  will-change: transform, opacity;
+  transition: opacity 120ms linear;
 }
 
 .shelf-name {

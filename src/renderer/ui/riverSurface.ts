@@ -25,6 +25,9 @@ export const riverSurface = {
     browserVisible = next;
     applyVisibility();
   },
+  step(dir: 1 | -1): void {
+    river?.step(dir);
+  },
 };
 
 const entriesFrom = (tracks: IndexedTrack[]): RiverV2Entry[] =>
