@@ -311,6 +311,17 @@ export const shelfSurface = {
     clearLit();
     return true;
   },
+  step(dir: 1 | -1): void {
+    if (!active || shelf?.isBusy() === true) return;
+    const n = artistEntries.length;
+    if (n === 0) return;
+    const idx = shelf?.centerIndex() ?? 0;
+    const next = (((idx + dir) % n) + n) % n;
+    const entry = artistEntries[next];
+    if (entry === undefined) return;
+    highlight(next);
+    shelf?.glideTo(next);
+  },
 };
 
 let pendingGesture: { name: string; art: string | null; idx: number } | null = null;

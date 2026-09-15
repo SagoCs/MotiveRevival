@@ -448,6 +448,11 @@ function wireGlobalKeys(): void {
           e.preventDefault();
           return;
         }
+        if (state.mode === 'shelf' && !artistRiverSurface.isOpen()) {
+          shelfSurface.step(e.key === 'ArrowRight' ? 1 : -1);
+          e.preventDefault();
+          return;
+        }
       }
     }
 

@@ -249,6 +249,16 @@ const afterEsc = await evalJs(`({ selected: window.__shelf.selected(), acc: getC
 console.log(`escape keeps center-focus: selected=${afterEsc.selected}`);
 if (afterEsc.selected === null) failures.push('escape cleared the center focus (center-focus grammar)');
 
+const centerBefore = await evalJs(`window.__shelf.center()`);
+const shelfCount = (await evalJs('window.__shelf.names()')).length;
+await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'ArrowRight', code: 'ArrowRight', windowsVirtualKeyCode: 39 });
+await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'ArrowRight', code: 'ArrowRight', windowsVirtualKeyCode: 39 });
+await sleep(1500);
+const centerAfter = await evalJs(`window.__shelf.center()`);
+const expectedCenter = (centerBefore + 1) % shelfCount;
+console.log(`arrow right: center ${centerBefore} -> ${centerAfter} (expected ${expectedCenter} of ${shelfCount})`);
+if (centerAfter !== expectedCenter) failures.push(`arrow right did not step one artist (${centerBefore} -> ${centerAfter})`);
+
 const samplerPromise = evalJs(`(async () => {
   const frames = [];
   const t0 = performance.now();
