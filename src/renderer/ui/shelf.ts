@@ -211,10 +211,6 @@ export function createShelf(): ShelfHandle {
     }
     const remap = fadeRange / effFade;
     const squash = effFade / fadeRange;
-    const capZoomOp = t.phase === 'open' ? clamp(1 - pZoom * 4, 0, 1) : clamp((0.7 - pZoom) * 3.3, 0, 1);
-    const capZoom = capZoomOp.toFixed(3);
-    const capSlideOp = t.phase === 'open' ? clamp(1 - pSlide * 2.5, 0, 1) : clamp((0.75 - pSlide) * 4, 0, 1);
-    const capSlide = capSlideOp.toFixed(3);
     for (const card of cards) {
       if (card.index === t.index) {
         const baseScale = 1 + lensAmt;
@@ -225,8 +221,8 @@ export function createShelf(): ShelfHandle {
         card.el.style.opacity = '1';
         card.el.style.zIndex = '999';
         card.el.style.visibility = 'visible';
-        card.captionEl.style.opacity = capZoom;
-        card.ledgerEl.style.opacity = capZoom;
+        card.captionEl.style.opacity = '0';
+        card.ledgerEl.style.opacity = '0';
         card.lastX = 0;
         card.lastScale = scale;
         card.lastTilt = 0;
@@ -252,7 +248,8 @@ export function createShelf(): ShelfHandle {
       card.el.style.opacity = opacity.toFixed(3);
       card.el.style.zIndex = '1';
       card.el.style.visibility = opacity <= 0 ? 'hidden' : 'visible';
-      card.captionEl.style.opacity = capSlide;
+      card.captionEl.style.opacity = '0';
+      card.ledgerEl.style.opacity = '0';
       card.lastX = x;
       card.lastScale = scale;
       card.lastTilt = trueTilt;
@@ -716,8 +713,13 @@ export function createShelf(): ShelfHandle {
         onZoomDone();
         return;
       }
+      gliding = false;
+      velocity = 0;
+      resting = true;
+      position = index;
       const now = performance.now();
       transit = { index, phase: 'open', zoomStart: now, zoomDur: TRANSIT_ZOOM_MS, slideStart: now, slideDur: TRANSIT_SLIDE_OUT_MS, doneCb: onZoomDone };
+      renderTransit();
       const run = (): void => {
         if (transit === null) return;
         renderTransit();
@@ -738,8 +740,13 @@ export function createShelf(): ShelfHandle {
         onDone();
         return;
       }
+      gliding = false;
+      velocity = 0;
+      resting = true;
+      position = index;
       const now = performance.now();
       transit = { index, phase: 'close', zoomStart: now + TRANSIT_RETURN_DELAY, zoomDur: TRANSIT_ZOOM_BACK_MS, slideStart: now + TRANSIT_RETURN_DELAY, slideDur: TRANSIT_SLIDE_HOME_MS, doneCb: onDone };
+      renderTransit();
       const run = (): void => {
         if (transit === null) return;
         renderTransit();

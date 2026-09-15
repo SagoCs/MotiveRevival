@@ -104,14 +104,14 @@ check('v2 river live on Songs', await evalJs(`document.getElementById('river-v2'
 await evalJs(`document.querySelectorAll('[data-probe-pick]').forEach((c) => { delete c.dataset.probePick; })`);
 
 const qState = await evalJs(`(() => { const s = window.__songActions.queueSnapshot(); return { up: s.upcoming.length, total: s.ids.length, lib: window.__songActions.libraryTracks().length }; })()`);
-if (qState.up < 3) {
+if (qState.up < 4) {
   await evalJs(`(() => {
     const A = window.__songActions;
     const tracks = A.libraryTracks();
     const base = Math.floor(tracks.length / 2);
-    A.queueNext(tracks[base]);
-    A.queueNext(tracks[base + 1]);
-    A.queueNext(tracks[base + 2]);
+    for (let i = 0; i < 8 && A.queueSnapshot().upcoming.length < 4; i++) {
+      A.queueNext(tracks[base + i]);
+    }
   })()`);
   await sleep(300);
 }
