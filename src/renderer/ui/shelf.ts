@@ -32,7 +32,7 @@ export interface ShelfHandle {
   setVisible(visible: boolean): void;
   setSelected(id: string | null, colors?: { ledger: string; ring: string; glow: string }): void;
   setLitIds(ids: string[] | null): void;
-  beginTransit(index: number, onDone: () => void): void;
+  beginTransit(index: number): void;
   beginReturn(index: number, onDone: () => void): void;
   cancelTransit(): void;
   isBusy(): boolean;
@@ -65,19 +65,18 @@ interface Card {
 interface Transit {
   index: number;
   phase: 'open' | 'hold' | 'close';
-  zoomStart: number;
-  zoomDur: number;
+  fadeStart: number;
+  fadeDur: number;
   slideStart: number;
   slideDur: number;
-  doneCb: (() => void) | null;
 }
 
-const TRANSIT_ZOOM_MS = 360;
-const TRANSIT_SLIDE_OUT_MS = 580;
-const TRANSIT_ZOOM_BACK_MS = 380;
+const TRANSIT_FADE_OUT_MS = 280;
+const TRANSIT_SLIDE_OUT_MS = 520;
+const TRANSIT_FADE_IN_MS = 280;
 const TRANSIT_SLIDE_HOME_MS = 560;
 const TRANSIT_RETURN_DELAY = 60;
-const TRANSIT_ZOOM_MAX = 1.8;
+const TRANSIT_RETURN_BEAT_MS = 420;
 
 const DEFAULT_VISIBLE_COUNT = 7;
 const DEFAULT_DEPTH = 0.9;
@@ -188,20 +187,20 @@ export function createShelf(): ShelfHandle {
     if (world === null || transit === null) return;
     const t = transit;
     const now = performance.now();
-    let pZoom: number;
+    let pFade: number;
     let pSlide: number;
     if (t.phase === 'hold') {
-      pZoom = 1;
+      pFade = 1;
       pSlide = 1;
     } else {
-      const zoomRaw = clamp((now - t.zoomStart) / t.zoomDur, 0, 1);
+      const fadeRaw = clamp((now - t.fadeStart) / t.fadeDur, 0, 1);
       const slideRaw = clamp((now - t.slideStart) / t.slideDur, 0, 1);
-      const zoomEased = 1 - Math.pow(1 - zoomRaw, 3);
+      const fadeEased = 1 - Math.pow(1 - fadeRaw, 3);
       const slideEased = 1 - Math.pow(1 - slideRaw, 3);
-      pZoom = t.phase === 'open' ? zoomEased : 1 - zoomEased;
+      pFade = t.phase === 'open' ? fadeEased : 1 - fadeEased;
       pSlide = t.phase === 'open' ? slideEased : 1 - slideEased;
     }
-    const zoom = Math.min(TRANSIT_ZOOM_MAX, (Math.hypot(region.width, region.height) / Math.max(1, cardSize)) * 1.06);
+    const restArt = `translate3d(0, 0, 0) rotateY(0deg) scale(${(1 + lensAmt).toFixed(4)})`;
     const anchor = anchorOf();
     const count = cards.length;
     let effFade = fadeRange;
@@ -213,20 +212,18 @@ export function createShelf(): ShelfHandle {
     const squash = effFade / fadeRange;
     for (const card of cards) {
       if (card.index === t.index) {
-        const baseScale = 1 + lensAmt;
-        const scale = baseScale + (zoom - baseScale) * pZoom;
-        const art = `translate3d(0, 0, 0) rotateY(0deg) scale(${scale.toFixed(4)})`;
-        card.faceEl.style.transform = art;
-        card.bloomEl.style.transform = art;
-        card.el.style.opacity = '1';
+        const chosenOpacity = 1 - pFade;
+        card.faceEl.style.transform = restArt;
+        card.bloomEl.style.transform = restArt;
+        card.el.style.opacity = chosenOpacity.toFixed(4);
         card.el.style.zIndex = '999';
         card.el.style.visibility = 'visible';
         card.captionEl.style.opacity = '0';
         card.ledgerEl.style.opacity = '0';
         card.lastX = 0;
-        card.lastScale = scale;
+        card.lastScale = 1 + lensAmt;
         card.lastTilt = 0;
-        card.lastOpacity = 1;
+        card.lastOpacity = chosenOpacity;
         card.lastZ = 999;
         continue;
       }
@@ -708,27 +705,21 @@ export function createShelf(): ShelfHandle {
       litIds = ids !== null && ids.length > 0 ? new Set(ids) : null;
       applyLitClasses();
     },
-    beginTransit(index: number, onZoomDone: () => void): void {
-      if (cards.length === 0 || index < 0 || index >= cards.length) {
-        onZoomDone();
-        return;
-      }
+    beginTransit(index: number): void {
+      if (cards.length === 0 || index < 0 || index >= cards.length) return;
       gliding = false;
       velocity = 0;
       resting = true;
       position = index;
       const now = performance.now();
-      transit = { index, phase: 'open', zoomStart: now, zoomDur: TRANSIT_ZOOM_MS, slideStart: now, slideDur: TRANSIT_SLIDE_OUT_MS, doneCb: onZoomDone };
+      transit = { index, phase: 'open', fadeStart: now + TRANSIT_SLIDE_OUT_MS, fadeDur: TRANSIT_FADE_OUT_MS, slideStart: now, slideDur: TRANSIT_SLIDE_OUT_MS };
       renderTransit();
       const run = (): void => {
         if (transit === null) return;
         renderTransit();
-        const zoomRaw = clamp((performance.now() - transit.zoomStart) / transit.zoomDur, 0, 1);
-        if (zoomRaw >= 1) {
+        const now = performance.now();
+        if (now >= transit.fadeStart + transit.fadeDur && now >= transit.slideStart + transit.slideDur) {
           transit.phase = 'hold';
-          const done = transit.doneCb;
-          transit.doneCb = null;
-          done?.();
         } else {
           requestAnimationFrame(run);
         }
@@ -745,13 +736,13 @@ export function createShelf(): ShelfHandle {
       resting = true;
       position = index;
       const now = performance.now();
-      transit = { index, phase: 'close', zoomStart: now + TRANSIT_RETURN_DELAY, zoomDur: TRANSIT_ZOOM_BACK_MS, slideStart: now + TRANSIT_RETURN_DELAY, slideDur: TRANSIT_SLIDE_HOME_MS, doneCb: onDone };
+      transit = { index, phase: 'close', fadeStart: now + TRANSIT_RETURN_DELAY, fadeDur: TRANSIT_FADE_IN_MS, slideStart: now + TRANSIT_RETURN_BEAT_MS, slideDur: TRANSIT_SLIDE_HOME_MS };
       renderTransit();
       const run = (): void => {
         if (transit === null) return;
         renderTransit();
         const now = performance.now();
-        if (now >= transit.zoomStart + transit.zoomDur && now >= transit.slideStart + transit.slideDur) {
+        if (now >= transit.fadeStart + transit.fadeDur && now >= transit.slideStart + transit.slideDur) {
           transit = null;
           clearTransitStyles();
           layout();

@@ -246,3 +246,14 @@
   color: var(--moon-bright);
   text-shadow: 0 0 14px var(--acc-glow);
 }
+
+#shelf-ruler,
+#shelf-lens {
+  transition: opacity 300ms var(--ease-drift);
+}
+
+#shelf.instruments-off #shelf-ruler,
+#shelf.instruments-off #shelf-lens {
+  opacity: 0;
+  pointer-events: none;
+}

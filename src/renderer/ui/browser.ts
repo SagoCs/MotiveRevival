@@ -740,7 +740,7 @@ function oracleAlbumRow(album: AlbumEntry): HTMLElement {
   row.append(meta);
   row.addEventListener('click', () => {
     closeOracle();
-    if (artistRiverSurface.openDim(album.artist, album.artFile, album.name)) return;
+    if (artistRiverSurface.openDim(album.artist, album.name)) return;
     openAlbum(album);
   });
   return row;

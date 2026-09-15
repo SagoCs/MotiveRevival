@@ -17,7 +17,7 @@ const TRANSIT_RETURN_DELAY = 60;
 const TRANSIT_RETURN_TOTAL = SINK_MS + TRANSIT_RETURN_DELAY + 400;
 
 let river: ReturnType<typeof createRiverV2> | null = null;
-let veil: HTMLDivElement | null = null;
+let floor: HTMLDivElement | null = null;
 let opened = false;
 let closing = false;
 let dimAlbum: string | null = null;
@@ -102,36 +102,12 @@ const clearDim = (): void => {
   river?.setDimSpan(0, null);
 };
 
-const ensureVeil = (faceUrl: string | null): HTMLDivElement => {
-  if (veil !== null) {
-    const img = veil.querySelector('img');
-    if (faceUrl !== null) {
-      if (img === null) {
-        const next = document.createElement('img');
-        next.alt = '';
-        next.decoding = 'async';
-        veil.querySelector('.arv-zoom')?.append(next);
-      }
-      if (img !== null && img.getAttribute('src') !== faceUrl) img.setAttribute('src', faceUrl);
-    } else if (img !== null) img.remove();
-    return veil;
-  }
+const ensureFloor = (): HTMLDivElement => {
+  if (floor !== null) return floor;
   const node = document.createElement('div');
-  node.id = 'artist-river-veil';
-  const zoom = document.createElement('div');
-  zoom.className = 'arv-zoom';
-  if (faceUrl !== null) {
-    const img = document.createElement('img');
-    img.src = faceUrl;
-    img.alt = '';
-    img.decoding = 'async';
-    zoom.append(img);
-  }
-  const scrim = document.createElement('div');
-  scrim.className = 'arv-scrim';
-  node.append(zoom, scrim);
+  node.id = 'artist-river-floor';
   document.body.append(node);
-  veil = node;
+  floor = node;
   return node;
 };
 
@@ -148,11 +124,8 @@ const clampScroll = (): number => {
 };
 
 export const artistRiverSurface = {
-  prebuild(name: string, faceUrl: string | null): boolean {
-    if (artistName === name && feed.length > 0) {
-      ensureVeil(faceUrl).classList.add('on');
-      return true;
-    }
+  prebuild(name: string): boolean {
+    if (artistName === name && feed.length > 0) return true;
     const tracks = buildFeed(name);
     if (tracks.length === 0) return false;
     artistName = name;
@@ -162,18 +135,12 @@ export const artistRiverSurface = {
     const playing = playingFeedIndex();
     river?.scrollTo(playing >= 0 ? playing : 0);
     syncCommitted();
-    ensureVeil(faceUrl).classList.add('on');
     river?.setVisible(true);
     document.getElementById('artist-river')?.classList.add('pre');
     return true;
   },
-  warmVeil(faceUrl: string | null): void {
-    const node = ensureVeil(faceUrl);
-    const img = node.querySelector('img');
-    if (img !== null && typeof img.decode === 'function') void img.decode().catch(() => undefined);
-    node.classList.add('on');
-  },
-  open(name: string, faceUrl: string | null = null, dimToAlbum: string | null = null): boolean {
+  open(name: string, dimToAlbum: string | null = null): boolean {
+    const fresh = !opened || artistName !== name;
     if (artistName !== name || feed.length === 0) {
       const tracks = buildFeed(name);
       if (tracks.length === 0) return false;
@@ -187,15 +154,20 @@ export const artistRiverSurface = {
     syncCommitted();
     opened = true;
     closing = false;
+    const el = document.getElementById('artist-river');
     river?.setVisible(true);
-    document.getElementById('artist-river')?.classList.remove('pre');
-    ensureVeil(faceUrl).classList.add('on');
+    if (fresh && el !== null) {
+      el.classList.add('pre');
+      void el.offsetWidth;
+      el.classList.remove('pre');
+      ensureFloor().classList.add('on');
+    }
     if (dimToAlbum !== null) applyDim(dimToAlbum);
     appBus.emit('artist-river-opened', { artist: name });
     return true;
   },
-  openDim(name: string, faceUrl: string | null, album: string): boolean {
-    return this.open(name, faceUrl, album);
+  openDim(name: string, album: string): boolean {
+    return this.open(name, album);
   },
   removeDim(): boolean {
     if (dimAlbum === null) return false;
@@ -240,10 +212,8 @@ export const artistRiverSurface = {
     closeCalls += 1;
     if (!opened || closing) return false;
     closing = true;
+    floor?.classList.remove('on');
     document.getElementById('artist-river')?.classList.add('sinking');
-    window.setTimeout(() => {
-      veil?.classList.remove('on');
-    }, SINK_MS + TRANSIT_RETURN_DELAY);
     window.setTimeout(() => {
       river?.setVisible(false);
       document.getElementById('artist-river')?.classList.remove('sinking');
@@ -314,13 +284,13 @@ export function initArtistRiverSurface(): void {
   });
 
   (window as unknown as { __artistRiver?: unknown }).__artistRiver = {
-    open: (name: string, faceUrl: string | null) => artistRiverSurface.open(name, faceUrl ?? null),
+    open: (name: string) => artistRiverSurface.open(name),
     close: () => artistRiverSurface.close(),
     isOpen: () => opened,
     closing: () => closing,
     closeCalls: () => closeCalls,
     dimAlbum: () => dimAlbum,
-    openDim: (name: string, faceUrl: string | null, album: string) => artistRiverSurface.openDim(name, faceUrl, album),
+    openDim: (name: string, album: string) => artistRiverSurface.openDim(name, album),
     removeDim: () => artistRiverSurface.removeDim(),
     arrowStep: (dir: 1 | -1) => river?.step(dir),
     albumStep: (dir: 1 | -1) => artistRiverSurface.albumStep(dir),

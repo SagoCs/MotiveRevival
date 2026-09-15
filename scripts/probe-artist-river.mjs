@@ -59,31 +59,65 @@ if (rect === null) {
 await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: rect.x, y: rect.y, button: 'left', clickCount: 1 });
 await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: rect.x, y: rect.y, button: 'left', clickCount: 1 });
 await sleep(180);
-const midTransit = await evalJs(`(() => {
+const beatOne = await evalJs(`(() => {
   const id = window.__shelf.selected();
-  const cards = window.__shelf.cards();
-  const chosen = cards.find((c) => c.id === id);
-  return { scale: chosen ? chosen.scale : null, hidden: cards.filter((c) => !c.visible).length };
+  const card = document.querySelector('.shelf-card[data-id="' + id + '"]');
+  const root = document.querySelector('#artist-river');
+  const floor = document.querySelector('#artist-river-floor');
+  const ruler = document.querySelector('#shelf-ruler');
+  return {
+    chosenOpacity: card === null ? null : parseFloat(card.style.opacity || '1'),
+    riverOpacity: root === null ? null : parseFloat(getComputedStyle(root).opacity),
+    floorOn: floor !== null && floor.classList.contains('on'),
+    rulerOpacity: ruler === null ? null : parseFloat(getComputedStyle(ruler).opacity),
+    veil: document.querySelector('#artist-river-veil') !== null,
+  };
 })()`);
-console.log(`mid-transit: chosen scale ${midTransit.scale === null ? 'n/a' : midTransit.scale.toFixed(2)}, cards off ${midTransit.hidden}`);
-if (midTransit.scale !== null && !(midTransit.scale > 1.3)) failures.push(`zoom did not start (scale ${midTransit.scale})`);
-await sleep(1100);
+console.log(`beat one: chosen ${beatOne.chosenOpacity === null ? 'n/a' : beatOne.chosenOpacity.toFixed(2)}, river ${beatOne.riverOpacity === null ? 'n/a' : beatOne.riverOpacity.toFixed(3)}, floor=${beatOne.floorOn}, ruler ${beatOne.rulerOpacity === null ? 'n/a' : beatOne.rulerOpacity.toFixed(2)}, veil=${beatOne.veil}`);
+if (beatOne.chosenOpacity === null || beatOne.chosenOpacity < 0.95) failures.push('chosen square did not stand through beat one');
+if (beatOne.rulerOpacity === null || beatOne.rulerOpacity < 0.5) failures.push('instruments did not stay lit through beat one');
+if (beatOne.floorOn) failures.push('floor rose before beat two');
+if (beatOne.veil) failures.push('veil still exists after the parting redesign');
+await sleep(440);
+const beatTwo = await evalJs(`(() => {
+  const id = window.__shelf.selected();
+  const card = document.querySelector('.shelf-card[data-id="' + id + '"]');
+  const root = document.querySelector('#artist-river');
+  const floor = document.querySelector('#artist-river-floor');
+  const ruler = document.querySelector('#shelf-ruler');
+  return {
+    chosenOpacity: card === null ? null : parseFloat(card.style.opacity || '1'),
+    riverOpacity: root === null ? null : parseFloat(getComputedStyle(root).opacity),
+    floorOn: floor !== null && floor.classList.contains('on'),
+    rulerOpacity: ruler === null ? null : parseFloat(getComputedStyle(ruler).opacity),
+  };
+})()`);
+console.log(`beat two: chosen ${beatTwo.chosenOpacity === null ? 'n/a' : beatTwo.chosenOpacity.toFixed(2)}, river ${beatTwo.riverOpacity === null ? 'n/a' : beatTwo.riverOpacity.toFixed(2)}, floor=${beatTwo.floorOn}, ruler ${beatTwo.rulerOpacity === null ? 'n/a' : beatTwo.rulerOpacity.toFixed(2)}`);
+if (beatTwo.chosenOpacity === null || !(beatTwo.chosenOpacity < beatOne.chosenOpacity - 0.15)) failures.push('chosen square did not fade in beat two');
+if (!beatTwo.floorOn) failures.push('floor did not rise with beat two');
+if (beatTwo.rulerOpacity === null || beatTwo.rulerOpacity > 0.9) failures.push('instruments did not fade with beat two');
+await sleep(900);
 
 const opened = await evalJs(`(() => {
   const root = document.querySelector('#artist-river');
-  const veil = document.querySelector('#artist-river-veil');
+  const floor = document.querySelector('#artist-river-floor');
+  const ruler = document.querySelector('#shelf-ruler');
   return {
     open: window.__artistRiver.isOpen(),
     dom: root !== null && root.classList.contains('on'),
+    riverOpacity: root === null ? null : parseFloat(getComputedStyle(root).opacity),
+    floorOn: floor !== null && floor.classList.contains('on') && getComputedStyle(floor).visibility === 'visible',
+    rulerOpacity: ruler === null ? null : parseFloat(getComputedStyle(ruler).opacity),
     shelfHidden: !window.__shelf.visible(),
     artist: window.__artistRiver.artist(),
-    veilOn: veil !== null && veil.classList.contains('on'),
   };
 })()`);
-console.log(`open: river=${opened.open} dom=${opened.dom} shelfHidden=${opened.shelfHidden} artist="${opened.artist}" veil=${opened.veilOn}`);
+console.log(`open: river=${opened.open} dom=${opened.dom} opacity=${opened.riverOpacity === null ? 'n/a' : opened.riverOpacity.toFixed(2)} floor=${opened.floorOn} ruler=${opened.rulerOpacity === null ? 'n/a' : opened.rulerOpacity.toFixed(2)} shelfHidden=${opened.shelfHidden} artist="${opened.artist}"`);
 if (!opened.open || !opened.dom) failures.push('artist river did not open from center-click');
+if (opened.riverOpacity === null || Math.abs(opened.riverOpacity - 1) > 0.01) failures.push(`river did not finish fading in (opacity ${opened.riverOpacity})`);
+if (!opened.floorOn) failures.push('void floor missing at rest');
+if (opened.rulerOpacity === null || opened.rulerOpacity > 0.05) failures.push('instruments still visible at rest');
 if (!opened.shelfHidden) failures.push('shelf did not hide under the artist river');
-if (!opened.veilOn) failures.push('veil missing at open');
 
 const feed = await evalJs(`(() => {
   const snap = window.__songActions.queueSnapshot();
@@ -200,12 +234,19 @@ await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Esca
 await sleep(1500);
 const afterEsc = await evalJs(`(() => {
   const names = window.__shelf.names();
-  return { open: window.__artistRiver.isOpen(), shelfVisible: window.__shelf.visible(), centerName: names[window.__shelf.center()], leftArtist: ${JSON.stringify(opened.artist)}, closeCalls: window.__artistRiver.closeCalls(), closing: window.__artistRiver.closing() };
+  const center = names[window.__shelf.center()];
+  const backCard = document.querySelector('.shelf-card[data-id="' + center + '"]');
+  const floor = document.querySelector('#artist-river-floor');
+  const ruler = document.querySelector('#shelf-ruler');
+  return { open: window.__artistRiver.isOpen(), shelfVisible: window.__shelf.visible(), centerName: center, leftArtist: ${JSON.stringify(opened.artist)}, closeCalls: window.__artistRiver.closeCalls(), closing: window.__artistRiver.closing(), floorOn: floor !== null && floor.classList.contains('on'), backOpacity: backCard === null ? null : parseFloat(backCard.style.opacity || '1'), rulerOpacity: ruler === null ? null : parseFloat(getComputedStyle(ruler).opacity) };
 })()`);
-console.log(`escape: closed=${!afterEsc.open}, shelf=${afterEsc.shelfVisible}, center="${afterEsc.centerName}" (came from "${afterEsc.leftArtist}") closeCalls=${afterEsc.closeCalls} closing=${afterEsc.closing}`);
+console.log(`escape: closed=${!afterEsc.open}, shelf=${afterEsc.shelfVisible}, center="${afterEsc.centerName}" (came from "${afterEsc.leftArtist}") closeCalls=${afterEsc.closeCalls} closing=${afterEsc.closing} floor=${afterEsc.floorOn} squareOpacity=${afterEsc.backOpacity === null ? 'n/a' : afterEsc.backOpacity.toFixed(2)} ruler=${afterEsc.rulerOpacity === null ? 'n/a' : afterEsc.rulerOpacity.toFixed(2)}`);
 if (afterEsc.open) failures.push('escape did not close the artist river');
 if (!afterEsc.shelfVisible) failures.push('shelf did not return after escape');
 if (afterEsc.centerName !== afterEsc.leftArtist) failures.push(`shelf did not re-center on the artist just left (center ${afterEsc.centerName})`);
+if (afterEsc.floorOn) failures.push('void floor did not clear after escape');
+if (afterEsc.backOpacity === null || Math.abs(afterEsc.backOpacity - 1) > 0.01) failures.push('artist square did not fade back in');
+if (afterEsc.rulerOpacity === null || afterEsc.rulerOpacity < 0.95) failures.push('instruments did not return after escape');
 
 const artistNames = await evalJs('window.__shelf.names()');
 let worst = { artist: null, albums: 0 };
@@ -271,7 +312,7 @@ const dimTarget = dimAlbums[1] ?? dimAlbums[0];
 const dimFirst = dimAlbums.indexOf(dimTarget);
 await evalJs(`window.__artistRiver.close()`);
 await sleep(500);
-await evalJs(`window.__artistRiver.openDim(${JSON.stringify(dimArtist)}, null, ${JSON.stringify(dimTarget)})`);
+await evalJs(`window.__artistRiver.openDim(${JSON.stringify(dimArtist)}, ${JSON.stringify(dimTarget)})`);
 await sleep(700);
 const dimState = await evalJs(`(() => {
   const snap = window.__songActions.queueSnapshot();

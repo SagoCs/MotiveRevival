@@ -332,7 +332,10 @@ export const shelfSurface = {
   },
 };
 
-let pendingGesture: { name: string; art: string | null; idx: number } | null = null;
+const ENTRANCE_HANDOVER_MS = 520;
+
+let pendingGesture: { name: string; idx: number } | null = null;
+let shelfRoot: HTMLElement | null = null;
 
 const gestMark = (s: string): void => {
   const w = window as unknown as { __gestDebug?: string };
@@ -342,10 +345,12 @@ const gestMark = (s: string): void => {
 const enterArtist = (entry: ShelfEntry, idx: number): void => {
   gestMark('E');
   highlight(idx);
-  artistRiverSurface.prebuild(entry.name, entry.art);
-  shelf?.beginTransit(idx, () => {
-    artistRiverSurface.open(entry.name, entry.art);
-  });
+  artistRiverSurface.prebuild(entry.name);
+  shelf?.beginTransit(idx);
+  window.setTimeout(() => {
+    shelfRoot?.classList.add('instruments-off');
+    artistRiverSurface.open(entry.name);
+  }, ENTRANCE_HANDOVER_MS);
 };
 
 export function initShelfSurface(): void {
@@ -401,7 +406,7 @@ export function initShelfSurface(): void {
       enterArtist(entry, idx);
       return;
     }
-    pendingGesture = { name: entry.name, art: entry.art, idx };
+    pendingGesture = { name: entry.name, idx };
     highlight(idx);
     shelf?.glideTo(idx, 1.9);
   });
@@ -422,6 +427,7 @@ export function initShelfSurface(): void {
   });
   shelf.mount(currentRegion(), window.devicePixelRatio || 1);
   const rootEl = document.getElementById('shelf');
+  shelfRoot = rootEl;
   if (rootEl !== null) {
     buildLetterRuler(rootEl);
     buildLensSwitcher(rootEl);
@@ -463,6 +469,7 @@ export function initShelfSurface(): void {
   appBus.on('artist-river-closed', ({ artist }) => {
     artistRiverOpen = false;
     applyVisibility();
+    shelfRoot?.classList.remove('instruments-off');
     const idx = artistEntries.findIndex((e) => e.name === artist);
     if (idx >= 0) {
       shelf?.beginReturn(idx, () => {
