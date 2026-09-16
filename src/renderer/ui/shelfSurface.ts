@@ -349,7 +349,7 @@ export const shelfSurface = {
     if (entry === undefined) return false;
     pendingFocus = focus ?? null;
     highlight(idx);
-    shelf?.glideTo(idx, 1.9);
+    shelf?.glideTo(idx, 1.9, 500);
     pendingGesture = { name: entry.name, idx };
     return true;
   },
@@ -435,7 +435,7 @@ export function initShelfSurface(): void {
         return;
       }
       highlight(idx);
-      shelf?.glideTo(idx, 1.9);
+      shelf?.glideTo(idx, 1.9, 500);
       return;
     }
     if (idx === shelf?.centerIndex()) {
@@ -444,7 +444,7 @@ export function initShelfSurface(): void {
     }
     pendingGesture = { name: entry.name, idx };
     highlight(idx);
-    shelf?.glideTo(idx, 1.9);
+    shelf?.glideTo(idx, 1.9, 500);
   });
   shelf.onSettle((index) => {
     if (!active) return;

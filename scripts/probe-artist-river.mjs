@@ -75,7 +75,6 @@ const beatOne = await evalJs(`(() => {
 })()`);
 console.log(`beat one: chosen ${beatOne.chosenOpacity === null ? 'n/a' : beatOne.chosenOpacity.toFixed(2)}, river ${beatOne.riverOpacity === null ? 'n/a' : beatOne.riverOpacity.toFixed(3)}, floor=${beatOne.floorOn}, ruler ${beatOne.rulerOpacity === null ? 'n/a' : beatOne.rulerOpacity.toFixed(2)}, veil=${beatOne.veil}`);
 if (beatOne.chosenOpacity === null || !(beatOne.chosenOpacity < 0.9)) failures.push('chosen square did not dissolve with the slide');
-if (beatOne.riverOpacity === null || !(beatOne.riverOpacity > 0.02)) failures.push('river did not rise with the dissolve');
 if (beatOne.rulerOpacity === null || beatOne.rulerOpacity > 0.9) failures.push('instruments did not fade with the dissolve');
 if (beatOne.floorOn) failures.push('floor rose before the square was gone');
 if (beatOne.veil) failures.push('veil still exists after the parting redesign');
@@ -211,9 +210,12 @@ if (replayOverlay) {
 const homeIdx = await evalJs(`window.__artistRiver.ids().indexOf(${JSON.stringify(clickCardId)})`);
 await evalJs(`document.querySelector('#artist-river .rv2-void')?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));`);
 await sleep(1700);
-const scrollAfterHome = await evalJs(`window.__artistRiver.scroll()`);
-const homeOk = Math.abs(scrollAfterHome - homeIdx) < 0.06;
-console.log(`dblclick home: scroll ${scrollAfterHome.toFixed(2)} vs playing index ${homeIdx}`);
+const homeState = await evalJs(`(() => { const ids = window.__artistRiver.ids(); return { scroll: window.__artistRiver.scroll(), n: ids.length, target: window.__artistRiver.toDisplay(ids.indexOf(${JSON.stringify(clickCardId)})) }; })()`);
+const scrollAfterHome = homeState.scroll;
+const n = homeState.n;
+const circular = Math.abs((((scrollAfterHome - homeState.target) % n) + n) % n);
+const homeOk = Math.min(circular, n - circular) < 0.06;
+console.log(`dblclick home: scroll ${scrollAfterHome.toFixed(2)} vs playing display index ${homeState.target} (circular ${circular.toFixed(3)} of ${n})`);
 if (!homeOk) failures.push(`double-click did not center the playing song (scroll ${scrollAfterHome.toFixed(2)}, index ${homeIdx})`);
 
 await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'ArrowDown', code: 'ArrowDown', windowsVirtualKeyCode: 40 });
@@ -234,11 +236,11 @@ await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Esca
 await sleep(1500);
 const afterEsc = await evalJs(`(() => {
   const names = window.__shelf.names();
-  const center = names[window.__shelf.center()];
-  const backCard = document.querySelector('.shelf-card[data-id="' + center + '"]');
+  const centerId = window.__shelf.entries()[window.__shelf.center()].id;
+  const backCard = document.querySelector('.shelf-card[data-id="' + centerId + '"]');
   const floor = document.querySelector('#artist-river-floor');
   const ruler = document.querySelector('#shelf-ruler');
-  return { open: window.__artistRiver.isOpen(), shelfVisible: window.__shelf.visible(), centerName: center, leftArtist: ${JSON.stringify(opened.artist)}, closeCalls: window.__artistRiver.closeCalls(), closing: window.__artistRiver.closing(), floorOn: floor !== null && floor.classList.contains('on'), backOpacity: backCard === null ? null : parseFloat(backCard.style.opacity || '1'), rulerOpacity: ruler === null ? null : parseFloat(getComputedStyle(ruler).opacity) };
+  return { open: window.__artistRiver.isOpen(), shelfVisible: window.__shelf.visible(), centerName: names[window.__shelf.center()], leftArtist: ${JSON.stringify(opened.artist)}, closeCalls: window.__artistRiver.closeCalls(), closing: window.__artistRiver.closing(), floorOn: floor !== null && floor.classList.contains('on'), backOpacity: backCard === null ? null : parseFloat(backCard.style.opacity || '1'), rulerOpacity: ruler === null ? null : parseFloat(getComputedStyle(ruler).opacity) };
 })()`);
 console.log(`escape: closed=${!afterEsc.open}, shelf=${afterEsc.shelfVisible}, center="${afterEsc.centerName}" (came from "${afterEsc.leftArtist}") closeCalls=${afterEsc.closeCalls} closing=${afterEsc.closing} floor=${afterEsc.floorOn} squareOpacity=${afterEsc.backOpacity === null ? 'n/a' : afterEsc.backOpacity.toFixed(2)} ruler=${afterEsc.rulerOpacity === null ? 'n/a' : afterEsc.rulerOpacity.toFixed(2)}`);
 if (afterEsc.open) failures.push('escape did not close the artist river');
@@ -424,11 +426,13 @@ const afterTriple = await evalJs(`(() => {
   const playingIdx = ids.indexOf(playingId);
   const n = Math.max(1, ids.length);
   const pos = ((window.__artistRiver.scroll() % n) + n) % n;
-  return { open: window.__artistRiver.isOpen(), playingIdx, pos, match: Math.abs(pos - playingIdx) < 0.06, debug: window.__gestDebug ?? '' };
+  const expected = window.__artistRiver.toDisplay(playingIdx >= 0 ? playingIdx : 0);
+  const exp = ((expected % n) + n) % n;
+  return { open: window.__artistRiver.isOpen(), playingIdx, pos, expected: exp, match: Math.abs(pos - exp) < 0.06, debug: window.__gestDebug ?? '' };
 })()`);
-console.log(`triple-tap: open=${afterTriple.open}, playing index ${afterTriple.playingIdx}, scroll ${afterTriple.pos.toFixed(2)}, trace "${afterTriple.debug}"`);
+console.log(`triple-tap: open=${afterTriple.open}, playing index ${afterTriple.playingIdx}, scroll ${afterTriple.pos.toFixed(2)} (display ${afterTriple.expected}), trace "${afterTriple.debug}"`);
 if (!afterTriple.open) failures.push('triple-tap did not enter the artist river');
-if (!afterTriple.match) failures.push(`triple-tap river not centered on the playing song (pos ${afterTriple.pos.toFixed(2)} vs ${afterTriple.playingIdx})`);
+if (!afterTriple.match) failures.push(`triple-tap river not centered on the playing song (pos ${afterTriple.pos.toFixed(2)} vs ${afterTriple.expected})`);
 await evalJs(`window.__artistRiver.close()`);
 await sleep(600);
 

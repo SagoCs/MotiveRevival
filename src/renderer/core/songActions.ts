@@ -7,6 +7,7 @@ export type QueueOutcome = 'queued' | 'moved' | 'alreadyNext';
 export type FileOutcome = 'added' | 'alreadyInPlaylist' | 'missingPlaylist';
 
 export function queueNext(track: IndexedTrack): QueueOutcome {
+  player.purgePlayed(track.id);
   const offset = player.getUpcoming().findIndex((t) => t.id === track.id);
   if (offset === 0) return 'alreadyNext';
   if (offset > 0) {

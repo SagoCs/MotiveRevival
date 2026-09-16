@@ -215,6 +215,21 @@ export class PlayerService {
     this.bus.emit('queueMutated', {});
   }
 
+  purgePlayed(trackId: string): void {
+    let removed = false;
+    for (let i = this.queueIndex - 1; i >= 0; i--) {
+      if (this.queue[i]?.id === trackId) {
+        this.queue.splice(i, 1);
+        this.queueIndex -= 1;
+        removed = true;
+      }
+    }
+    if (removed) {
+      this.emitQueueState();
+      this.bus.emit('queueMutated', {});
+    }
+  }
+
   playUpcoming(offset: number): void {
     if (!Number.isInteger(offset) || offset < 0) return;
     const index = this.queueIndex + 1 + offset;

@@ -26,7 +26,7 @@ export interface ShelfHandle {
   setRegion(region: ShelfRegion, dpr?: number): void;
   setEntries(entries: ShelfEntry[]): void;
   scrollTo(index: number): void;
-  glideTo(index: number, speed?: number): void;
+  glideTo(index: number, speed?: number, maxMs?: number): void;
   scrollPosition(): number;
   centerIndex(): number;
   stepHold(dir: 1 | -1): void;
@@ -677,13 +677,13 @@ export function createShelf(): ShelfHandle {
       layout();
       settleCb?.(centerIndexNow());
     },
-    glideTo(index: number, speed = 1): void {
+    glideTo(index: number, speed = 1, maxMs = 1400): void {
       const n = cards.length;
       let target = index;
       if (wrapped()) target = position + wrapDist(index - position, n);
       else target = clamp(index, 0, maxIndex());
       const travel = Math.abs(target - position);
-      startGlide(target, clamp((travel * 900) / speed, 500, 1400));
+      startGlide(target, clamp((travel * 900) / speed, 500, maxMs));
     },
     scrollPosition(): number {
       return position;

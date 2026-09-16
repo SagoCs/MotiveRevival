@@ -192,11 +192,18 @@ function boot(): void {
         const saved = raw as { paths?: string[]; index?: number; position?: number } | null | undefined;
         if (saved != null && Array.isArray(saved.paths) && saved.paths.length > 0) {
           const byPath = new Map(result.tracks.map((t) => [t.absPath, t]));
-          const queue = saved.paths
-            .map((p) => byPath.get(p))
-            .filter((t): t is IndexedTrack => t !== undefined);
+          const queue: IndexedTrack[] = [];
+          const seen = new Set<string>();
+          let index = -1;
+          saved.paths.forEach((p, i) => {
+            const t = byPath.get(p);
+            if (t === undefined || seen.has(p)) return;
+            seen.add(p);
+            if (i === saved.index) index = queue.length;
+            queue.push(t);
+          });
           if (queue.length === 0) return;
-          const index = Math.min(Math.max(saved.index ?? 0, 0), queue.length - 1);
+          if (index < 0) index = Math.min(Math.max(saved.index ?? 0, 0), queue.length - 1);
           player.restoreContext(queue, index, Math.max(0, saved.position ?? 0));
           return;
         }

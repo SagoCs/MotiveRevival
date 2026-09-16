@@ -16,6 +16,7 @@ const SINK_MS = 240;
 const TRANSIT_RETURN_DELAY = 60;
 const TRANSIT_RETURN_TOTAL = SINK_MS + TRANSIT_RETURN_DELAY + 400;
 const FLOOR_DELAY_MS = 360;
+const SMALL_RIVER_CARDS = 7;
 
 let river: ReturnType<typeof createRiverV2> | null = null;
 let floor: HTMLDivElement | null = null;
@@ -25,6 +26,7 @@ let closing = false;
 let dimAlbum: string | null = null;
 let artistName: string | null = null;
 let feed: IndexedTrack[] = [];
+let displaySwap = false;
 let closeCalls = 0;
 
 interface AlbumGroup {
@@ -77,6 +79,23 @@ const entriesFrom = (tracks: IndexedTrack[]): RiverV2Entry[] =>
     tone: deriveRowWash(track.palette, track.paletteWeights),
   }));
 
+const toEntry = (feedIdx: number): number =>
+  displaySwap ? (feedIdx === 0 ? 1 : feedIdx === 1 ? 0 : feedIdx) : feedIdx;
+
+const entryList = (): RiverV2Entry[] => {
+  const list = entriesFrom(feed);
+  displaySwap = feed.length >= 2 && feed.length < SMALL_RIVER_CARDS;
+  if (displaySwap) {
+    const first = list[0];
+    const second = list[1];
+    if (first !== undefined && second !== undefined) {
+      list[0] = second;
+      list[1] = first;
+    }
+  }
+  return list;
+};
+
 const currentRegion = (): RiverV2Region => ({
   x: 0,
   y: BEZEL_H,
@@ -95,8 +114,10 @@ const applyDim = (album: string): void => {
   let last = first;
   while (last + 1 < feed.length && feed[last + 1]?.album === album) last += 1;
   dimAlbum = album;
-  river?.setDimSpan(first, last);
-  river?.scrollTo(first);
+  const eFirst = toEntry(first);
+  const eLast = toEntry(last);
+  river?.setDimSpan(Math.min(eFirst, eLast), Math.max(eFirst, eLast));
+  river?.scrollTo(eFirst);
 };
 
 const clearDim = (): void => {
@@ -129,9 +150,9 @@ export const artistRiverSurface = {
     artistName = name;
     feed = tracks;
     dimAlbum = null;
-    river?.setEntries(entriesFrom(tracks));
+    river?.setEntries(entryList());
     const playing = playingFeedIndex();
-    river?.scrollTo(playing >= 0 ? playing : 0);
+    river?.scrollTo(toEntry(playing >= 0 ? playing : 0));
     syncCommitted();
     river?.setVisible(true);
     document.getElementById('artist-river')?.classList.add('pre');
@@ -145,13 +166,13 @@ export const artistRiverSurface = {
       artistName = name;
       feed = tracks;
       dimAlbum = null;
-      river?.setEntries(entriesFrom(tracks));
+      river?.setEntries(entryList());
     }
     const playing = playingFeedIndex();
-    river?.scrollTo(playing >= 0 ? playing : 0);
+    river?.scrollTo(playing >= 0 ? toEntry(playing) : toEntry(0));
     if (opts?.focusTrackId !== undefined) {
       const fi = feed.findIndex((t) => t.id === opts.focusTrackId);
-      if (fi >= 0) river?.scrollTo(fi);
+      if (fi >= 0) river?.scrollTo(toEntry(fi));
     }
     syncCommitted();
     opened = true;
@@ -186,18 +207,20 @@ export const artistRiverSurface = {
       river?.stepHold(dir);
       return;
     }
-    const current = Math.round(clampScroll());
+    const n = feed.length;
+    const current = ((Math.round(clampScroll()) % n) + n) % n;
     const bounds: number[] = [0];
     for (let i = 1; i < feed.length; i++) {
       if (feed[i]?.album !== feed[i - 1]?.album) bounds.push(i);
     }
+    const entryBounds = bounds.map(toEntry).sort((a, b) => a - b);
     let target: number;
     if (dir === 1) {
-      const next = bounds.find((b) => b > current + 0.01);
+      const next = entryBounds.find((b) => b > current + 0.01);
       if (next === undefined) return;
       target = next;
     } else {
-      const below = bounds.filter((b) => b < current - 0.01);
+      const below = entryBounds.filter((b) => b < current - 0.01);
       if (below.length === 0) return;
       target = below[below.length - 1] ?? 0;
     }
@@ -260,10 +283,10 @@ export const artistRiverSurface = {
 export function initArtistRiverSurface(): void {
   if (river !== null) return;
   river = createRiverV2();
-  river.setLayout({ smallSetPin: false });
+  river.setLayout({ ring: true, smallSetPin: false });
   river.onHome(() => {
     const idx = playingFeedIndex();
-    river?.glideTo(idx >= 0 ? idx : 0);
+    river?.glideTo(toEntry(idx >= 0 ? idx : 0));
   });
   river.onEntryActivated((id) => {
     if (!opened) return;
@@ -298,9 +321,9 @@ export function initArtistRiverSurface(): void {
   libraryStore.onChange(() => {
     if (!opened || artistName === null) return;
     feed = buildFeed(artistName);
-    river?.setEntries(entriesFrom(feed));
+    river?.setEntries(entryList());
     const playing = playingFeedIndex();
-    river?.scrollTo(playing >= 0 ? playing : 0);
+    river?.scrollTo(playing >= 0 ? toEntry(playing) : toEntry(0));
     if (dimAlbum !== null) applyDim(dimAlbum);
     syncCommitted();
   });
@@ -315,6 +338,7 @@ export function initArtistRiverSurface(): void {
     openDim: (name: string, album: string) => artistRiverSurface.openDim(name, album),
     removeDim: () => artistRiverSurface.removeDim(),
     arrowStep: (dir: 1 | -1, repeat = false) => artistRiverSurface.arrowStep(dir, repeat),
+    toDisplay: (feedIdx: number) => toEntry(feedIdx),
     albumStep: (dir: 1 | -1) => artistRiverSurface.albumStep(dir),
     centerId: () => river?.centerId() ?? null,
     artist: () => artistName,

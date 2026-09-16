@@ -131,7 +131,7 @@ export function createRiverV2(): RiverV2Handle {
 
   const wrapDist = (d: number, n: number): number => d - Math.round(d / n) * n;
 
-  const wrapped = (): boolean => ring && dimSpan === null && slabs.length >= 2;
+  const wrapped = (): boolean => ring && dimSpan === null && slabs.length >= visibleCount;
 
   const clampPos = (value: number): number => {
     if (dimSpan !== null) return clamp(value, dimSpan.first, dimSpan.last);
@@ -164,10 +164,11 @@ export function createRiverV2(): RiverV2Handle {
     if (world === null || slabs.length === 0) return;
     const anchor = anchorOf();
     const count = slabs.length;
+    const wrappedNow = wrapped();
     const lo = dimSpan !== null ? dimSpan.first : 0;
     const hi = dimSpan !== null ? dimSpan.last : count - 1;
     const edge = Math.min(anchor - lo, hi - anchor);
-    const deep = clamp(edge / Math.max(1, visibleCount * SPAN_REACH_SONGS), 0, 1);
+    const deep = wrappedNow ? 1 : clamp(edge / Math.max(1, visibleCount * SPAN_REACH_SONGS), 0, 1);
     const effCurve = curve * (SPAN_CURVE_FLOOR + (1 - SPAN_CURVE_FLOOR) * deep);
     let effFade = fadeRange;
     if (!wrapped()) {
@@ -509,7 +510,7 @@ export function createRiverV2(): RiverV2Handle {
       slabs = [];
       const host = world;
       entries.forEach((entry, index) => slabs.push(buildSlab(entry, index, host)));
-      position = clamp(position, 0, maxIndex());
+      position = wrapped() ? (((position % slabs.length) + slabs.length) % slabs.length) : clamp(position, 0, maxIndex());
       derive();
     },
     scrollTo(index: number): void {
@@ -551,7 +552,7 @@ export function createRiverV2(): RiverV2Handle {
     },
     setCommitted(id: string | null): void {
       committedId = id;
-      for (const slab of slabs) slab.el.classList.toggle('committed', slab.id === id);
+      for (const slab of slabs) slab.el.classList.toggle('committed', slab.id === committedId);
     },
     setDimSpan(first: number, last: number | null): void {
       dimSpan = last === null || last < first ? null : { first, last };

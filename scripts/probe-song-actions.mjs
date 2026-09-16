@@ -100,11 +100,12 @@ for (let i = 0; i < 20; i++) {
 
 const seeded = await evalJs(`(async () => {
   const A = window.__songActions;
-  if (A.queueSnapshot().upcoming.length > 0) return 'ready';
+  if (A.queueSnapshot().upcoming.length >= 3) return 'ready';
   const tracks = A.libraryTracks();
   if (tracks.length < 2) return 'no tracks';
-  A.queueNext(tracks[0]);
-  A.queueNext(tracks[1]);
+  for (let i = 0; i < 8 && A.queueSnapshot().upcoming.length < 3; i++) {
+    A.queueNext(tracks[(tracks.length + i * 7) % tracks.length]);
+  }
   return 'seeded';
 })()`, true);
 await sleep(300);
