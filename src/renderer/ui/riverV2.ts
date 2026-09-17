@@ -5,6 +5,7 @@ export interface RiverV2Entry {
   art: string | null;
   artThumb?: string | null;
   tone?: string | null;
+  ghost?: boolean;
 }
 
 export interface RiverV2Region {
@@ -48,6 +49,7 @@ interface Slab {
   el: HTMLDivElement;
   id: string;
   index: number;
+  ghost: boolean;
   hidden: boolean;
   lastY: number;
   lastScale: number;
@@ -171,7 +173,7 @@ export function createRiverV2(): RiverV2Handle {
     const deep = wrappedNow ? 1 : clamp(edge / Math.max(1, visibleCount * SPAN_REACH_SONGS), 0, 1);
     const effCurve = curve * (SPAN_CURVE_FLOOR + (1 - SPAN_CURVE_FLOOR) * deep);
     let effFade = fadeRange;
-    if (!wrapped()) {
+    if (!wrapped() && slabs.length > visibleCount) {
       const shortSide = Math.min(anchor - lo, hi - anchor);
       effFade = clamp(shortSide * slotH * 0.92, slotH * 1.25, fadeRange);
     }
@@ -187,7 +189,7 @@ export function createRiverV2(): RiverV2Handle {
       const n = Math.min(1, yAbs / fadeRange);
       const scale = (1 - effCurve * n * n) * (1 + lensAmt * Math.exp(-dist * dist * lensQ));
       const tilt = -side * tiltMax * Math.pow(n, 1.5);
-      const opacity = (n <= fadeHold ? 1 : Math.max(0, 1 - Math.pow((n - fadeHold) / (1 - fadeHold), 2))) * (dimSpan !== null && (slab.index < dimSpan.first || slab.index > dimSpan.last) ? 0.13 : 1);
+      const opacity = (n <= fadeHold ? 1 : Math.max(0, 1 - Math.pow((n - fadeHold) / (1 - fadeHold), 2))) * (slab.ghost ? 0.18 : 1) * (dimSpan !== null && (slab.index < dimSpan.first || slab.index > dimSpan.last) ? 0.13 : 1);
       const y = Math.round((centerY + side * yOff) / pxStep) * pxStep;
       const zIdx = Math.round((1 - n) * 60);
       if (y !== slab.lastY || scale !== slab.lastScale || tilt !== slab.lastTilt) {
@@ -213,7 +215,7 @@ export function createRiverV2(): RiverV2Handle {
     if (wrapped()) target = position + wrapDist(index - position, slabs.length);
     else if (dimSpan !== null) target = clamp(index, dimSpan.first, dimSpan.last);
     else target = clamp(index, 0, maxIndex());
-    const from = clamp(position, 0, maxIndex());
+    const from = position;
     const delta = target - from;
     if (delta === 0) return;
     glideFrom = from;
@@ -386,6 +388,10 @@ export function createRiverV2(): RiverV2Handle {
   const buildSlab = (entry: RiverV2Entry, index: number, host: HTMLDivElement): Slab => {
     const el = document.createElement('div');
     el.className = entry.art === null ? 'rv2-card rv2-card-plain' : 'rv2-card';
+    if (entry.ghost === true) {
+      el.classList.add('rv2-ghost');
+      el.classList.remove('rv2-card-plain');
+    }
     el.dataset.index = String(index);
     el.dataset.id = entry.id;
     el.style.setProperty('--slab-index', String(index));
@@ -443,6 +449,7 @@ export function createRiverV2(): RiverV2Handle {
       el,
       id: entry.id,
       index,
+      ghost: entry.ghost === true,
       hidden: false,
       lastY: NaN,
       lastScale: NaN,

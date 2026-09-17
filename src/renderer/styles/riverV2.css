@@ -20,23 +20,34 @@ body.song-river-active #carousel-content {
   transition: opacity 360ms var(--ease-drift);
 }
 
-#artist-river.pre {
+#playlist-river {
+  z-index: 26;
+  transition: opacity 360ms var(--ease-drift);
+}
+
+#artist-river.pre,
+#playlist-river.pre {
   opacity: 0.001;
   pointer-events: none;
 }
 
 #artist-river.pre,
 #artist-river.pre .rv2-card,
-#artist-river.pre .rv2-void {
+#artist-river.pre .rv2-void,
+#playlist-river.pre,
+#playlist-river.pre .rv2-card,
+#playlist-river.pre .rv2-void {
   pointer-events: none;
 }
 
-#artist-river.sinking .rv2-card {
+#artist-river.sinking .rv2-card,
+#playlist-river.sinking .rv2-card {
   opacity: 0 !important;
   transition: opacity 220ms var(--ease-drift);
 }
 
-#artist-river-floor {
+#artist-river-floor,
+#playlist-river-floor {
   position: fixed;
   inset: 0;
   z-index: 25;
@@ -49,10 +60,15 @@ body.song-river-active #carousel-content {
     visibility 0s linear 280ms;
 }
 
-#artist-river-floor.on {
+#artist-river-floor.on,
+#playlist-river-floor.on {
   opacity: 1;
   visibility: visible;
   transition: opacity 280ms var(--ease-drift);
+}
+
+.rv2-card.rv2-ghost {
+  pointer-events: none;
 }
 
 .rv2-world {

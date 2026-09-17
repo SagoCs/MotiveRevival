@@ -9,6 +9,7 @@ import { uiTheme } from '../core/uiTheme';
 import { deriveAccent } from '../core/palette';
 import { createShelf } from './shelf';
 import { artistRiverSurface } from './artistRiverSurface';
+import { playlistRiverSurface } from './playlistRiverSurface';
 import type { ShelfEntry, ShelfRegion } from './shelf';
 import type { IndexedTrack } from '../../shared/types';
 
@@ -26,6 +27,7 @@ interface FaceTone {
 let shelf: ReturnType<typeof createShelf> | null = null;
 let browserVisible = false;
 let artistRiverOpen = false;
+let playlistRiverOpen = false;
 let active = false;
 let lens: Lens = 'artists';
 let selectedId: string | null = null;
@@ -130,6 +132,7 @@ const buildPlaylistEntries = (): void => {
       ledger: plural(pl.tracks.length, 'song'),
       art: first?.track.artFile != null ? mediaUrl(first.track.artFile) : null,
       initial: pl.name.charAt(0).toUpperCase(),
+      ref: pl.id,
     };
     playlistEntries.push(entry);
     playlistTones.set(entry.id, tone);
@@ -276,6 +279,7 @@ const buildLetterRuler = (root: HTMLElement): void => {
 
 const setLens = (next: Lens): void => {
   if (lens === next || shelf === null) return;
+  if (artistRiverOpen || playlistRiverOpen) return;
   lens = next;
   clearLit();
   syncLensButtons();
@@ -290,8 +294,8 @@ const currentRegion = (): ShelfRegion => ({
 });
 
 const applyVisibility = (): void => {
-  active = browserVisible && !artistRiverOpen;
-  shelf?.setVisible(browserVisible || artistRiverOpen);
+  active = browserVisible && !artistRiverOpen && !playlistRiverOpen;
+  shelf?.setVisible(browserVisible || artistRiverOpen || playlistRiverOpen);
   document.body.classList.toggle('shelf-active', active);
   if (!active) {
     pendingGesture = null;
@@ -320,11 +324,12 @@ export const shelfSurface = {
       return;
     }
     if (shelf?.isBusy() === true) return;
-    const n = artistEntries.length;
+    const entries = currentEntries();
+    const n = entries.length;
     if (n === 0) return;
     const idx = shelf?.centerIndex() ?? 0;
     const next = (((idx + dir) % n) + n) % n;
-    const entry = artistEntries[next];
+    const entry = entries[next];
     if (entry === undefined) return;
     highlight(next);
     shelf?.glideTo(next);
@@ -340,6 +345,13 @@ export const shelfSurface = {
       }, 340);
       return true;
     }
+    if (playlistRiverSurface.isOpen()) {
+      playlistRiverSurface.close();
+      window.setTimeout(() => {
+        shelfSurface.summonEnter(name, focus);
+      }, 340);
+      return true;
+    }
     if (shelf === null || !active) return false;
     shelf.cancelTransit();
     if (lens !== 'artists') setLens('artists');
@@ -348,18 +360,46 @@ export const shelfSurface = {
     const entry = artistEntries[idx];
     if (entry === undefined) return false;
     pendingFocus = focus ?? null;
+    pendingGesture = { name: entry.name, idx };
     highlight(idx);
     shelf?.glideTo(idx, 1.9, 500);
+    return true;
+  },
+  summonEnterPlaylist(id: string): boolean {
+    if (artistRiverSurface.isOpen()) {
+      artistRiverSurface.close();
+      window.setTimeout(() => {
+        shelfSurface.summonEnterPlaylist(id);
+      }, 340);
+      return true;
+    }
+    if (playlistRiverSurface.isOpen()) {
+      playlistRiverSurface.close();
+      window.setTimeout(() => {
+        shelfSurface.summonEnterPlaylist(id);
+      }, 340);
+      return true;
+    }
+    if (shelf === null || !active) return false;
+    shelf.cancelTransit();
+    if (lens !== 'playlists') setLens('playlists');
+    const idx = playlistEntries.findIndex((e) => e.ref === id);
+    if (idx < 0) return false;
+    const entry = playlistEntries[idx];
+    if (entry === undefined) return false;
     pendingGesture = { name: entry.name, idx };
+    highlight(idx);
+    shelf?.glideTo(idx, 1.9, 500);
     return true;
   },
   activateCenter(): void {
-    if (!active || shelf?.isBusy() === true || lens !== 'artists') return;
+    if (!active || shelf?.isBusy() === true) return;
     const idx = shelf?.centerIndex() ?? -1;
     const entry = currentEntries()[idx];
     if (entry === undefined) return;
+    if (lens === 'playlists' && entry.ref === undefined) return;
     if (litLetters.size > 0 && !litLetters.has(letterOf(entry.name))) return;
-    enterArtist(entry, idx);
+    enterCurrent(entry, idx);
   },
 };
 
@@ -368,24 +408,31 @@ const ENTRANCE_RISE_MS = 140;
 let pendingGesture: { name: string; idx: number } | null = null;
 let pendingFocus: { dimToAlbum?: string; focusTrackId?: string } | null = null;
 let shelfRoot: HTMLElement | null = null;
-let shelfEnteredArtist = false;
+let enteredRiver: 'artists' | 'playlists' | null = null;
 
 const gestMark = (s: string): void => {
   const w = window as unknown as { __gestDebug?: string };
   w.__gestDebug = (w.__gestDebug ?? '') + s;
 };
 
-const enterArtist = (entry: ShelfEntry, idx: number): void => {
+const enterCurrent = (entry: ShelfEntry, idx: number): void => {
   gestMark('E');
   highlight(idx);
-  artistRiverSurface.prebuild(entry.name);
+  if (lens === 'artists') {
+    artistRiverSurface.prebuild(entry.name);
+  } else if (entry.ref !== undefined) {
+    playlistRiverSurface.prebuild(entry.ref);
+  } else {
+    return;
+  }
   const focus = pendingFocus;
   pendingFocus = null;
-  shelfEnteredArtist = true;
+  enteredRiver = lens;
   shelf?.beginTransit(idx);
   shelfRoot?.classList.add('instruments-off');
   window.setTimeout(() => {
-    artistRiverSurface.open(entry.name, focus ?? undefined);
+    if (lens === 'artists') artistRiverSurface.open(entry.name, focus ?? undefined);
+    else if (entry.ref !== undefined) playlistRiverSurface.open(entry.ref);
   }, ENTRANCE_RISE_MS);
 };
 
@@ -399,10 +446,10 @@ export function initShelfSurface(): void {
     const entry = currentEntries()[idx];
     if (entry === undefined) return;
     if (idx === shelf?.centerIndex()) {
-      if (lens !== 'artists') return;
+      if (lens === 'playlists' && entry.ref === undefined) return;
       if (litLetters.size > 0 && !litLetters.has(letterOf(entry.name))) return;
       if (shelf?.isBusy() === true) return;
-      enterArtist(entry, idx);
+      enterCurrent(entry, idx);
       return;
     }
     if (litLetters.size > 0 && !litLetters.has(letterOf(entry.name))) return;
@@ -439,7 +486,7 @@ export function initShelfSurface(): void {
       return;
     }
     if (idx === shelf?.centerIndex()) {
-      enterArtist(entry, idx);
+      enterCurrent(entry, idx);
       return;
     }
     pendingGesture = { name: entry.name, idx };
@@ -451,10 +498,10 @@ export function initShelfSurface(): void {
     const pending = pendingGesture;
     if (pending !== null) {
       pendingGesture = null;
-      if (index === pending.idx && lens === 'artists') {
+      if (index === pending.idx) {
         const entry = currentEntries()[index];
-        if (entry !== undefined) {
-          enterArtist(entry, index);
+        if (entry !== undefined && (lens === 'artists' || entry.ref !== undefined)) {
+          enterCurrent(entry, index);
           return;
         }
       }
@@ -479,12 +526,11 @@ export function initShelfSurface(): void {
 
   libraryStore.onChange(() => {
     buildArtistEntries();
-    if (lens === 'artists') {
-      for (const letter of [...litLetters]) {
-        if (!awakeLetters().has(letter)) litLetters.delete(letter);
-      }
-      applyEntries();
+    buildPlaylistEntries();
+    for (const letter of [...litLetters]) {
+      if (!awakeLetters().has(letter)) litLetters.delete(letter);
     }
+    applyEntries();
   });
 
   playlistsStore.onChange(() => {
@@ -502,18 +548,42 @@ export function initShelfSurface(): void {
     applyVisibility();
   });
 
+  appBus.on('playlist-river-opened', () => {
+    playlistRiverOpen = true;
+    applyVisibility();
+  });
+
   appBus.on('artist-river-closed', ({ artist }) => {
     artistRiverOpen = false;
     applyVisibility();
     shelfRoot?.classList.remove('instruments-off');
-    const idx = artistEntries.findIndex((e) => e.name === artist);
-    if (idx >= 0 && shelfEnteredArtist) {
-      shelfEnteredArtist = false;
-      shelf?.beginReturn(idx, () => {
-        shelf?.glideTo(idx);
-      });
+    if (enteredRiver === 'artists') {
+      enteredRiver = null;
+      const idx = artistEntries.findIndex((e) => e.name === artist);
+      if (idx >= 0) {
+        shelf?.beginReturn(idx, () => {
+          shelf?.glideTo(idx);
+        });
+      }
     } else {
-      shelfEnteredArtist = false;
+      enteredRiver = null;
+    }
+  });
+
+  appBus.on('playlist-river-closed', ({ playlistId }) => {
+    playlistRiverOpen = false;
+    applyVisibility();
+    shelfRoot?.classList.remove('instruments-off');
+    if (enteredRiver === 'playlists') {
+      enteredRiver = null;
+      const idx = playlistEntries.findIndex((e) => e.ref === playlistId);
+      if (idx >= 0) {
+        shelf?.beginReturn(idx, () => {
+          shelf?.glideTo(idx);
+        });
+      }
+    } else {
+      enteredRiver = null;
     }
   });
 
@@ -525,6 +595,7 @@ export function initShelfSurface(): void {
     letters: () => currentEntries().map((e) => letterOf(e.name)),
     lit: () => [...litLetters],
     scroll: () => shelf?.scrollPosition() ?? 0,
+    summonEnterPlaylist: (id: string) => shelfSurface.summonEnterPlaylist(id),
     center: () => shelf?.centerIndex() ?? 0,
     selected: () => selectedId,
     cards: () => shelf?.cardsState() ?? [],

@@ -4,6 +4,7 @@ export interface ShelfEntry {
   ledger: string;
   art: string | null;
   initial: string;
+  ref?: string;
 }
 
 export interface ShelfRegion {
@@ -161,7 +162,7 @@ export function createShelf(): ShelfHandle {
     const n = cards.length;
     if (n === 0) return 0;
     if (!wrapped()) {
-      if (n <= visibleCount) return (n - 1) / 2;
+      if (n <= 2) return (n - 1) / 2;
       return clamp(position, 0, n - 1);
     }
     return mod(position, n);

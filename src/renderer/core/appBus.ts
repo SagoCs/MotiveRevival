@@ -9,6 +9,8 @@ export interface AppEventMap {
   'song-menu-closed': Record<string, never>;
   'artist-river-opened': { artist: string };
   'artist-river-closed': { artist: string };
+  'playlist-river-opened': { playlistId: string };
+  'playlist-river-closed': { playlistId: string };
 }
 
 export const appBus = new Bus<AppEventMap>();

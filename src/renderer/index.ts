@@ -28,7 +28,9 @@ import { initArrowMarkers } from './ui/arrowMarkers';
 import { initRiverSurface } from './ui/riverSurface';
 import { initShelfSurface } from './ui/shelfSurface';
 import { initArtistRiverSurface } from './ui/artistRiverSurface';
+import { initPlaylistRiverSurface } from './ui/playlistRiverSurface';
 import './core/songActions';
+import { playlistsStore } from './core/playlistsStore';
 
 window.addEventListener('error', (e) => {
   fatal(`Uncaught: ${e.message}`);
@@ -44,6 +46,7 @@ function boot(): void {
   }
 
   void player;
+  void playlistsStore.load();
 
   initOverlay();
   initSettingsPanel(() => {});
@@ -56,6 +59,7 @@ function boot(): void {
   initRiverSurface();
   initShelfSurface();
   initArtistRiverSurface();
+  initPlaylistRiverSurface();
 
   const arrowAnchor = (side: number): { x: number; y: number } | null => {
     const row = document.querySelector<HTMLElement>('.song-row.playing');

@@ -1,5 +1,6 @@
 import { Bus } from './bus';
 import { libraryStore } from './libraryStore';
+import { fold } from './fold';
 import type { IndexedTrack, Playlist, PlaylistTrackRef } from '../../shared/types';
 
 const STORAGE_KEY = 'playlists';
@@ -67,6 +68,7 @@ class PlaylistsStore {
   }
 
   async load(): Promise<void> {
+    if (this.loaded) return;
     const raw: unknown = await window.mr.storageGet(STORAGE_KEY);
     this.items = Array.isArray(raw)
       ? raw.filter(isPlaylist).map((p) => ({
@@ -78,12 +80,14 @@ class PlaylistsStore {
     this.emit();
   }
 
-  async create(name: string): Promise<Playlist> {
+  async create(name: string): Promise<Playlist | null> {
     const now = Date.now();
     const trimmed = name.trim();
+    const resolved = trimmed === '' ? 'New Playlist' : trimmed;
+    if (this.nameTaken(resolved, null)) return null;
     const playlist: Playlist = {
       id: uid(),
-      name: trimmed === '' ? 'New Playlist' : trimmed,
+      name: resolved,
       createdAt: now,
       updatedAt: now,
       tracks: [],
@@ -94,14 +98,18 @@ class PlaylistsStore {
     return clone(playlist);
   }
 
-  async rename(id: string, name: string): Promise<void> {
+  async rename(id: string, name: string): Promise<boolean> {
     const pl = this.find(id);
-    if (pl === null) return;
+    if (pl === null) return true;
     const trimmed = name.trim();
-    if (trimmed !== '') pl.name = trimmed;
+    if (trimmed !== '') {
+      if (this.nameTaken(trimmed, id)) return false;
+      pl.name = trimmed;
+    }
     pl.updatedAt = Date.now();
     await this.persist();
     this.emit();
+    return true;
   }
 
   async remove(id: string): Promise<void> {
@@ -183,6 +191,11 @@ class PlaylistsStore {
   private find(id: string): Playlist | null {
     const found = this.items.find((p) => p.id === id);
     return found ?? null;
+  }
+
+  private nameTaken(name: string, exceptId: string | null): boolean {
+    const key = fold(name);
+    return this.items.some((p) => p.id !== exceptId && fold(p.name) === key);
   }
 
   private async persist(): Promise<void> {

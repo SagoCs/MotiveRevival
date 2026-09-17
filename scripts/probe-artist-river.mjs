@@ -230,6 +230,13 @@ console.log(`enter plays the centered song: current=${afterEnter.current === nei
 if (afterEnter.current !== neighborId) failures.push('enter did not play the centered song');
 if (afterEnter.upcoming > expectedUpcoming) failures.push(`enter assigned a queue (upcoming ${afterEnter.upcoming} > ${expectedUpcoming})`);
 if (afterClick.upcoming !== expectedUpcoming) failures.push(`enter assigned a queue (${expectedUpcoming} -> ${afterEnter.upcoming ?? '?'})`);
+const overlayAfterEnter = await evalJs(`document.querySelector('#overlay') ? !document.querySelector('#overlay').hidden : false`);
+if (overlayAfterEnter) {
+  console.log('replay on enter: now-playing opened over the river, closing it');
+  await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  await sleep(800);
+}
 
 await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
 await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });

@@ -24,6 +24,12 @@ export function el<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
+export function shakeReject(node: HTMLElement): void {
+  node.classList.remove('input-reject');
+  void node.offsetWidth;
+  node.classList.add('input-reject');
+}
+
 export interface ArtImageOptions {
   fallbackUrl?: string;
 }

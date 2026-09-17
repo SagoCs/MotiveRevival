@@ -1260,6 +1260,10 @@ body:has(#playlist-layer.open) .transport-lyric {
   75% { translate: -5px 0; }
 }
 
+.input-reject {
+  animation: overlay-reject-shake 340ms ease both;
+}
+
 #overlay-viz {
   width: min(520px, 78vw);
   height: 64px;

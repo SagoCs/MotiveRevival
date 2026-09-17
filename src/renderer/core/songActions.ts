@@ -4,7 +4,7 @@ import { playlistsStore } from './playlistsStore';
 import type { IndexedTrack, Playlist } from '../../shared/types';
 
 export type QueueOutcome = 'queued' | 'moved' | 'alreadyNext';
-export type FileOutcome = 'added' | 'alreadyInPlaylist' | 'missingPlaylist';
+export type FileOutcome = 'added' | 'alreadyInPlaylist' | 'missingPlaylist' | 'nameTaken';
 
 export function queueNext(track: IndexedTrack): QueueOutcome {
   player.purgePlayed(track.id);
@@ -40,7 +40,9 @@ export function fileIntoPlaylist(playlistId: string, track: IndexedTrack): Promi
 }
 
 export function createPlaylistWithTrack(name: string, track: IndexedTrack): Promise<FileOutcome> {
-  return playlistsStore.create(name).then((pl) => fileIntoPlaylist(pl.id, track));
+  return playlistsStore
+    .create(name)
+    .then((pl) => (pl === null ? 'nameTaken' : fileIntoPlaylist(pl.id, track)));
 }
 
 export function removePlaylist(playlistId: string): Promise<void> {

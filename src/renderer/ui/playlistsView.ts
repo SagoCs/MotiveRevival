@@ -1,4 +1,4 @@
-import { el, fmtTime, createArtImage, thumbOf, paletteBedOf } from '../core/dom';
+import { el, fmtTime, createArtImage, thumbOf, paletteBedOf, shakeReject } from '../core/dom';
 import { mediaUrl, player } from '../core/player';
 import { preview } from '../core/preview';
 import { applyPalette, fallbackPalette } from '../core/palette';
@@ -81,7 +81,12 @@ function buildLayer(): HTMLElement {
   nameInput.setAttribute('aria-label', 'Playlist name');
   nameInput.addEventListener('change', () => {
     if (openId === null || nameInput === null) return;
-    void playlistsStore.rename(openId, nameInput.value);
+    const id = openId;
+    void playlistsStore.rename(id, nameInput.value).then((ok) => {
+      if (ok || nameInput === null || openId !== id) return;
+      nameInput.value = playlistsStore.get(id)?.name ?? '';
+      shakeReject(nameInput);
+    });
   });
   nameInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
@@ -267,13 +272,23 @@ function beginCreate(node: HTMLElement): void {
   let done = false;
   const finish = (commit: boolean): void => {
     if (done) return;
-    done = true;
     const name = input.value.trim();
-    input.removeEventListener('blur', onBlur);
-    input.removeEventListener('keydown', onKey);
-    slot.replaceChildren(...saved);
-    if (!commit || name === '') return;
+    if (!commit || name === '') {
+      done = true;
+      input.removeEventListener('blur', onBlur);
+      input.removeEventListener('keydown', onKey);
+      slot.replaceChildren(...saved);
+      return;
+    }
     void playlistsStore.create(name).then((pl) => {
+      if (pl === null) {
+        shakeReject(input);
+        return;
+      }
+      done = true;
+      input.removeEventListener('blur', onBlur);
+      input.removeEventListener('keydown', onKey);
+      slot.replaceChildren(...saved);
       syncTabRegion();
       openDetail(pl.id);
     });
@@ -653,13 +668,16 @@ function openContextMenu(
       e.preventDefault();
       const name = newInput.value.trim();
       if (name === '') return;
-      void playlistsStore
-        .create(name)
-        .then((pl) => playlistsStore.addTrack(pl.id, refOf(track)))
-        .then(() => {
+      void playlistsStore.create(name).then((pl) => {
+        if (pl === null) {
+          shakeReject(newInput);
+          return;
+        }
+        void playlistsStore.addTrack(pl.id, refOf(track)).then(() => {
           finish();
           toastSong('Added', track.title, `to ${name}`);
         });
+      });
     });
     view.append(newInput);
 

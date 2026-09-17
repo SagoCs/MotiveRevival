@@ -1,6 +1,6 @@
 import { libraryStore } from '../core/libraryStore';
 import { mediaUrl, player } from '../core/player';
-import { createArtImage, thumbOf } from '../core/dom';
+import { createArtImage, thumbOf, shakeReject } from '../core/dom';
 import { appBus } from '../core/appBus';
 import { playlistsStore } from '../core/playlistsStore';
 import {
@@ -295,7 +295,11 @@ const renderTyping = (): void => {
   const commit = (): void => {
     const name = input.value.trim();
     if (name === '') return;
-    void createPlaylistWithTrack(name, song).then(() => {
+    void createPlaylistWithTrack(name, song).then((outcome) => {
+      if (outcome === 'nameTaken') {
+        shakeReject(input);
+        return;
+      }
       phase = 'added';
       renderWord('Added');
     });

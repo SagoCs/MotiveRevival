@@ -28,6 +28,7 @@ import { attachSongMenu, closeSongMenu, isSongMenuOpen } from './songMenu';
 import { riverSurface } from './riverSurface';
 import { shelfSurface } from './shelfSurface';
 import { artistRiverSurface } from './artistRiverSurface';
+import { playlistRiverSurface } from './playlistRiverSurface';
 import type { Playlist } from '../../shared/types';
 
 type Mode = 'albums' | 'artists' | 'songs' | 'playlists' | 'shelf';
@@ -412,6 +413,10 @@ function wireGlobalKeys(): void {
         e.preventDefault();
         return;
       }
+      if (playlistRiverSurface.close()) {
+        e.preventDefault();
+        return;
+      }
       if (artistRiverSurface.removeDim()) {
         e.preventDefault();
         return;
@@ -432,6 +437,11 @@ function wireGlobalKeys(): void {
     if (!inInput && !settingsOpen && !isOracleOpen() && !isOverlayOpen() && !detailOpen && !isPlaylistLayerOpen()) {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         const dir: 1 | -1 = e.key === 'ArrowDown' ? 1 : -1;
+        if (playlistRiverSurface.isOpen()) {
+          playlistRiverSurface.arrowStep(dir, e.repeat);
+          e.preventDefault();
+          return;
+        }
         if (artistRiverSurface.isOpen()) {
           artistRiverSurface.arrowStep(dir, e.repeat);
           e.preventDefault();
@@ -456,6 +466,11 @@ function wireGlobalKeys(): void {
         }
       }
       if (e.key === 'Enter') {
+        if (playlistRiverSurface.isOpen()) {
+          playlistRiverSurface.activateCenter();
+          e.preventDefault();
+          return;
+        }
         if (artistRiverSurface.isOpen()) {
           artistRiverSurface.activateCenter();
           e.preventDefault();
@@ -502,6 +517,10 @@ function wireGlobalKeys(): void {
 
   window.addEventListener('keyup', (e) => {
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    if (playlistRiverSurface.isOpen()) {
+      playlistRiverSurface.arrowRelease();
+      return;
+    }
     if (artistRiverSurface.isOpen()) {
       artistRiverSurface.arrowRelease();
       return;
@@ -822,9 +841,20 @@ function oraclePlaylistRow(playlist: Playlist): HTMLElement {
   row.append(meta);
   row.addEventListener('click', () => {
     closeOracle();
+    if (summonEnterPlaylist(playlist.id)) return;
     openDetail(playlist.id);
   });
   return row;
+}
+
+function summonEnterPlaylist(id: string): boolean {
+  if (state.mode !== 'shelf') {
+    state.mode = 'shelf';
+    syncTabs();
+    syncChips();
+    render();
+  }
+  return shelfSurface.summonEnterPlaylist(id);
 }
 
 function setArtistFilter(key: string | null): void {

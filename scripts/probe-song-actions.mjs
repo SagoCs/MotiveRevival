@@ -160,6 +160,7 @@ if (q === null || q.fatal !== undefined) {
 
 const p = await evalJs(`(async () => {
   const A = window.__songActions;
+  for (const pl of A.playlists().filter((x) => x.name === '__probe_scratch')) await A.removePlaylist(pl.id);
   const track = A.libraryTracks().find((t) => t.id === A.queueSnapshot().ids[0]);
   const created = await A.createPlaylistWithTrack('__probe_scratch', track);
   const pl = A.playlists().find((x) => x.name === '__probe_scratch');
