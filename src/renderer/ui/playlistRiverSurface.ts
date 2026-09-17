@@ -196,7 +196,11 @@ export const playlistRiverSurface = {
 export function initPlaylistRiverSurface(): void {
   if (river !== null) return;
   river = createRiverV2();
-  river.setLayout({ smallSetPin: false });
+  river.setLayout({ smallSetPin: false, reorder: true });
+  river.onEntryReordered((from, gap) => {
+    if (playlistId === null) return;
+    void playlistsStore.reorderTrack(playlistId, from, gap);
+  });
   river.onHome(() => {
     const idx = playingIdx();
     river?.glideTo(idx >= 0 ? idx : 0);
@@ -224,14 +228,14 @@ export function initPlaylistRiverSurface(): void {
 
   playlistsStore.onChange(() => {
     if (!opened || playlistId === null) return;
+    const pos = river?.scrollPosition() ?? 0;
     const pl = playlistsStore.list().find((p) => p.id === playlistId);
     if (pl === undefined) {
       playlistRiverSurface.close();
       return;
     }
     if (!load(playlistId)) return;
-    const playing = playingIdx();
-    river?.scrollTo(playing >= 0 ? playing : 0);
+    river?.scrollTo(pos);
     syncCommitted();
   });
 

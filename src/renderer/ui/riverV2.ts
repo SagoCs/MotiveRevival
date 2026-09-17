@@ -20,6 +20,8 @@ export interface RiverV2Layout {
   depth: number;
   ring: boolean;
   smallSetPin: boolean;
+  reorder: boolean;
+  reorderSpan: { first: number; last: number } | null;
 }
 
 export interface RiverV2Handle {
@@ -34,6 +36,7 @@ export interface RiverV2Handle {
   onHome(cb: () => void): void;
   onEntryActivated(cb: (id: string) => void): void;
   onEntryContext(cb: (id: string, card: HTMLDivElement) => void): void;
+  onEntryReordered(cb: (from: number, gap: number) => void): void;
   setCommitted(id: string | null): void;
   setDimSpan(first: number, last: number | null): void;
   step(dir: 1 | -1, repeat?: boolean): void;
@@ -48,9 +51,12 @@ export interface RiverV2Handle {
 interface Slab {
   el: HTMLDivElement;
   id: string;
+  sig: string;
   index: number;
   ghost: boolean;
   hidden: boolean;
+  pureY: number;
+  shift: number;
   lastY: number;
   lastScale: number;
   lastTilt: number;
@@ -82,8 +88,15 @@ const DECAY = 3.1;
 const CRAWL = 5;
 const DT_MAX = 50;
 const DRAG_DEAD = 8;
+const AUTO_SCROLL_SPEED = 3.5;
+const EDGE_SCROLL_PX = 64;
+const SETTLE_MS = 480;
+const SHIFT_RATE = 12;
 
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
+
+const sigOf = (entry: RiverV2Entry): string =>
+  `${entry.title}\u0000${entry.meta.join('\u0001')}\u0001${entry.tone ?? ''}\u0001${entry.ghost === true ? 'g' : ''}\u0001${entry.art ?? ''}\u0001${entry.artThumb ?? ''}`;
 
 export function createRiverV2(): RiverV2Handle {
   let root: HTMLDivElement | null = null;
@@ -119,6 +132,22 @@ export function createRiverV2(): RiverV2Handle {
   let contextCb: ((id: string, card: HTMLDivElement) => void) | null = null;
   let committedId: string | null = null;
   let dimSpan: { first: number; last: number } | null = null;
+  let reorder = false;
+  let reorderSpan: { first: number; last: number } | null = null;
+  let reorderCb: ((from: number, gap: number) => void) | null = null;
+  let grab: {
+    index: number;
+    pointerY: number;
+    ownCenter: number;
+    gap: number;
+    mode: 'drag' | 'settle';
+    target: number;
+    settleStart: number;
+    committed: boolean;
+  } | null = null;
+  let grabAuto = 0;
+  let lastLayoutAt = 0;
+  let shiftsAlive = false;
   let holdDir = 0;
   let lastHoldAt = 0;
   let curve = 0.75;
@@ -181,17 +210,94 @@ export function createRiverV2(): RiverV2Handle {
     const ySquash = effFade / fadeRange;
     for (const slab of slabs) {
       let dist = slab.index - anchor;
-      if (wrapped()) dist = wrapDist(dist, count);
+      if (wrappedNow) dist = wrapDist(dist, count);
+      const side = Math.sign(dist) || 1;
+      const dAbs = Math.abs(dist) * remap;
+      const yAbs = depthAt(depthTable, dAbs) + (depthAt(depthTableFlat, dAbs) - depthAt(depthTable, dAbs)) * (1 - deep);
+      slab.pureY = centerY + side * yAbs * ySquash;
+      if (grab !== null && slab.index === grab.index) grab.ownCenter = slab.pureY;
+    }
+    let eased = 1;
+    let settling = false;
+    let holdTo = 0;
+    if (grab !== null && grab.mode === 'settle') {
+      settling = true;
+      eased = 1 - Math.pow(1 - clamp((performance.now() - grab.settleStart) / SETTLE_MS, 0, 1), 4);
+      holdTo = slabs.find((s) => s.index === grab?.target)?.pureY ?? grab.pointerY;
+    }
+    const nowMs = performance.now();
+    const ldt = lastLayoutAt === 0 ? 0 : Math.min(DT_MAX, nowMs - lastLayoutAt);
+    lastLayoutAt = nowMs;
+    const approach = 1 - Math.exp(-(ldt / 1000) * SHIFT_RATE);
+    const g = grab;
+    const hole = g !== null ? (g.gap > g.index ? g.gap - 1 : g.gap) : -1;
+    shiftsAlive = false;
+    const depthAtY = (y: number): { scale: number; tilt: number; op: number } => {
+      const first = slabs[0];
+      const last = slabs[slabs.length - 1];
+      const second = slabs[1];
+      const prev = slabs[slabs.length - 2];
+      if (first === undefined || last === undefined || second === undefined || prev === undefined) {
+        return { scale: 1, tilt: 0, op: 1 };
+      }
+      let pIdx = first.index;
+      if (y <= first.pureY) {
+        pIdx = first.index - (first.pureY - y) / Math.max(1, second.pureY - first.pureY);
+      } else if (y >= last.pureY) {
+        pIdx = last.index + (y - last.pureY) / Math.max(1, last.pureY - prev.pureY);
+      } else {
+        for (let i = 0; i < slabs.length - 1; i++) {
+          const a = slabs[i];
+          const b = slabs[i + 1];
+          if (a === undefined || b === undefined) break;
+          if (y >= a.pureY && y <= b.pureY) {
+            pIdx = a.index + (y - a.pureY) / Math.max(1, b.pureY - a.pureY);
+            break;
+          }
+        }
+      }
+      const dist = pIdx - anchor;
+      const side = Math.sign(dist) || 1;
+      const dAbs = Math.abs(dist) * remap;
+      const yAbs = depthAt(depthTable, dAbs) + (depthAt(depthTableFlat, dAbs) - depthAt(depthTable, dAbs)) * (1 - deep);
+      const n = Math.min(1, yAbs / fadeRange);
+      return {
+        scale: (1 - effCurve * n * n) * (1 + lensAmt * Math.exp(-dist * dist * lensQ)),
+        tilt: -side * tiltMax * Math.pow(n, 1.5),
+        op: n <= fadeHold ? 1 : Math.max(0, 1 - Math.pow((n - fadeHold) / (1 - fadeHold), 2)),
+      };
+    };
+    for (const slab of slabs) {
+      let dist = slab.index - anchor;
+      if (wrappedNow) dist = wrapDist(dist, count);
+      let target = 0;
+      if (g !== null && !wrappedNow && slab.index !== g.index) {
+        if (slab.index > g.index) target = slab.index <= hole ? -1 : 0;
+        else target = slab.index >= hole ? 1 : 0;
+      }
+      if (Math.abs(target - slab.shift) > 0.001 || Math.abs(slab.shift) > 0.001) shiftsAlive = true;
+      slab.shift += (target - slab.shift) * approach;
+      dist += slab.shift;
       const side = Math.sign(dist) || 1;
       const dAbs = Math.abs(dist) * remap;
       const yAbs = depthAt(depthTable, dAbs) + (depthAt(depthTableFlat, dAbs) - depthAt(depthTable, dAbs)) * (1 - deep);
       const yOff = yAbs * ySquash;
       const n = Math.min(1, yAbs / fadeRange);
-      const scale = (1 - effCurve * n * n) * (1 + lensAmt * Math.exp(-dist * dist * lensQ));
-      const tilt = -side * tiltMax * Math.pow(n, 1.5);
-      const opacity = (n <= fadeHold ? 1 : Math.max(0, 1 - Math.pow((n - fadeHold) / (1 - fadeHold), 2))) * (slab.ghost ? 0.18 : 1) * (dimSpan !== null && (slab.index < dimSpan.first || slab.index > dimSpan.last) ? 0.13 : 1);
-      const y = Math.round((centerY + side * yOff) / pxStep) * pxStep;
-      const zIdx = Math.round((1 - n) * 60);
+      let scale = (1 - effCurve * n * n) * (1 + lensAmt * Math.exp(-dist * dist * lensQ));
+      let tilt = -side * tiltMax * Math.pow(n, 1.5);
+      let opacity = (n <= fadeHold ? 1 : Math.max(0, 1 - Math.pow((n - fadeHold) / (1 - fadeHold), 2))) * (slab.ghost ? 0.18 : 1) * (dimSpan !== null && (slab.index < dimSpan.first || slab.index > dimSpan.last) ? 0.13 : 1);
+      let y = Math.round((centerY + side * yOff) / pxStep) * pxStep;
+      let zIdx = Math.round((1 - n) * 60);
+      if (grab !== null && slab.index === grab.index) {
+        const holdY = settling ? grab.pointerY + (holdTo - grab.pointerY) * eased : grab.pointerY;
+        const d = depthAtY(holdY);
+        const lift = settling ? 1 + 0.04 * (1 - eased) : 1.04;
+        y = Math.round(holdY / pxStep) * pxStep;
+        scale = d.scale * lift;
+        tilt = d.tilt;
+        opacity = settling ? 1 - (1 - d.op) * eased : 1;
+        zIdx = 90;
+      }
       if (y !== slab.lastY || scale !== slab.lastScale || tilt !== slab.lastTilt) {
         slab.lastY = y;
         slab.lastScale = scale;
@@ -208,6 +314,20 @@ export function createRiverV2(): RiverV2Handle {
       }
       slab.el.style.visibility = n >= 1 || slab.hidden ? 'hidden' : 'visible';
     }
+  };
+
+  const updateGrab = (): void => {
+    if (grab === null || grab.mode !== 'drag') return;
+    const g = grab;
+    let count = 0;
+    for (const slab of slabs) {
+      if (slab.index === g.index) continue;
+      if (slab.pureY <= g.pointerY) count++;
+    }
+    let gap = count + (g.pointerY > g.ownCenter ? 1 : 0);
+    const lo = reorderSpan !== null ? reorderSpan.first : 0;
+    const hi = reorderSpan !== null ? reorderSpan.last + 1 : slabs.length;
+    g.gap = clamp(gap, lo, hi);
   };
 
   const beginGlide = (index: number, durationMs = 0): void => {
@@ -267,9 +387,19 @@ export function createRiverV2(): RiverV2Handle {
           if ((position <= lo && velocity < 0) || (position >= hi && velocity > 0)) velocity = 0;
         }
       }
+      if (grab !== null && grabAuto !== 0 && grab.mode === 'drag') position += grabAuto * AUTO_SCROLL_SPEED * dt;
+      if (grab !== null && grab.mode === 'settle') {
+        const now = performance.now();
+        if (!grab.committed && now - grab.settleStart >= SETTLE_MS) {
+          grab.committed = true;
+          reorderCb?.(grab.index, grab.gap);
+        }
+        if (grab.committed && now - grab.settleStart > SETTLE_MS + 900) grab = null;
+      }
       layout();
+      if (grab !== null) updateGrab();
     }
-    if (holdDir !== 0 || gliding || velocity !== 0) raf = window.requestAnimationFrame(step);
+    if (holdDir !== 0 || gliding || velocity !== 0 || grab !== null || shiftsAlive) raf = window.requestAnimationFrame(step);
     else last = 0;
   };
 
@@ -385,6 +515,77 @@ export function createRiverV2(): RiverV2Handle {
     el.addEventListener('pointercancel', cancel);
   };
 
+  const beginCardDrag = (event: PointerEvent, el: HTMLDivElement, index: number, onTap: () => void): void => {
+    if (!shown || event.button !== 0) return;
+    const startY = event.clientY;
+    let active = false;
+    try {
+      el.setPointerCapture(event.pointerId);
+    } catch {
+      return;
+    }
+    const detach = (): void => {
+      el.removeEventListener('pointermove', onMove);
+      el.removeEventListener('pointerup', finish);
+      el.removeEventListener('pointercancel', cancel);
+    };
+    const release = (): void => {
+      detach();
+      if (!active || grab === null) {
+        const tap = !active;
+        grab = null;
+        grabAuto = 0;
+        if (tap) onTap();
+        layout();
+        return;
+      }
+      const g = grab;
+      const moved = g.gap !== g.index && g.gap !== g.index + 1;
+      if (!moved) {
+        grab = null;
+        grabAuto = 0;
+        layout();
+        return;
+      }
+      g.mode = 'settle';
+      g.target = g.gap > g.index ? g.gap - 1 : g.gap;
+      g.settleStart = performance.now();
+      g.committed = false;
+      wake();
+    };
+    const onMove = (move: PointerEvent): void => {
+      const dy = move.clientY - startY;
+      if (!active) {
+        if (Math.abs(dy) < DRAG_DEAD) return;
+        if (reorderSpan !== null && (index < reorderSpan.first || index > reorderSpan.last)) return;
+        active = true;
+        gliding = false;
+        velocity = 0;
+        holdDir = 0;
+        grab = { index, pointerY: move.clientY - region.y, ownCenter: 0, gap: index, mode: 'drag', target: index, settleStart: 0, committed: false };
+      }
+      if (grab === null) return;
+      grab.pointerY = move.clientY - region.y;
+      grabAuto = move.clientY < region.y + EDGE_SCROLL_PX ? -1 : move.clientY > region.y + region.height - EDGE_SCROLL_PX ? 1 : 0;
+      wake();
+      layout();
+      updateGrab();
+    };
+    const finish = (): void => {
+      release();
+    };
+    const cancel = (): void => {
+      if (active) {
+        grab = null;
+        grabAuto = 0;
+      }
+      detach();
+    };
+    el.addEventListener('pointermove', onMove);
+    el.addEventListener('pointerup', finish);
+    el.addEventListener('pointercancel', cancel);
+  };
+
   const buildSlab = (entry: RiverV2Entry, index: number, host: HTMLDivElement): Slab => {
     const el = document.createElement('div');
     el.className = entry.art === null ? 'rv2-card rv2-card-plain' : 'rv2-card';
@@ -435,7 +636,11 @@ export function createRiverV2(): RiverV2Handle {
     el.append(text);
     host.append(el);
     el.addEventListener('pointerdown', (event) => {
-      beginPan(event, el, () => {
+      const live = Number(el.dataset.index);
+      if (reorder) beginCardDrag(event, el, live, () => {
+        if (entryCb !== null) entryCb(entry.id);
+      });
+      else beginPan(event, el, () => {
         if (entryCb !== null) entryCb(entry.id);
       });
     });
@@ -448,9 +653,12 @@ export function createRiverV2(): RiverV2Handle {
     return {
       el,
       id: entry.id,
+      sig: sigOf(entry),
       index,
       ghost: entry.ghost === true,
       hidden: false,
+      pureY: 0,
+      shift: 0,
       lastY: NaN,
       lastScale: NaN,
       lastTilt: NaN,
@@ -464,7 +672,7 @@ export function createRiverV2(): RiverV2Handle {
     root.addEventListener(
       'wheel',
       (event) => {
-        if (!shown) return;
+        if (!shown || grab !== null) return;
         event.preventDefault();
         gliding = false;
         holdDir = 0;
@@ -513,10 +721,36 @@ export function createRiverV2(): RiverV2Handle {
     setEntries(entries: RiverV2Entry[]): void {
       if (world === null) return;
       dimSpan = null;
-      for (const slab of slabs) slab.el.remove();
-      slabs = [];
-      const host = world;
-      entries.forEach((entry, index) => slabs.push(buildSlab(entry, index, host)));
+      grab = null;
+      grabAuto = 0;
+      const byId = new Map<string, Slab>();
+      let diffable = entries.length === slabs.length;
+      if (diffable) {
+        for (const slab of slabs) byId.set(slab.id, slab);
+        for (const entry of entries) {
+          const slab = byId.get(entry.id);
+          if (slab === undefined || slab.sig !== sigOf(entry)) {
+            diffable = false;
+            break;
+          }
+        }
+      }
+      if (diffable) {
+        entries.forEach((entry, index) => {
+          const slab = byId.get(entry.id);
+          if (slab === undefined) return;
+          slab.index = index;
+          slab.shift = 0;
+          slab.el.dataset.index = String(index);
+          slab.el.style.setProperty('--slab-index', String(index));
+        });
+        slabs.sort((a, b) => a.index - b.index);
+      } else {
+        for (const slab of slabs) slab.el.remove();
+        slabs = [];
+        const host = world;
+        entries.forEach((entry, index) => slabs.push(buildSlab(entry, index, host)));
+      }
       position = wrapped() ? (((position % slabs.length) + slabs.length) % slabs.length) : clamp(position, 0, maxIndex());
       derive();
     },
@@ -535,6 +769,8 @@ export function createRiverV2(): RiverV2Handle {
       if (typeof partial.depth === 'number') depth = clamp(partial.depth, 0, 2);
       if (typeof partial.ring === 'boolean') ring = partial.ring;
       if (typeof partial.smallSetPin === 'boolean') smallSetPin = partial.smallSetPin;
+      if (typeof partial.reorder === 'boolean') reorder = partial.reorder;
+      if (partial.reorderSpan !== undefined) reorderSpan = partial.reorderSpan;
       derive();
     },
     setVisible(next: boolean): void {
@@ -545,6 +781,8 @@ export function createRiverV2(): RiverV2Handle {
         raf = 0;
         velocity = 0;
         gliding = false;
+        grab = null;
+        grabAuto = 0;
         last = 0;
       }
     },
@@ -556,6 +794,9 @@ export function createRiverV2(): RiverV2Handle {
     },
     onEntryContext(cb: (id: string, card: HTMLDivElement) => void): void {
       contextCb = cb;
+    },
+    onEntryReordered(cb: (from: number, gap: number) => void): void {
+      reorderCb = cb;
     },
     setCommitted(id: string | null): void {
       committedId = id;

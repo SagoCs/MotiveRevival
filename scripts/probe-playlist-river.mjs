@@ -169,6 +169,75 @@ if (entry === null) {
     check('playlist is the queue context', ctx.ids.length === 3 && ctx.ids[0] === tracks[0].id && ctx.ids[2] === tracks[2].id, JSON.stringify(ctx.ids));
     check('clicked card wears the committed bloom', ctx.committed === second.id, ctx.committed ?? 'none');
 
+    const dragState = await evalJs(`(() => {
+      const cards = [...document.querySelectorAll('#playlist-river .rv2-card')]
+        .map((c) => { const r = c.getBoundingClientRect(); return { i: +c.dataset.index, x: r.left + r.width / 2, y: r.top + r.height / 2, vis: getComputedStyle(c).visibility }; })
+        .filter((c) => c.vis === 'visible');
+      const source = cards.reduce((a, b) => (b.y < a.y ? b : a), cards[0]);
+      const lastY = Math.max(...cards.map((c) => c.y));
+      return { from: source.i, ids: window.__playlistRiver.ids(), pos: window.__playlistRiver.scroll(), x: source.x, y: source.y, targetY: lastY + 60, rest: cards.map((c) => ({ i: c.i, y: c.y })) };
+    })()`);
+    const dragSteps = 14;
+    const stepY = (dragState.targetY - dragState.y) / dragSteps;
+    await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: Math.round(dragState.x), y: Math.round(dragState.y), button: 'left', clickCount: 1 });
+    let partsSeen = false;
+    for (let s = 1; s <= dragSteps; s++) {
+      await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: Math.round(dragState.x), y: Math.round(dragState.y + stepY * s), button: 'left' });
+      await sleep(40);
+      if (s === 12) {
+        const mid = await evalJs(`(() => {
+          const grabbed = [...document.querySelectorAll('#playlist-river .rv2-card')].find((c) => +c.dataset.index === ${dragState.from});
+          const r = grabbed?.getBoundingClientRect();
+          const rest = ${JSON.stringify(dragState.rest)};
+          const moved = rest.filter((c) => c.i !== ${dragState.from}).filter((c) => {
+            const el = [...document.querySelectorAll('#playlist-river .rv2-card')].find((x) => +x.dataset.index === c.i);
+            const rr = el?.getBoundingClientRect();
+            return rr !== undefined && Math.abs(rr.top + rr.height / 2 - c.y) > 30;
+          }).map((c) => c.i);
+          return { grabbedY: r ? r.top + r.height / 2 : -1, pointerY: ${Math.round(dragState.y + stepY * s)}, moved, line: document.querySelector('#playlist-river .rv2-insert') !== null };
+        })()`);
+        partsSeen = mid.moved.length > 0;
+        check('drag lifts the card with the pointer', Math.abs(mid.grabbedY - mid.pointerY) < 40, JSON.stringify({ grabbedY: mid.grabbedY, pointerY: mid.pointerY }));
+        check('field parts: neighbors make room', partsSeen, JSON.stringify(mid.moved));
+        check('no insertion line remains', mid.line === false);
+      }
+    }
+    await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: Math.round(dragState.x), y: Math.round(dragState.targetY), button: 'left', clickCount: 1 });
+    await sleep(900);
+    const reordered = await evalJs(`(() => {
+      const ids = window.__playlistRiver.ids();
+      const pl = window.__songActions.playlists().find((p) => p.name === '${plName}');
+      return { ids, store: pl ? pl.tracks.map((t) => t.trackId) : [] };
+    })()`);
+    const expected = dragState.ids.filter((id) => id !== dragState.ids[dragState.from]).concat(dragState.ids[dragState.from]);
+    check('drag reorders the river', JSON.stringify(reordered.ids) === JSON.stringify(expected), JSON.stringify({ got: reordered.ids, want: expected }));
+    check('drop persists to the store', JSON.stringify(reordered.store) === JSON.stringify(reordered.ids), JSON.stringify(reordered.store));
+
+    const dragState2 = await evalJs(`(() => {
+      const cards = [...document.querySelectorAll('#playlist-river .rv2-card')]
+        .map((c) => { const r = c.getBoundingClientRect(); return { i: +c.dataset.index, x: r.left + r.width / 2, y: r.top + r.height / 2, vis: getComputedStyle(c).visibility }; })
+        .filter((c) => c.vis === 'visible');
+      const source = cards.reduce((a, b) => (b.y < a.y ? b : a), cards[0]);
+      const lastY = Math.max(...cards.map((c) => c.y));
+      return { from: source.i, ids: window.__playlistRiver.ids(), x: source.x, y: source.y, targetY: lastY + 60 };
+    })()`);
+    const stepY2 = (dragState2.targetY - dragState2.y) / 14;
+    await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: Math.round(dragState2.x), y: Math.round(dragState2.y), button: 'left', clickCount: 1 });
+    for (let s = 1; s <= 14; s++) {
+      await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: Math.round(dragState2.x), y: Math.round(dragState2.y + (stepY2 * s)), button: 'left' });
+      await sleep(40);
+    }
+    await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: Math.round(dragState2.x), y: Math.round(dragState2.targetY), button: 'left', clickCount: 1 });
+    await sleep(1100);
+    const reordered2 = await evalJs(`(() => {
+      const ids = window.__playlistRiver.ids();
+      const pl = window.__songActions.playlists().find((p) => p.name === '${plName}');
+      return { ids, store: pl ? pl.tracks.map((t) => t.trackId) : [] };
+    })()`);
+    const expected2 = dragState2.ids.filter((id) => id !== dragState2.ids[dragState2.from]).concat(dragState2.ids[dragState2.from]);
+    check('second drag grabs the right card', JSON.stringify(reordered2.ids) === JSON.stringify(expected2), JSON.stringify({ got: reordered2.ids, want: expected2 }));
+    check('second drop persists', JSON.stringify(reordered2.store) === JSON.stringify(reordered2.ids), JSON.stringify(reordered2.store));
+
     await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
     await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
     await sleep(1600);
