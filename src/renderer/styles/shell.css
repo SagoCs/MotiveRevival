@@ -13,7 +13,7 @@
 
 #topbar {
   position: relative;
-  z-index: 26;
+  z-index: 29;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -907,7 +907,7 @@ html.song-marker-surface .song-row.playing::after {
 
 #bottom-bar {
   position: relative;
-  z-index: 26;
+  z-index: 29;
   display: flex;
   align-items: center;
   gap: 16px;

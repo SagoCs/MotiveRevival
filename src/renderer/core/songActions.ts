@@ -4,6 +4,7 @@ import { playlistsStore } from './playlistsStore';
 import type { IndexedTrack, Playlist } from '../../shared/types';
 
 export type QueueOutcome = 'queued' | 'moved' | 'alreadyNext';
+export type QueueAppendOutcome = 'added' | 'already';
 export type FileOutcome = 'added' | 'alreadyInPlaylist' | 'missingPlaylist' | 'nameTaken';
 
 export function queueNext(track: IndexedTrack): QueueOutcome {
@@ -16,6 +17,13 @@ export function queueNext(track: IndexedTrack): QueueOutcome {
   }
   player.insertUpcoming(track, 0);
   return 'queued';
+}
+
+export function queueAppend(track: IndexedTrack): QueueAppendOutcome {
+  if (player.getUpcoming().some((t) => t.id === track.id)) return 'already';
+  player.purgePlayed(track.id);
+  player.appendToQueue(track);
+  return 'added';
 }
 
 export function queueUpcoming(): IndexedTrack[] {
@@ -49,6 +57,10 @@ export function removePlaylist(playlistId: string): Promise<void> {
   return playlistsStore.remove(playlistId);
 }
 
+export function removePlaylistTrack(playlistId: string, index: number): Promise<void> {
+  return playlistsStore.removeTrack(playlistId, index);
+}
+
 export function playlistContains(playlistId: string, trackId: string): boolean {
   const pl = playlistsStore.get(playlistId);
   return pl !== null && pl.tracks.some((t) => t.trackId === trackId);
@@ -64,15 +76,26 @@ export function playlistsReady(): boolean {
 
 (window as unknown as { __songActions?: unknown }).__songActions = {
   queueNext,
+  queueAppend,
   queueUpcoming,
   queueRemoveTrack,
   queueMoveToGap,
   fileIntoPlaylist,
   createPlaylistWithTrack,
   removePlaylist,
+  removePlaylistTrack,
   playlistContains,
   playlists,
   playlistsReady,
+  playSingle(track: IndexedTrack): void {
+    player.playSingle(track);
+  },
+  setContext(tracks: IndexedTrack[], index: number): void {
+    player.setContext(tracks, index);
+  },
+  queueJumpTo(offset: number): void {
+    player.jumpUpcoming(offset);
+  },
   queueSnapshot(): { index: number; ids: string[]; upcoming: string[] } {
     return {
       index: player.queuePosition,

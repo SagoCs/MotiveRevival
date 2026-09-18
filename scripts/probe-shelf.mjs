@@ -463,9 +463,12 @@ const plAwake = RULER.filter((l) => !ruler.dead.includes(l));
 console.log(`scratch playlist: entries=${plScratch.names.length}, awake=${JSON.stringify(plAwake)}`);
 if (scratchId === null) failures.push('scratch playlist not created (no library tracks?)');
 else {
-  if (plScratch.names.length !== 1) failures.push(`scratch playlist missing from the playlists field (${plScratch.names.length})`);
-  if (plScratch.letters[0] !== '#') failures.push(`scratch playlist letter bucket wrong (${plScratch.letters[0]})`);
-  if (JSON.stringify(plAwake) !== JSON.stringify(['#'])) failures.push(`ruler did not wake for the new playlist (${JSON.stringify(plAwake)})`);
+  const scratchIdx = plScratch.names.indexOf('__probe_scratch');
+  if (scratchIdx < 0) failures.push(`scratch playlist missing from the playlists field (${plScratch.names.length} entries)`);
+  else if (plScratch.letters[scratchIdx] !== '#') failures.push(`scratch playlist letter bucket wrong (${plScratch.letters[scratchIdx]})`);
+  const plWantAwake = [...new Set(plScratch.letters)].sort();
+  if (JSON.stringify([...plAwake].sort()) !== JSON.stringify(plWantAwake)) failures.push(`ruler wake set wrong (awake ${JSON.stringify([...plAwake].sort())}, field buckets ${JSON.stringify(plWantAwake)})`);
+  if (!plAwake.includes('#')) failures.push(`ruler did not wake for the new playlist (${JSON.stringify(plAwake)})`);
   await clickKey('#');
   await sleep(900);
   const plLit = await evalJs(`({ lit: window.__shelf.lit(), centerLetter: window.__shelf.letters()[window.__shelf.center()] })`);
@@ -478,10 +481,12 @@ else {
   await evalJs(`window.__songActions.removePlaylist(${JSON.stringify(scratchId)})`);
   await sleep(600);
   const plGone = await evalJs('window.__shelf.names()');
+  const lettersAfter = await evalJs('window.__shelf.letters()');
   ruler = await rulerState();
   console.log(`scratch removed: entries=${plGone.length}, sleeping=${ruler.dead.length}`);
-  if (plGone.length !== 0) failures.push('scratch playlist not removed');
-  if (ruler.dead.length !== 27) failures.push('ruler did not re-sleep after playlist removal');
+  if (plGone.includes('__probe_scratch')) failures.push('scratch playlist not removed');
+  const wantDeadAfter = expectedDead(lettersAfter);
+  if (JSON.stringify([...ruler.dead].sort()) !== JSON.stringify([...wantDeadAfter].sort())) failures.push(`ruler did not re-sleep after playlist removal (dead ${ruler.dead.length}, expected ${wantDeadAfter.length})`);
 }
 
 await evalJs(`document.querySelector('#shelf-lens button:nth-child(1)')?.click()`);

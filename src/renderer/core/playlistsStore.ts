@@ -135,7 +135,7 @@ class PlaylistsStore {
   }
 
   async moveTrack(playlistId: string, index: number, delta: number): Promise<void> {
-    const pl = this.find(playlistId);
+    const pl = this.find(playlistId) || null;
     if (pl === null || delta === 0) return;
     if (index < 0 || index >= pl.tracks.length) return;
     const target = index + delta;

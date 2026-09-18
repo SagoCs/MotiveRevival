@@ -29,6 +29,7 @@ import { riverSurface } from './riverSurface';
 import { shelfSurface } from './shelfSurface';
 import { artistRiverSurface } from './artistRiverSurface';
 import { playlistRiverSurface } from './playlistRiverSurface';
+import { queueRiverSurface } from './queueRiverSurface';
 import type { Playlist } from '../../shared/types';
 
 type Mode = 'albums' | 'artists' | 'songs' | 'playlists' | 'shelf';
@@ -207,6 +208,7 @@ function wireTabs(): void {
       if (mode === 'shelf' && detailOpen) closeDetail();
       if (mode !== 'albums') setArtistFilter(null);
       closeSortPopover();
+      queueRiverSurface.close();
       syncTabs();
       syncChips();
       render();
@@ -264,6 +266,7 @@ function openOracle(): void {
   const panel = document.getElementById('search-oracle');
   if (panel === null) return;
   closeSongMenu();
+  queueRiverSurface.close();
   panel.hidden = false;
   requestAnimationFrame(() => panel.classList.add('open'));
   summonZone.classList.add('active');
@@ -413,6 +416,10 @@ function wireGlobalKeys(): void {
         e.preventDefault();
         return;
       }
+      if (queueRiverSurface.close()) {
+        e.preventDefault();
+        return;
+      }
       if (playlistRiverSurface.close()) {
         e.preventDefault();
         return;
@@ -437,6 +444,11 @@ function wireGlobalKeys(): void {
     if (!inInput && !settingsOpen && !isOracleOpen() && !isOverlayOpen() && !detailOpen && !isPlaylistLayerOpen()) {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         const dir: 1 | -1 = e.key === 'ArrowDown' ? 1 : -1;
+        if (queueRiverSurface.isOpen()) {
+          queueRiverSurface.arrowStep(dir, e.repeat);
+          e.preventDefault();
+          return;
+        }
         if (playlistRiverSurface.isOpen()) {
           playlistRiverSurface.arrowStep(dir, e.repeat);
           e.preventDefault();
@@ -454,6 +466,10 @@ function wireGlobalKeys(): void {
         }
       }
       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        if (queueRiverSurface.isOpen()) {
+          e.preventDefault();
+          return;
+        }
         if (artistRiverSurface.isOpen()) {
           artistRiverSurface.albumStep(e.key === 'ArrowRight' ? 1 : -1, e.repeat);
           e.preventDefault();
@@ -466,6 +482,11 @@ function wireGlobalKeys(): void {
         }
       }
       if (e.key === 'Enter') {
+        if (queueRiverSurface.isOpen()) {
+          queueRiverSurface.activateCenter();
+          e.preventDefault();
+          return;
+        }
         if (playlistRiverSurface.isOpen()) {
           playlistRiverSurface.activateCenter();
           e.preventDefault();
@@ -517,6 +538,10 @@ function wireGlobalKeys(): void {
 
   window.addEventListener('keyup', (e) => {
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    if (queueRiverSurface.isOpen()) {
+      queueRiverSurface.arrowRelease();
+      return;
+    }
     if (playlistRiverSurface.isOpen()) {
       playlistRiverSurface.arrowRelease();
       return;

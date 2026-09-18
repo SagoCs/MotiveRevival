@@ -144,9 +144,9 @@ if (entry === null) {
     const distinctTones = new Set(cards.map((c) => c.tone)).size;
     check('personal spectrum: distinct tones', distinctTones === 3, `${distinctTones} of 3`);
 
-    const second = cards[1];
+    const third = cards[2];
     const target = await evalJs(`(() => {
-      const el = [...document.querySelectorAll('#playlist-river .rv2-card')].find((c) => c.dataset.index === '${second.index}');
+      const el = [...document.querySelectorAll('#playlist-river .rv2-card')].find((c) => c.dataset.index === '${third.index}');
       const r = el.getBoundingClientRect();
       return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
     })()`);
@@ -165,84 +165,210 @@ if (entry === null) {
       return { ids: s.ids, index: s.index, committed: document.querySelector('#playlist-river .rv2-card.committed')?.dataset.id ?? null };
     })()`);
     console.log(`click: ${JSON.stringify(ctx)}`);
-    check('click plays the clicked song', ctx.index === 1 && ctx.ids[1] === second.id, JSON.stringify({ index: ctx.index, second: second.id }));
-    check('playlist is the queue context', ctx.ids.length === 3 && ctx.ids[0] === tracks[0].id && ctx.ids[2] === tracks[2].id, JSON.stringify(ctx.ids));
-    check('clicked card wears the committed bloom', ctx.committed === second.id, ctx.committed ?? 'none');
+    check('click plays the clicked song', ctx.index === 2 && ctx.ids[2] === third.id, JSON.stringify({ index: ctx.index, third: third.id }));
+    check('playlist is the queue context', ctx.ids.length === 3 && ctx.ids[0] === tracks[0].id && ctx.ids[1] === tracks[1].id, JSON.stringify(ctx.ids));
+    check('clicked card wears the committed bloom', ctx.committed === third.id, ctx.committed ?? 'none');
 
-    const dragState = await evalJs(`(() => {
-      const cards = [...document.querySelectorAll('#playlist-river .rv2-card')]
-        .map((c) => { const r = c.getBoundingClientRect(); return { i: +c.dataset.index, x: r.left + r.width / 2, y: r.top + r.height / 2, vis: getComputedStyle(c).visibility }; })
-        .filter((c) => c.vis === 'visible');
-      const source = cards.reduce((a, b) => (b.y < a.y ? b : a), cards[0]);
-      const lastY = Math.max(...cards.map((c) => c.y));
-      return { from: source.i, ids: window.__playlistRiver.ids(), pos: window.__playlistRiver.scroll(), x: source.x, y: source.y, targetY: lastY + 60, rest: cards.map((c) => ({ i: c.i, y: c.y })) };
+    const pinCheck = await evalJs(`(() => {
+      const el = [...document.querySelectorAll('#playlist-river .rv2-card')][0];
+      if (el === undefined) return null;
+      const r = el.getBoundingClientRect();
+      return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), ids: window.__playlistRiver.ids() };
     })()`);
-    const dragSteps = 14;
-    const stepY = (dragState.targetY - dragState.y) / dragSteps;
-    await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: Math.round(dragState.x), y: Math.round(dragState.y), button: 'left', clickCount: 1 });
-    let partsSeen = false;
-    for (let s = 1; s <= dragSteps; s++) {
-      await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: Math.round(dragState.x), y: Math.round(dragState.y + stepY * s), button: 'left' });
-      await sleep(40);
-      if (s === 12) {
-        const mid = await evalJs(`(() => {
-          const grabbed = [...document.querySelectorAll('#playlist-river .rv2-card')].find((c) => +c.dataset.index === ${dragState.from});
-          const r = grabbed?.getBoundingClientRect();
-          const rest = ${JSON.stringify(dragState.rest)};
-          const moved = rest.filter((c) => c.i !== ${dragState.from}).filter((c) => {
-            const el = [...document.querySelectorAll('#playlist-river .rv2-card')].find((x) => +x.dataset.index === c.i);
-            const rr = el?.getBoundingClientRect();
-            return rr !== undefined && Math.abs(rr.top + rr.height / 2 - c.y) > 30;
-          }).map((c) => c.i);
-          return { grabbedY: r ? r.top + r.height / 2 : -1, pointerY: ${Math.round(dragState.y + stepY * s)}, moved, line: document.querySelector('#playlist-river .rv2-insert') !== null };
-        })()`);
-        partsSeen = mid.moved.length > 0;
-        check('drag lifts the card with the pointer', Math.abs(mid.grabbedY - mid.pointerY) < 40, JSON.stringify({ grabbedY: mid.grabbedY, pointerY: mid.pointerY }));
-        check('field parts: neighbors make room', partsSeen, JSON.stringify(mid.moved));
-        check('no insertion line remains', mid.line === false);
+    check('pinned field located', pinCheck !== null && pinCheck.ids.length === 3, JSON.stringify(pinCheck));
+    if (pinCheck !== null) {
+      const vpPin = await evalJs(`({ w: window.innerWidth, h: window.innerHeight })`);
+      for (let i = 0; i < 3; i++) {
+        await send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: Math.round(vpPin.w / 2), y: Math.round(vpPin.h / 2), deltaX: 0, deltaY: -400 });
+        await sleep(80);
       }
+      await sleep(1400);
+      const afterWheelPin = await evalJs(`(() => {
+        const el = [...document.querySelectorAll('#playlist-river .rv2-card')][0];
+        const r = el.getBoundingClientRect();
+        return Math.round(r.top + r.height / 2);
+      })()`);
+      check('a small field does not scroll: the glow holds it', Math.abs(afterWheelPin - pinCheck.y) < 1, JSON.stringify({ before: pinCheck.y, after: afterWheelPin }));
     }
-    await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: Math.round(dragState.x), y: Math.round(dragState.targetY), button: 'left', clickCount: 1 });
-    await sleep(900);
-    const reordered = await evalJs(`(() => {
-      const ids = window.__playlistRiver.ids();
-      const pl = window.__songActions.playlists().find((p) => p.name === '${plName}');
-      return { ids, store: pl ? pl.tracks.map((t) => t.trackId) : [] };
-    })()`);
-    const expected = dragState.ids.filter((id) => id !== dragState.ids[dragState.from]).concat(dragState.ids[dragState.from]);
-    check('drag reorders the river', JSON.stringify(reordered.ids) === JSON.stringify(expected), JSON.stringify({ got: reordered.ids, want: expected }));
-    check('drop persists to the store', JSON.stringify(reordered.store) === JSON.stringify(reordered.ids), JSON.stringify(reordered.store));
 
-    const dragState2 = await evalJs(`(() => {
-      const cards = [...document.querySelectorAll('#playlist-river .rv2-card')]
-        .map((c) => { const r = c.getBoundingClientRect(); return { i: +c.dataset.index, x: r.left + r.width / 2, y: r.top + r.height / 2, vis: getComputedStyle(c).visibility }; })
-        .filter((c) => c.vis === 'visible');
-      const source = cards.reduce((a, b) => (b.y < a.y ? b : a), cards[0]);
-      const lastY = Math.max(...cards.map((c) => c.y));
-      return { from: source.i, ids: window.__playlistRiver.ids(), x: source.x, y: source.y, targetY: lastY + 60 };
+    const seamDrag = await evalJs(`(() => {
+      const el = [...document.querySelectorAll('#playlist-river .rv2-card')].find((c) => c.dataset.id === ${JSON.stringify(tracks[0].id)});
+      if (el === undefined) return null;
+      const r = el.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2, slot: (window.innerHeight - 52 - 62) / 7 };
     })()`);
-    const stepY2 = (dragState2.targetY - dragState2.y) / 14;
-    await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: Math.round(dragState2.x), y: Math.round(dragState2.y), button: 'left', clickCount: 1 });
-    for (let s = 1; s <= 14; s++) {
-      await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: Math.round(dragState2.x), y: Math.round(dragState2.y + (stepY2 * s)), button: 'left' });
-      await sleep(40);
+    check('pinned drag target on screen', seamDrag !== null, JSON.stringify(seamDrag));
+    if (seamDrag !== null) {
+      const lift = Math.round(seamDrag.slot * 1.4);
+      await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: Math.round(seamDrag.x), y: Math.round(seamDrag.y), button: 'left', clickCount: 1 });
+      for (let s = 1; s <= 12; s++) {
+        await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: Math.round(seamDrag.x), y: Math.round(seamDrag.y + (lift * s) / 12), button: 'left' });
+        await sleep(40);
+      }
+      await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: Math.round(seamDrag.x), y: Math.round(seamDrag.y + lift), button: 'left' });
+      await sleep(1600);
     }
-    await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: Math.round(dragState2.x), y: Math.round(dragState2.targetY), button: 'left', clickCount: 1 });
-    await sleep(1100);
-    const reordered2 = await evalJs(`(() => {
-      const ids = window.__playlistRiver.ids();
+    const seamReordered = await evalJs(`(() => {
       const pl = window.__songActions.playlists().find((p) => p.name === '${plName}');
-      return { ids, store: pl ? pl.tracks.map((t) => t.trackId) : [] };
+      return { ids: window.__playlistRiver.ids(), store: pl ? pl.tracks.map((t) => t.trackId) : [], departing: document.querySelectorAll('.rv2-departing').length };
     })()`);
-    const expected2 = dragState2.ids.filter((id) => id !== dragState2.ids[dragState2.from]).concat(dragState2.ids[dragState2.from]);
-    check('second drag grabs the right card', JSON.stringify(reordered2.ids) === JSON.stringify(expected2), JSON.stringify({ got: reordered2.ids, want: expected2 }));
-    check('second drop persists', JSON.stringify(reordered2.store) === JSON.stringify(reordered2.ids), JSON.stringify(reordered2.store));
+    const seamExpected = [tracks[1].id, tracks[0].id, tracks[2].id];
+    check('pinned field drag reorders', JSON.stringify(seamReordered.ids) === JSON.stringify(seamExpected), JSON.stringify({ got: seamReordered.ids, want: seamExpected }));
+    check('pinned field drop persists to the store', JSON.stringify(seamReordered.store) === JSON.stringify(seamExpected), JSON.stringify(seamReordered.store));
+    check('pinned commit leaves no departing ghosts behind', seamReordered.departing === 0, String(seamReordered.departing));
+
+    const removeTarget = await evalJs(`(() => {
+      const el = [...document.querySelectorAll('#playlist-river .rv2-card')].find((c) => c.dataset.id === ${JSON.stringify(tracks[0].id)});
+      if (el === undefined) return null;
+      el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+      const r = el.getBoundingClientRect();
+      return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+    })()`);
+    await sleep(450);
+    const removeFork = await evalJs(`(() => ({
+      menu: document.querySelector('.song-menu') !== null,
+      btns: [...document.querySelectorAll('.sm-fork-btn')].map((b) => b.textContent),
+      btn: (() => {
+        const b = [...document.querySelectorAll('.sm-fork-btn')].find((x) => x.textContent === 'Remove from playlist');
+        if (b === undefined) return null;
+        const r = b.getBoundingClientRect();
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      })(),
+    }))()`);
+    check('playlist menu swaps the fork row inside a playlist', removeFork.menu === true && JSON.stringify(removeFork.btns) === JSON.stringify(['Add to queue', 'Remove from playlist']), JSON.stringify(removeFork.btns));
+    if (removeFork.btn !== null) {
+      await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: Math.round(removeFork.btn.x), y: Math.round(removeFork.btn.y), button: 'left', clickCount: 1 });
+      await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: Math.round(removeFork.btn.x), y: Math.round(removeFork.btn.y), button: 'left', clickCount: 1 });
+      await sleep(450);
+    }
+    const afterRemove = await evalJs(`(() => {
+      const pl = window.__songActions.playlists().find((p) => p.name === '${plName}');
+      return {
+        menu: document.querySelector('.song-menu') !== null,
+        ids: window.__playlistRiver.ids(),
+        store: pl ? pl.tracks.map((t) => t.trackId) : [],
+        cards: document.querySelectorAll('#playlist-river .rv2-card').length,
+      };
+    })()`);
+    const removeExpected = [tracks[1].id, tracks[2].id];
+    check('remove from playlist closes the menu and departs the card', afterRemove.menu === false && JSON.stringify(afterRemove.ids) === JSON.stringify(removeExpected) && JSON.stringify(afterRemove.store) === JSON.stringify(removeExpected) && afterRemove.cards === 2, JSON.stringify(afterRemove));
+    await sleep(600);
+    check('no removal residue remains', await evalJs(`document.querySelectorAll('.rv2-departing').length === 0`));
+
+    const drain = await evalJs(`(async () => {
+      const pl = window.__songActions.playlists().find((p) => p.name === '${plName}');
+      if (pl === undefined) return false;
+      await window.__songActions.removePlaylistTrack(pl.id, 0);
+      await window.__songActions.removePlaylistTrack(pl.id, 0);
+      return true;
+    })()`);
+    await sleep(1100);
+    const drainedWorld = await evalJs(`(() => ({ open: window.__playlistRiver.isOpen(), cards: document.querySelectorAll('#playlist-river .rv2-card').length }))()`);
+    check('removing the last card empties the world in place', drain === true && drainedWorld.open === true && drainedWorld.cards === 0, JSON.stringify(drainedWorld));
+    await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+    await sleep(1600);
+    const drainedEsc = await evalJs(`window.__playlistRiver.isOpen()`);
+    check('esc leaves the emptied world', drainedEsc === false);
+    const reentered = await evalJs(`window.__playlistRiver.open(${JSON.stringify(entry.ref)})`);
+    await sleep(1400);
+    const reentry = await evalJs(`(() => ({ open: window.__playlistRiver.isOpen(), cards: document.querySelectorAll('#playlist-river .rv2-card').length }))()`);
+    check('an emptied playlist reopens as a void you can leave', reentered === true && reentry.open === true && reentry.cards === 0, JSON.stringify(reentry));
+    await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+    await sleep(1600);
+    check('esc leaves the reopened empty playlist', await evalJs(`window.__playlistRiver.isOpen() === false`));
 
     await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
     await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
     await sleep(1600);
     const closed = await evalJs(`({ open: window.__playlistRiver.isOpen(), lens: window.__shelf.lens() })`);
     check('esc returns to the playlists lens', closed.open === false && closed.lens === 'playlists', JSON.stringify(closed));
+
+    const ringIds = await evalJs(`(async () => {
+      const A = window.__songActions;
+      for (const pl of A.playlists().filter((x) => x.name === '__probe_ring')) await A.removePlaylist(pl.id);
+      const lib = A.libraryTracks();
+      const pick = [];
+      const seen = new Set();
+      for (const t of lib) { if (seen.has(t.id)) continue; seen.add(t.id); pick.push(t); if (pick.length === 8) break; }
+      const outcome = await A.createPlaylistWithTrack('__probe_ring', pick[0]);
+      if (outcome !== 'added') return null;
+      for (let i = 1; i < pick.length; i++) {
+        const pl = A.playlists().find((p) => p.name === '__probe_ring');
+        if (pl === undefined) return null;
+        await A.fileIntoPlaylist(pl.id, pick[i]);
+      }
+      const final = A.playlists().find((p) => p.name === '__probe_ring');
+      return final ? final.tracks.map((t) => t.trackId) : null;
+    })()`);
+    console.log(`ring picks: ${ringIds === null ? null : ringIds.length}`);
+    if (ringIds === null || ringIds.length !== 8) {
+      failures.push('ring scratch playlist not created');
+    } else {
+      await evalJs(`document.querySelector('[data-mode="shelf"]').click()`);
+      await sleep(900);
+      const ringEntry = await evalJs(`(() => {
+        const e = window.__shelf.entries().find((x) => x.ref !== undefined && x.name === '__probe_ring');
+        return e ?? null;
+      })()`);
+      const enteredRing = await evalJs(`window.__shelf.summonEnterPlaylist(${JSON.stringify(ringEntry?.ref ?? '')})`);
+      check('ring playlist accepted the summon landing', enteredRing === true);
+      await sleep(3200);
+      const ringOpen = await evalJs(`(() => ({ open: window.__playlistRiver.isOpen(), cards: document.querySelectorAll('#playlist-river .rv2-card').length }))()`);
+      check('eight-song playlist opens the river', ringOpen.open === true && ringOpen.cards === 8, JSON.stringify(ringOpen));
+
+      const vpRing = await evalJs(`({ w: window.innerWidth, h: window.innerHeight })`);
+      for (let i = 0; i < 3; i++) {
+        await send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: Math.round(vpRing.w / 2), y: Math.round(vpRing.h / 2), deltaX: 0, deltaY: 400 });
+        await sleep(90);
+      }
+      await sleep(1600);
+      const ringScroll = await evalJs(`window.__playlistRiver.scroll()`);
+      check('the river rings: scroll runs past the first song without a wall', ringScroll < -0.3, `scroll ${Number(ringScroll).toFixed(2)}`);
+
+      await evalJs(`window.__playlistRiver.close()`);
+      await sleep(900);
+      await evalJs(`window.__playlistRiver.open(${JSON.stringify(ringEntry?.ref ?? '')})`);
+      await sleep(1400);
+      const dragRing = await evalJs(`(() => {
+        const el = [...document.querySelectorAll('#playlist-river .rv2-card')].find((c) => c.dataset.id === ${JSON.stringify(ringIds[0])});
+        if (el === undefined) return null;
+        const r = el.getBoundingClientRect();
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      })()`);
+      check('ring drag target on screen', dragRing !== null, JSON.stringify(dragRing));
+      if (dragRing !== null) {
+        await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: Math.round(dragRing.x), y: Math.round(dragRing.y), button: 'left', clickCount: 1 });
+        for (let s = 1; s <= 12; s++) {
+          await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: Math.round(dragRing.x), y: Math.round(dragRing.y + s * 13), button: 'left' });
+          await sleep(40);
+        }
+        await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: Math.round(dragRing.x), y: Math.round(dragRing.y + 156), button: 'left' });
+        await sleep(1600);
+      }
+      const ringReordered = await evalJs(`(() => {
+        const pl = window.__songActions.playlists().find((p) => p.name === '__probe_ring');
+        return { ids: window.__playlistRiver.ids(), store: pl ? pl.tracks.map((t) => t.trackId) : [], departing: document.querySelectorAll('.rv2-departing').length };
+      })()`);
+      const ringExpected = [ringIds[1], ringIds[0], ...ringIds.slice(2)];
+      check('ring drag reorders the circle', JSON.stringify(ringReordered.ids) === JSON.stringify(ringExpected), JSON.stringify({ got: ringReordered.ids, want: ringExpected }));
+      check('ring drop persists to the store', JSON.stringify(ringReordered.store) === JSON.stringify(ringExpected), JSON.stringify(ringReordered.store));
+      check('ring commit leaves no departing ghosts behind', ringReordered.departing === 0, String(ringReordered.departing));
+
+      await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+      await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+      await sleep(1600);
+      const ringGone = await evalJs(`window.__playlistRiver.isOpen()`);
+      check('esc leaves the ring river', ringGone === false);
+    }
+
+    const ringCleanup = await evalJs(`(async () => {
+      const A = window.__songActions;
+      for (const pl of A.playlists().filter((x) => x.name === '__probe_ring')) await A.removePlaylist(pl.id);
+      return A.playlists().every((p) => p.name !== '__probe_ring');
+    })()`);
+    check('ring scratch playlist removed', ringCleanup === true);
   }
 }
 

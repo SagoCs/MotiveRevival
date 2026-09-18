@@ -13,6 +13,7 @@ const ALL_PROBES = [
   'timeline-swap',
   'shelf',
   'artist-river',
+  'queue-river',
 ];
 
 const args = process.argv.slice(2);

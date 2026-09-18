@@ -11,6 +11,8 @@ export interface AppEventMap {
   'artist-river-closed': { artist: string };
   'playlist-river-opened': { playlistId: string };
   'playlist-river-closed': { playlistId: string };
+  'queue-river-opened': Record<string, never>;
+  'queue-river-closed': Record<string, never>;
 }
 
 export const appBus = new Bus<AppEventMap>();

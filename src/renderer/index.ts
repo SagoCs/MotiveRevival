@@ -29,6 +29,7 @@ import { initRiverSurface } from './ui/riverSurface';
 import { initShelfSurface } from './ui/shelfSurface';
 import { initArtistRiverSurface } from './ui/artistRiverSurface';
 import { initPlaylistRiverSurface } from './ui/playlistRiverSurface';
+import { initQueueRiverSurface } from './ui/queueRiverSurface';
 import './core/songActions';
 import { playlistsStore } from './core/playlistsStore';
 
@@ -60,6 +61,7 @@ function boot(): void {
   initShelfSurface();
   initArtistRiverSurface();
   initPlaylistRiverSurface();
+  initQueueRiverSurface();
 
   const arrowAnchor = (side: number): { x: number; y: number } | null => {
     const row = document.querySelector<HTMLElement>('.song-row.playing');

@@ -2,7 +2,8 @@ import { el } from '../core/dom';
 import { fmtTime } from '../core/dom';
 import { player } from '../core/player';
 import { appBus } from '../core/appBus';
-import { openSongMenu, closeSongMenu, isSongMenuOpen } from './songMenu';
+import { closeSongMenu, isSongMenuOpen } from './songMenu';
+import { queueRiverSurface } from './queueRiverSurface';
 import { ICON_PAUSE, ICON_PLAY, ICON_PREV, ICON_NEXT, ICON_VOLUME, ICON_VOLUME_MUTE, ICON_LOOP } from './icons';
 import type { LoopMode } from '../../shared/types';
 
@@ -138,10 +139,10 @@ export function createTransport(host: HTMLElement): TransportHandle {
   };
   queueBtn.addEventListener('click', () => {
     if (isSongMenuOpen()) closeSongMenu();
-    else openSongMenu({ host: null, row: queueBtn, phase: 'queue', placement: 'above', toggle: true });
+    queueRiverSurface.toggle();
   });
-  appBus.on('song-menu-opened', ({ row }) => syncQueueButton(row === queueBtn));
-  appBus.on('song-menu-closed', () => syncQueueButton(false));
+  appBus.on('queue-river-opened', () => syncQueueButton(true));
+  appBus.on('queue-river-closed', () => syncQueueButton(false));
 
   let dragging = false;
   let lastProgressSent = 0;

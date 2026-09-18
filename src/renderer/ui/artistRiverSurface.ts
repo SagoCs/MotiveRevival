@@ -16,7 +16,7 @@ const SINK_MS = 240;
 const TRANSIT_RETURN_DELAY = 60;
 const TRANSIT_RETURN_TOTAL = SINK_MS + TRANSIT_RETURN_DELAY + 400;
 const FLOOR_DELAY_MS = 360;
-const SMALL_RIVER_CARDS = 7;
+const PINNED_SMALL_CARDS = 5;
 
 let river: ReturnType<typeof createRiverV2> | null = null;
 let floor: HTMLDivElement | null = null;
@@ -84,7 +84,7 @@ const toEntry = (feedIdx: number): number =>
 
 const entryList = (): RiverV2Entry[] => {
   const list = entriesFrom(feed);
-  displaySwap = feed.length >= 2 && feed.length < SMALL_RIVER_CARDS;
+  displaySwap = feed.length >= 2 && feed.length <= PINNED_SMALL_CARDS;
   if (displaySwap) {
     const first = list[0];
     const second = list[1];
@@ -114,10 +114,8 @@ const applyDim = (album: string): void => {
   let last = first;
   while (last + 1 < feed.length && feed[last + 1]?.album === album) last += 1;
   dimAlbum = album;
-  const eFirst = toEntry(first);
-  const eLast = toEntry(last);
-  river?.setDimSpan(Math.min(eFirst, eLast), Math.max(eFirst, eLast));
-  river?.scrollTo(eFirst);
+  river?.setDimSpan(Math.min(first, last), Math.max(first, last));
+  river?.scrollTo(first);
 };
 
 const clearDim = (): void => {
@@ -169,7 +167,7 @@ export const artistRiverSurface = {
       river?.setEntries(entryList());
     }
     const playing = playingFeedIndex();
-    river?.scrollTo(playing >= 0 ? toEntry(playing) : toEntry(0));
+    river?.scrollTo(toEntry(playing >= 0 ? playing : 0));
     if (opts?.focusTrackId !== undefined) {
       const fi = feed.findIndex((t) => t.id === opts.focusTrackId);
       if (fi >= 0) river?.scrollTo(toEntry(fi));
@@ -283,7 +281,7 @@ export const artistRiverSurface = {
 export function initArtistRiverSurface(): void {
   if (river !== null) return;
   river = createRiverV2();
-  river.setLayout({ ring: true, smallSetPin: false });
+  river.setLayout({ ring: true, smallSetPin: true });
   river.onHome(() => {
     const idx = playingFeedIndex();
     river?.glideTo(toEntry(idx >= 0 ? idx : 0));
@@ -323,7 +321,7 @@ export function initArtistRiverSurface(): void {
     feed = buildFeed(artistName);
     river?.setEntries(entryList());
     const playing = playingFeedIndex();
-    river?.scrollTo(playing >= 0 ? toEntry(playing) : toEntry(0));
+    river?.scrollTo(toEntry(playing >= 0 ? playing : 0));
     if (dimAlbum !== null) applyDim(dimAlbum);
     syncCommitted();
   });

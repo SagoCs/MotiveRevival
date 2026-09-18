@@ -22,16 +22,18 @@ let closing = false;
 let playlistId: string | null = null;
 let playlistName: string | null = null;
 let tracks: IndexedTrack[] = [];
+let items: Array<{ track?: IndexedTrack; ghostId?: string; title?: string; playlistIndex: number }> = [];
 let closeCalls = 0;
 
 interface DisplayItem {
   track?: IndexedTrack;
   ghostId?: string;
   title?: string;
+  playlistIndex: number;
 }
 
-const entriesFrom = (items: DisplayItem[]): RiverV2Entry[] =>
-  items.map((item, i) => {
+const entriesFrom = (list: DisplayItem[]): RiverV2Entry[] =>
+  list.map((item, i) => {
     const track = item.track;
     if (track === undefined) {
       return {
@@ -55,9 +57,11 @@ const entriesFrom = (items: DisplayItem[]): RiverV2Entry[] =>
 
 const displayItems = (id: string): DisplayItem[] | null => {
   const pl = playlistsStore.list().find((p) => p.id === id);
-  if (pl === undefined || pl.tracks.length === 0) return null;
-  return playlistsStore.resolve(pl.tracks).map((r) =>
-    'track' in r ? { track: r.track } : { ghostId: `missing:${r.ref.trackId ?? r.ref.absPath}`, title: r.ref.absPath.split(/[\\/]/).pop() },
+  if (pl === undefined) return null;
+  return playlistsStore.resolve(pl.tracks).map((r, i) =>
+    'track' in r
+      ? { track: r.track, playlistIndex: i }
+      : { ghostId: `missing:${r.ref.trackId ?? r.ref.absPath}`, title: r.ref.absPath.split(/[\\/]/).pop(), playlistIndex: i },
   );
 };
 
@@ -89,11 +93,12 @@ const playingIdx = (): number => {
 };
 
 const load = (id: string): boolean => {
-  const items = displayItems(id);
-  if (items === null) return false;
+  const list = displayItems(id);
+  if (list === null) return false;
   const pl = playlistsStore.list().find((p) => p.id === id);
   if (pl === undefined) return false;
-  tracks = items.flatMap((item) => (item.track !== undefined ? [item.track] : []));
+  items = list;
+  tracks = list.flatMap((item) => (item.track !== undefined ? [item.track] : []));
   playlistId = id;
   playlistName = pl.name;
   river?.setEntries(entriesFrom(items));
@@ -196,7 +201,7 @@ export const playlistRiverSurface = {
 export function initPlaylistRiverSurface(): void {
   if (river !== null) return;
   river = createRiverV2();
-  river.setLayout({ smallSetPin: false, reorder: true });
+  river.setLayout({ ring: true, smallSetPin: true, reorder: true });
   river.onEntryReordered((from, gap) => {
     if (playlistId === null) return;
     void playlistsStore.reorderTrack(playlistId, from, gap);
@@ -211,9 +216,10 @@ export function initPlaylistRiverSurface(): void {
   });
   river.onEntryContext((id, card) => {
     if (!opened) return;
-    const track = tracks.find((t) => t.id === id);
-    if (track === undefined) return;
-    openSongMenu({ track, host: card, row: null });
+    const item = items.find((t) => t.track !== undefined && t.track.id === id);
+    const track = item?.track;
+    if (track === undefined || item === undefined || playlistId === null) return;
+    openSongMenu({ track, host: card, row: null, playlist: { id: playlistId, index: item.playlistIndex } });
   });
   river.mount(currentRegion(), window.devicePixelRatio || 1, 'playlist-river');
   river.setVisible(false);

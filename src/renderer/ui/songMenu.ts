@@ -8,11 +8,12 @@ import {
   fileIntoPlaylist,
   playlistContains,
   playlists,
+  queueAppend,
   queueMoveToGap,
-  queueNext,
   queueRemoveTrack,
   queueUpcoming,
   removePlaylist,
+  removePlaylistTrack,
 } from '../core/songActions';
 import type { IndexedTrack, Playlist } from '../../shared/types';
 
@@ -28,6 +29,7 @@ let open = false;
 let phase: MenuPhase = 'fork';
 let in3d = false;
 let track: IndexedTrack | null = null;
+let playlistContext: { id: string; index: number } | null = null;
 let highlightId: string | null = null;
 let deleteTargetId: string | null = null;
 let deletingId: string | null = null;
@@ -190,17 +192,21 @@ const renderFork = (): void => {
   root.classList.add('sm-center');
   root.replaceChildren();
   const queueBtn = sm('sm-fork-btn', 'Add to queue');
-  const listBtn = sm('sm-fork-btn', 'Add to playlist');
+  const inPlaylist = playlistContext !== null;
+  const listBtn = sm('sm-fork-btn', inPlaylist ? 'Remove from playlist' : 'Add to playlist');
   queueBtn.addEventListener('click', () => {
     if (track === null) return;
-    queueNext(track);
-    highlightId = track.id;
-    phase = 'queue';
-    renderQueue();
-    requestHighlightPulse();
+    const outcome = queueAppend(track);
+    phase = 'added';
+    renderWord(outcome === 'already' ? 'Already there' : 'Added');
   });
   listBtn.addEventListener('click', () => {
-    if (track === null) return;
+    if (inPlaylist && playlistContext !== null) {
+      const target = playlistContext;
+      closeSongMenu();
+      void removePlaylistTrack(target.id, target.index);
+      return;
+    }
     phase = 'playlists';
     renderPlaylists();
   });
@@ -370,13 +376,6 @@ const renderWord = (word: string): void => {
   }, WORD_MS);
 };
 
-const requestHighlightPulse = (): void => {
-  if (listEl === null) return;
-  const row = listEl.querySelector('.sm-new');
-  if (row === null) return;
-  row.scrollIntoView({ block: 'nearest' });
-};
-
 const ensureWired = (): void => {
   if (wired) return;
   wired = true;
@@ -465,6 +464,7 @@ export function openSongMenu(opts: {
   phase?: 'fork' | 'queue';
   placement?: 'right' | 'above';
   toggle?: boolean;
+  playlist?: { id: string; index: number };
 }): void {
   ensureWired();
   window.clearTimeout(closeTimer);
@@ -476,6 +476,7 @@ export function openSongMenu(opts: {
     return;
   }
   track = opts.track ?? null;
+  playlistContext = opts.playlist ?? null;
   highlightId = track !== null ? track.id : null;
   deleteTargetId = null;
   chromeRow = opts.host === null ? opts.row : null;

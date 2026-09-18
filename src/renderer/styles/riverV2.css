@@ -25,8 +25,14 @@ body.song-river-active #carousel-content {
   transition: opacity 360ms var(--ease-drift);
 }
 
+#queue-river {
+  z-index: 28;
+  transition: opacity 420ms var(--ease-drift);
+}
+
 #artist-river.pre,
-#playlist-river.pre {
+#playlist-river.pre,
+#queue-river.pre {
   opacity: 0.001;
   pointer-events: none;
 }
@@ -36,7 +42,10 @@ body.song-river-active #carousel-content {
 #artist-river.pre .rv2-void,
 #playlist-river.pre,
 #playlist-river.pre .rv2-card,
-#playlist-river.pre .rv2-void {
+#playlist-river.pre .rv2-void,
+#queue-river.pre,
+#queue-river.pre .rv2-card,
+#queue-river.pre .rv2-void {
   pointer-events: none;
 }
 
@@ -67,8 +76,58 @@ body.song-river-active #carousel-content {
   transition: opacity 280ms var(--ease-drift);
 }
 
+#queue-river-floor {
+  position: fixed;
+  inset: 0;
+  z-index: 27;
+  background: var(--void-0);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 420ms var(--ease-drift),
+    visibility 0s linear 420ms;
+}
+
+#queue-river-floor.on {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 420ms var(--ease-drift);
+}
+
+.rv2-cap {
+  position: absolute;
+  top: 10px;
+  left: 14px;
+  z-index: 2;
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: 11px;
+  line-height: 1;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--moon-faint);
+  opacity: 0;
+  transition: opacity 180ms ease;
+  pointer-events: none;
+}
+
+.rv2-card:hover .rv2-cap {
+  opacity: 1;
+}
+
+.rv2-cap.cap-accent {
+  color: color-mix(in srgb, var(--acc-a) 80%, var(--moon-bright));
+}
+
 .rv2-card.rv2-ghost {
   pointer-events: none;
+}
+
+.rv2-departing {
+  opacity: 0 !important;
+  pointer-events: none;
+  transition: opacity 280ms var(--ease-drift);
 }
 
 .rv2-world {

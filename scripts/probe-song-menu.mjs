@@ -189,7 +189,10 @@ const swallowAfter = await evalJs(`(() => {
 check('right-click inside the panel leaves it alone', swallow.open === true && swallowAfter.alive === true && swallowAfter.fork === true, JSON.stringify(swallowAfter));
 
 const titleBefore = await evalJs(`document.title`);
-const copiesBefore = await evalJs(`window.__songActions.queueSnapshot().ids.filter((x) => x === document.querySelector('[data-probe-pick="1"]')?.dataset.id).length`);
+const copiesBefore = await evalJs(`(() => {
+  const id = document.querySelector('[data-probe-pick="1"]')?.dataset.id ?? '';
+  return window.__songActions.queueSnapshot().ids.filter((x) => x === id).length;
+})()`);
 const forkBtn = await evalJs(`(() => {
   const b = Array.from(document.querySelectorAll('.sm-fork-btn')).find((x) => x.textContent === 'Add to queue');
   if (b === undefined) return null;
@@ -200,86 +203,19 @@ if (forkBtn !== null) {
   await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: forkBtn.x, y: forkBtn.y, button: 'left', clickCount: 1 });
   await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: forkBtn.x, y: forkBtn.y, button: 'left', clickCount: 1 });
 }
-await sleep(350);
-const queuePhase = await evalJs(`(() => {
-  const m = document.querySelector('.song-menu');
-  if (m === null) return { open: false };
-  const head = m.querySelector('.sm-head')?.textContent ?? '';
-  const rows = m.querySelectorAll('.sm-list .sm-row').length;
-  const newCount = m.querySelectorAll('.sm-row.sm-new').length;
-  const newName = m.querySelector('.sm-row.sm-new .sm-name')?.textContent ?? '';
-  return { open: true, head, rows, newCount, newName };
-})()`);
-check('queue path opens the live queue view', queuePhase.open === true && queuePhase.head === 'UP NEXT' && queuePhase.rows > 0, JSON.stringify({ head: queuePhase.head, rows: queuePhase.rows }));
-const titleAfterQueue = await evalJs(`document.title`);
-check('real mouse click reached the button without playing the card', queuePhase.open === true && titleAfterQueue === titleBefore, JSON.stringify({ titleBefore, titleAfterQueue }));
-const topOfQueue = await evalJs(`window.__songActions.queueSnapshot().upcoming[0]`);
-check('add to queue pulls the card song to plays-next', topOfQueue === card.id, JSON.stringify({ topOfQueue, cardId: card.id }));
-check('queue view highlights the card song (dedupe, no flood)', queuePhase.newCount === 1 && queuePhase.newName === card.title, JSON.stringify({ newCount: queuePhase.newCount, newName: queuePhase.newName }));
-
-const qAfter = await evalJs(`(() => { const s = window.__songActions.queueSnapshot(); const id = document.querySelector('[data-probe-pick="1"]')?.dataset.id ?? ''; return { total: s.ids.length, copies: s.ids.filter((x) => x === id).length }; })()`);
-check('no duplicate entered the queue', qAfter.copies === copiesBefore, JSON.stringify({ copiesBefore, after: qAfter }));
-
-const menuPhaseAtDrag = await evalJs(`(() => {
-  const m = document.querySelector('.song-menu');
-  if (m === null) return 'menu-closed';
-  if (m.querySelector('.sm-list .sm-row') !== null) return 'ready';
-  if (m.querySelector('.sm-fork') !== null) return 'fork';
-  return 'head:' + (m.querySelector('.sm-head')?.textContent ?? 'none');
-})()`);
-if (menuPhaseAtDrag === 'fork') {
-  const forkBtn = await evalJs(`(() => {
-    const b = Array.from(document.querySelectorAll('.sm-fork-btn')).find((x) => x.textContent === 'Add to queue');
-    if (b === undefined) return null;
-    const r = b.getBoundingClientRect();
-    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
-  })()`);
-  if (forkBtn !== null) {
-    await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: forkBtn.x, y: forkBtn.y, button: 'left', clickCount: 1 });
-    await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: forkBtn.x, y: forkBtn.y, button: 'left', clickCount: 1 });
-    await sleep(350);
-  }
-}
-const drag = await evalJs(`(() => {
-  const m = document.querySelector('.song-menu');
-  const row = m?.querySelector('.sm-list .sm-row');
-  if (m === undefined || m === null || row === null || row === undefined) return { fatal: 'queue view unavailable', phase: ${JSON.stringify('see menuPhaseAtDrag')} };
-  const rect = row.getBoundingClientRect();
-  const before = window.__songActions.queueSnapshot().upcoming.slice(0, 4);
-  const y0 = rect.top + rect.height / 2;
-  const bottom = m.querySelector('.sm-list .sm-row:nth-child(4)').getBoundingClientRect();
-  const yFar = bottom.top + bottom.height / 2;
-  row.dispatchEvent(new PointerEvent('pointerdown', { button: 0, clientX: rect.left + 20, clientY: y0, bubbles: true }));
-  window.dispatchEvent(new PointerEvent('pointermove', { clientX: rect.left + 20, clientY: y0 + 40 }));
-  window.dispatchEvent(new PointerEvent('pointermove', { clientX: rect.left + 20, clientY: yFar }));
-  window.dispatchEvent(new PointerEvent('pointerup', { clientX: rect.left + 20, clientY: yFar }));
-  const after = window.__songActions.queueSnapshot().upcoming;
-  const movedOff = after[0] !== before[0];
-  const stillThere = after.includes(before[0]);
-  const sameSet = JSON.stringify(after.slice(0, 4).slice().sort()) === JSON.stringify(before.slice().sort());
-  if (movedOff && stillThere) window.__songActions.queueMoveToGap(after.indexOf(before[0]), 0);
-  const restored = window.__songActions.queueSnapshot().upcoming.slice(0, 4);
-  return { movedOff, stillThere, sameSet, restored: JSON.stringify(restored) === JSON.stringify(before) };
-})()`);
-if (drag.fatal !== undefined) {
-  console.log(`menu phase at drag step: ${menuPhaseAtDrag}`);
-  check('drag reorder moves the row and restores', false, JSON.stringify(drag));
-} else {
-  check('drag reorder moves the row and restores', drag.movedOff === true && drag.stillThere === true && drag.sameSet === true && drag.restored === true, JSON.stringify(drag));
-}
-
-await evalJs(`(() => { const x = document.querySelector('.song-menu .sm-row.sm-new .sm-x'); if (x) x.click(); })()`);
-await sleep(300);
-const removed = await evalJs(`window.__songActions.queueSnapshot().ids.filter((x) => x === ${JSON.stringify(card.id)}).length`);
-check('row x removes from the queue', removed === 0);
-
-await evalJs(`document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
 await sleep(400);
-const backTo = await evalJs(`(() => {
-  const m = document.querySelector('.song-menu');
-  return { open: m !== null, fork: m?.querySelector('.sm-fork') !== null, list: m?.querySelector('.sm-list') !== null };
+const forkWord = await evalJs(`(() => {
+  const id = document.querySelector('[data-probe-pick="1"]')?.dataset.id ?? '';
+  return {
+    title: document.title,
+    word: document.querySelector('.song-menu .sm-word')?.textContent ?? null,
+    copies: window.__songActions.queueSnapshot().ids.filter((x) => x === id).length,
+  };
 })()`);
-check('escape steps back from the queue to the fork', backTo.open === true && backTo.fork === true && backTo.list === false, JSON.stringify(backTo));
+check('real mouse click reached the fork without playing the card', forkWord.title === titleBefore, JSON.stringify({ before: titleBefore, after: forkWord.title }));
+check('add to queue on an upcoming song answers Already there and refuses to copy', forkWord.word === 'Already there' && forkWord.copies === copiesBefore && forkWord.copies === 1, JSON.stringify(forkWord));
+await sleep(1100);
+check('the word closes the menu', await evalJs(`document.querySelector('.song-menu') === null`));
 
 const race = await evalJs(`(() => {
   const c = Array.from(document.querySelectorAll('.rv2-card')).find((x) => x.dataset.probePick === '1');
@@ -633,35 +569,18 @@ await sleep(400);
 check('second escape closes the summon', await evalJs(`!document.getElementById('search-oracle').classList.contains('open')`));
 
 const transport = await evalJs(`(() => {
-  const btn = document.querySelector('.queue-toggle');
-  btn.click();
-  const m = document.querySelector('.song-menu');
-  const mr = m?.getBoundingClientRect();
-  const br = btn.getBoundingClientRect();
+  document.querySelector('.queue-toggle').click();
   return {
-    open: m !== null,
-    head: m?.querySelector('.sm-head')?.textContent ?? null,
-    above: mr !== null && br !== null && mr.bottom <= br.top + 2,
-    centered: mr !== null && br !== null && (Math.abs((mr.left + mr.width / 2) - (br.left + br.width / 2)) < 2 || Math.abs(mr.left - 12) < 2),
-    lit: btn.classList.contains('lit'),
+    menu: document.querySelector('.song-menu') !== null,
+    world: window.__queueRiver !== undefined && window.__queueRiver.isOpen(),
+    lit: document.querySelector('.queue-toggle').classList.contains('lit'),
   };
 })()`);
-check('transport button opens the queue phase above it', transport.open === true && transport.head === 'UP NEXT' && transport.above === true && transport.centered === true && transport.lit === true, JSON.stringify(transport));
-const qBtnCenter = await evalJs(`(() => { const b = document.querySelector('.queue-toggle'); const r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
-await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: qBtnCenter.x, y: qBtnCenter.y, button: 'left', clickCount: 1 });
-await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: qBtnCenter.x, y: qBtnCenter.y, button: 'left', clickCount: 1 });
-await sleep(450);
-const toggledOff = await evalJs(`(() => {
-  const btn = document.querySelector('.queue-toggle');
-  return { menuGone: document.querySelector('.song-menu') === null, lit: btn.classList.contains('lit') };
-})()`);
-check('pressing the lit button toggles the queue closed (real mouse)', toggledOff.menuGone === true && toggledOff.lit === false, JSON.stringify(toggledOff));
-await evalJs(`document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
-await sleep(400);
-check('transport menu escape closes it and unlights the button', await evalJs(`(() => {
-  const btn = document.querySelector('.queue-toggle');
-  return document.querySelector('.song-menu') === null && !btn.classList.contains('lit');
-})()`));
+await sleep(800);
+check('transport button opens the queue river world, not a menu', transport.world === true && transport.menu === false && transport.lit === true, JSON.stringify(transport));
+await evalJs(`window.__queueRiver.close()`);
+await sleep(700);
+check('closing the world unlights the button', await evalJs(`!document.querySelector('.queue-toggle').classList.contains('lit')`));
 
 await evalJs(`document.querySelector('#mode-tabs button[data-mode="albums"]').click()`);
 await sleep(500);

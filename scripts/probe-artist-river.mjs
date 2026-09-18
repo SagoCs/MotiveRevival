@@ -443,6 +443,43 @@ if (!afterTriple.match) failures.push(`triple-tap river not centered on the play
 await evalJs(`window.__artistRiver.close()`);
 await sleep(600);
 
+const smallArtist = await evalJs(`(() => {
+  const lib = window.__songActions.libraryTracks();
+  const counts = new Map();
+  for (const t of lib) {
+    const name = t.primaryArtist ?? t.artist ?? '';
+    if (name.trim() === '') continue;
+    counts.set(name, (counts.get(name) ?? 0) + 1);
+  }
+  for (const [name, n] of counts) {
+    if (n >= 3 && n <= 5) return { name, n };
+  }
+  return null;
+})()`);
+if (smallArtist === null) {
+  console.log('small artist: none with 3-5 songs, pin check skipped');
+} else {
+  await evalJs(`window.__artistRiver.open(${JSON.stringify(smallArtist.name)})`);
+  await sleep(1800);
+  const pinnedState = await evalJs(`(() => {
+    const cards = [...document.querySelectorAll('#artist-river .rv2-card')].map((el) => Math.round(el.getBoundingClientRect().top + el.getBoundingClientRect().height / 2));
+    return { open: window.__artistRiver.isOpen(), n: window.__artistRiver.ids().length, center: window.__artistRiver.centerId(), newest: window.__artistRiver.ids()[0], cards };
+  })()`);
+  console.log(`small artist: ${pinnedState.n} songs, center ${pinnedState.center}, newest ${pinnedState.newest}`);
+  if (!pinnedState.open || pinnedState.n !== smallArtist.n || pinnedState.cards.length !== smallArtist.n) failures.push('small artist did not pin as a static field');
+  if (pinnedState.center !== pinnedState.newest) failures.push('small artist: the newest song does not hold the glow');
+  const vpA = await evalJs(`({ w: window.innerWidth, h: window.innerHeight })`);
+  for (let i = 0; i < 3; i++) {
+    await send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: Math.round(vpA.w / 2), y: Math.round(vpA.h / 2), deltaX: 0, deltaY: -400 });
+    await sleep(80);
+  }
+  await sleep(1500);
+  const afterWheelArtist = await evalJs(`(() => [...document.querySelectorAll('#artist-river .rv2-card')].map((el) => Math.round(el.getBoundingClientRect().top + el.getBoundingClientRect().height / 2)))()`);
+  if (JSON.stringify(afterWheelArtist) !== JSON.stringify(pinnedState.cards)) failures.push('small artist field scrolled while pinned');
+  await evalJs(`window.__artistRiver.close()`);
+  await sleep(1200);
+}
+
 ws.close();
 if (failures.length > 0) {
   console.log('FAIL:', failures.join(' | '));
