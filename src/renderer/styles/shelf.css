@@ -437,12 +437,16 @@
   color: color-mix(in srgb, var(--moon-bright) 72%, transparent);
   padding: 8px 10px;
   white-space: nowrap;
-  pointer-events: auto;
+  pointer-events: none;
   opacity: 0;
   transition:
     opacity 300ms var(--ease-drift),
     color 200ms ease,
     text-shadow 200ms ease;
+}
+
+.shelf-manage-opt.on {
+  pointer-events: auto;
 }
 
 .shelf-manage-opt.on {

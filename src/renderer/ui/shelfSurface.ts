@@ -20,7 +20,6 @@ import type { IndexedTrack } from '../../shared/types';
 const BEZEL_H = 52;
 const TIMELINE_H = 62;
 const RULER_LETTERS: string[] = ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')];
-const SMALL_PIN_COUNT = 5;
 const PROMPT_RISE_MS = 300;
 const SPEAK_WORD_MS = 950;
 const RESUME_MS = 350;
@@ -63,6 +62,7 @@ let dissolveTimers = new Map<string, number>();
 let renameTargetId: string | null = null;
 let originalName = '';
 let pendingManage: string | null = null;
+let pendingCreateLand: { plId: string; idx: number } | null = null;
 let suspended: HTMLElement[] = [];
 let speakingId: string | null = null;
 let speakingWord = '';
@@ -528,6 +528,8 @@ const openPrompt = (idx: number): void => {
   if (promptEl === null || promptInput === null || promptOpen || idx < 0) return;
   promptOpen = true;
   promptPartIndex = idx;
+  selectedId = null;
+  shelf?.setSelected(null);
   if (echoTimer !== 0) {
     window.clearTimeout(echoTimer);
     echoTimer = 0;
@@ -598,6 +600,12 @@ const promptEscape = (): void => {
   if (promptEchoEl !== null) promptEchoEl.textContent = '';
   if (promptInput !== null) promptInput.value = '';
   setPromptStage('virgin');
+};
+
+const setCardHidden = (id: string, hidden: boolean): void => {
+  const el = document.querySelector(`#shelf .shelf-card[data-id="${id}"]`);
+  if (el === null || !(el instanceof HTMLElement)) return;
+  el.style.visibility = hidden ? 'hidden' : 'visible';
 };
 
 const setCardDissolved = (id: string, dissolved: boolean): void => {
@@ -758,16 +766,17 @@ const performDelete = (): void => {
 };
 
 const finishCreate = (plId: string): void => {
-  const partIdx = promptPartIndex;
   closePrompt(false);
-  const idx = partIdx >= 0 ? partIdx : shelf?.centerIndex() ?? 0;
   buildPlaylistEntries();
   const newIdx = currentEntries().findIndex((e) => e.id === `playlist:${plId}`);
-  const target = newIdx >= 0 ? newIdx : idx;
-  shelf?.returnFromScene(target, currentEntries(), () => {
-    applyEntries(target);
-    highlight(target);
-  });
+  if (newIdx < 0) return;
+  const newId = `playlist:${plId}`;
+  shelf?.setEntries(currentEntries());
+  setCardHidden(newId, true);
+  selectedId = null;
+  shelf?.setSelected(null);
+  pendingCreateLand = { plId: newId, idx: newIdx };
+  shelf?.glideTo(newIdx);
 };
 
 const refuseName = (): void => {
@@ -1056,8 +1065,7 @@ export function initShelfSurface(): void {
       return;
     }
     if (id === PLUS_ID) {
-      if (idx === shelf?.centerIndex() || currentEntries().length <= SMALL_PIN_COUNT) {
-        highlight(idx);
+      if (idx === shelf?.centerIndex()) {
         openPrompt(idx);
         return;
       }
@@ -1112,6 +1120,17 @@ export function initShelfSurface(): void {
   });
   shelf.onSettle((index) => {
     if (!active) return;
+    if (pendingCreateLand !== null) {
+      const land = pendingCreateLand;
+      pendingCreateLand = null;
+      window.setTimeout(() => {
+        setCardHidden(land.plId, false);
+        setCardDissolved(land.plId, false);
+        highlight(land.idx);
+        syncRuler();
+      }, 150);
+      return;
+    }
     if (pendingManage !== null) {
       const id = pendingManage;
       pendingManage = null;

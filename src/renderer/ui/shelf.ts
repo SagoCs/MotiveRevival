@@ -90,6 +90,7 @@ const TRANSIT_FADE_OUT_MS = 520;
 const TRANSIT_SLIDE_OUT_MS = 520;
 const TRANSIT_FADE_IN_MS = 520;
 const TRANSIT_SLIDE_HOME_MS = 560;
+  const TRAVEL_MS = 700;
 
 const DEFAULT_VISIBLE_COUNT = 7;
 const DEFAULT_DEPTH = 0.9;
@@ -222,7 +223,7 @@ export function createShelf(): ShelfHandle {
       pSlide = t.phase === 'open' ? slideEased : 1 - slideEased;
     }
     const restArt = `translate3d(0, 0, 0) rotateY(0deg) scale(${(1 + lensAmt).toFixed(4)})`;
-    const anchor = anchorOf();
+    let anchor = anchorOf();
     const count = cards.length;
     let effFade = fadeRange;
     if (!wrapped() && count > visibleCount) {
