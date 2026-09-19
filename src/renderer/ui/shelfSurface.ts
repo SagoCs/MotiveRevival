@@ -5,17 +5,26 @@ import { mediaUrl, player } from '../core/player';
 import { primaryOf } from '../core/searchIndex';
 import { playlistsStore } from '../core/playlistsStore';
 import { fold } from '../core/fold';
+import { shakeReject } from '../core/dom';
 import { uiTheme } from '../core/uiTheme';
 import { deriveAccent } from '../core/palette';
+import { fileIntoPlaylist } from '../core/songActions';
 import { createShelf } from './shelf';
+import { SHELF_PLUS_ID as PLUS_ID } from './shelf';
 import { artistRiverSurface } from './artistRiverSurface';
 import { playlistRiverSurface } from './playlistRiverSurface';
+import { queueRiverSurface } from './queueRiverSurface';
 import type { ShelfEntry, ShelfRegion } from './shelf';
 import type { IndexedTrack } from '../../shared/types';
 
 const BEZEL_H = 52;
 const TIMELINE_H = 62;
 const RULER_LETTERS: string[] = ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')];
+const SMALL_PIN_COUNT = 5;
+const PROMPT_RISE_MS = 300;
+const SPEAK_WORD_MS = 950;
+const SPEAK_BACK_MS = 1150;
+const RESUME_MS = 350;
 
 type Lens = 'artists' | 'playlists';
 
@@ -37,6 +46,27 @@ let playlistEntries: ShelfEntry[] = [];
 let playlistTones = new Map<string, FaceTone>();
 let litLetters = new Set<string>();
 let rulerKeys = new Map<string, HTMLButtonElement>();
+let filing = false;
+let filingTrack: IndexedTrack | null = null;
+let promptOpen = false;
+let instrumentsWereOff = false;
+let commitPending = false;
+let suspended: HTMLElement[] = [];
+let speakingId: string | null = null;
+let speakingWord = '';
+let speakTimer = 0;
+let resumeTimer = 0;
+let promptEl: HTMLDivElement | null = null;
+let promptInput: HTMLInputElement | null = null;
+let promptWordEl: HTMLDivElement | null = null;
+let promptEchoEl: HTMLDivElement | null = null;
+let promptStage: 'virgin' | 'typing' | 'message' = 'virgin';
+let echoTimer = 0;
+let promptPartIndex = -1;
+let promptRiseTimer = 0;
+let floorEl: HTMLDivElement | null = null;
+let lensNav: HTMLElement | null = null;
+let lensTitle: HTMLDivElement | null = null;
 
 const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`;
 
@@ -59,7 +89,9 @@ const letterOf = (name: string): string => {
 
 const letterBucket = (name: string): number => (letterOf(name) === '#' ? 1 : 0);
 
-const awakeLetters = (): Set<string> => new Set(currentEntries().map((e) => letterOf(e.name)));
+const awakeLetters = (): Set<string> => new Set(realEntries().map((e) => letterOf(e.name)));
+
+const realEntries = (): ShelfEntry[] => currentEntries().filter((e) => e.id !== PLUS_ID);
 
 const buildArtistEntries = (): void => {
   const result = libraryStore.result;
@@ -137,6 +169,13 @@ const buildPlaylistEntries = (): void => {
     playlistEntries.push(entry);
     playlistTones.set(entry.id, tone);
   }
+  playlistEntries.push({
+    id: PLUS_ID,
+    name: 'New Playlist',
+    ledger: '',
+    art: null,
+    initial: '+',
+  });
 };
 
 const currentEntries = (): ShelfEntry[] => (lens === 'artists' ? artistEntries : playlistEntries);
@@ -156,17 +195,23 @@ const focusIndex = (): number => {
         if (idx >= 0) return idx;
       }
     }
+    return Math.floor(Math.random() * n);
   }
-  return Math.floor(Math.random() * n);
+  const pool: number[] = [];
+  for (let i = 0; i < n; i++) {
+    if (entries[i]?.id !== PLUS_ID) pool.push(i);
+  }
+  if (pool.length === 0) return 0;
+  return pool[Math.floor(Math.random() * pool.length)] as number;
 };
 
-const applyEntries = (): void => {
+const applyEntries = (forcedTarget?: number): void => {
   if (shelf === null) return;
   const entries = currentEntries();
   shelf.setEntries(entries);
-  let target = focusIndex();
+  let target = forcedTarget ?? focusIndex();
   if (litLetters.size > 0) {
-    const litIdx = entries.findIndex((e) => litLetters.has(letterOf(e.name)));
+    const litIdx = entries.findIndex((e) => e.id !== PLUS_ID && litLetters.has(letterOf(e.name)));
     if (litIdx >= 0) target = litIdx;
   }
   shelf.scrollTo(target);
@@ -178,6 +223,10 @@ const pushTone = (): void => {
   if (selectedId === null) return;
   const tone = currentTones().get(selectedId);
   if (tone === undefined) return;
+  if (tone.palette === null) {
+    uiTheme.popSelection();
+    return;
+  }
   uiTheme.pushSelection(tone.palette, tone.weights);
 };
 
@@ -191,7 +240,9 @@ const highlight = (index: number): void => {
   }
   selectedId = entry.id;
   const tone = currentTones().get(entry.id);
-  const accent = deriveAccent(tone?.palette ?? null, tone?.weights);
+  const own = tone?.palette ?? null;
+  const cur = player.currentTrack;
+  const accent = deriveAccent(own ?? cur?.palette ?? null, own !== null ? tone?.weights : cur?.paletteWeights);
   shelf?.setSelected(entry.id, { ledger: accent.b, ring: accent.a, glow: accent.g });
   pushTone();
 };
@@ -202,6 +253,7 @@ const syncLensButtons = (): void => {
   if (lensButtons === null) return;
   lensButtons.artists.classList.toggle('on', lens === 'artists');
   lensButtons.playlists.classList.toggle('on', lens === 'playlists');
+  lensNav?.classList.toggle('filing', filing);
 };
 
 const buildLensSwitcher = (root: HTMLElement): void => {
@@ -215,9 +267,13 @@ const buildLensSwitcher = (root: HTMLElement): void => {
   playlists.textContent = 'Playlists';
   artists.addEventListener('click', () => setLens('artists'));
   playlists.addEventListener('click', () => setLens('playlists'));
-  nav.append(artists, playlists);
+  lensTitle = document.createElement('div');
+  lensTitle.className = 'shelf-lens-title';
+  lensTitle.textContent = 'Choose a playlist';
+  nav.append(artists, playlists, lensTitle);
   root.append(nav);
   lensButtons = { artists, playlists };
+  lensNav = nav;
   syncLensButtons();
 };
 
@@ -235,7 +291,11 @@ const syncLit = (): void => {
     shelf.setLitIds(null);
     return;
   }
-  shelf.setLitIds(currentEntries().filter((e) => litLetters.has(letterOf(e.name))).map((e) => e.id));
+  shelf.setLitIds(
+    currentEntries()
+      .filter((e) => e.id !== PLUS_ID && litLetters.has(letterOf(e.name)))
+      .map((e) => e.id),
+  );
 };
 
 const clearLit = (): void => {
@@ -246,7 +306,7 @@ const clearLit = (): void => {
 };
 
 const onLetterClick = (letter: string): void => {
-  if (!active) return;
+  if (!active || promptOpen) return;
   if (!awakeLetters().has(letter)) return;
   if (litLetters.has(letter)) {
     litLetters.delete(letter);
@@ -257,7 +317,7 @@ const onLetterClick = (letter: string): void => {
   litLetters.add(letter);
   syncRuler();
   syncLit();
-  const idx = currentEntries().findIndex((e) => letterOf(e.name) === letter);
+  const idx = currentEntries().findIndex((e) => e.id !== PLUS_ID && letterOf(e.name) === letter);
   if (idx >= 0) shelf?.glideTo(idx);
 };
 
@@ -279,7 +339,7 @@ const buildLetterRuler = (root: HTMLElement): void => {
 
 const setLens = (next: Lens): void => {
   if (lens === next || shelf === null) return;
-  if (artistRiverOpen || playlistRiverOpen) return;
+  if (!filing && (artistRiverOpen || playlistRiverOpen)) return;
   lens = next;
   clearLit();
   syncLensButtons();
@@ -294,8 +354,8 @@ const currentRegion = (): ShelfRegion => ({
 });
 
 const applyVisibility = (): void => {
-  active = browserVisible && !artistRiverOpen && !playlistRiverOpen;
-  shelf?.setVisible(browserVisible || artistRiverOpen || playlistRiverOpen);
+  active = filing || (browserVisible && !artistRiverOpen && !playlistRiverOpen);
+  shelf?.setVisible(filing || browserVisible || artistRiverOpen || playlistRiverOpen);
   document.body.classList.toggle('shelf-active', active);
   if (!active) {
     pendingGesture = null;
@@ -306,14 +366,276 @@ const applyVisibility = (): void => {
   }
 };
 
+const suspendWorlds = (): void => {
+  suspended = [];
+  const hide = (id: string): void => {
+    const el = document.getElementById(id);
+    if (el === null || el.style.display === 'none') return;
+    el.dataset.preFilingDisplay = el.style.display;
+    el.style.display = 'none';
+    suspended.push(el);
+  };
+  if (queueRiverSurface.isOpen()) {
+    hide('queue-river');
+    hide('queue-river-floor');
+  }
+  if (playlistRiverSurface.isOpen()) {
+    hide('playlist-river');
+    hide('playlist-river-floor');
+  }
+  if (artistRiverSurface.isOpen()) {
+    hide('artist-river');
+    hide('artist-river-floor');
+  }
+};
+
+const resumeWorlds = (): void => {
+  for (const el of suspended.splice(0)) {
+    el.style.opacity = '0';
+    el.style.display = el.dataset.preFilingDisplay ?? '';
+    delete el.dataset.preFilingDisplay;
+    window.setTimeout(() => {
+      el.style.transition = 'opacity 800ms var(--ease-drift)';
+      el.style.opacity = '';
+      window.setTimeout(() => {
+        el.style.transition = '';
+      }, 840);
+    }, 30);
+  }
+};
+
+const beginFiling = (track: IndexedTrack): boolean => {
+  if (shelf === null) return false;
+  if (filing) {
+    filingTrack = track;
+    return true;
+  }
+  filingTrack = track;
+  filing = true;
+  instrumentsWereOff = shelfRoot?.classList.contains('instruments-off') ?? false;
+  shelfRoot?.classList.remove('instruments-off');
+  shelfRoot?.classList.add('filing');
+  shelf.cancelTransit();
+  suspendWorlds();
+  floorEl?.classList.add('on');
+  if (lens !== 'playlists') {
+    lens = 'playlists';
+    clearLit();
+    applyEntries(shelf.centerIndex());
+  } else {
+    syncRuler();
+    syncLit();
+  }
+  syncLensButtons();
+  applyVisibility();
+  highlight(shelf.centerIndex());
+  return true;
+};
+
+const endFiling = (immediate = false): void => {
+  if (!filing) return;
+  filing = false;
+  filingTrack = null;
+  hideSpeak();
+  closePrompt(false);
+  shelf?.cancelTransit();
+  promptPartIndex = -1;
+  floorEl?.classList.remove('on');
+  window.setTimeout(() => {
+    if (!filing) {
+      shelfRoot?.classList.remove('filing');
+      if (instrumentsWereOff) shelfRoot?.classList.add('instruments-off');
+      instrumentsWereOff = false;
+      clearLit();
+      syncLensButtons();
+    }
+  }, 850);
+  window.setTimeout(() => {
+    if (filing) return;
+    commitPending = false;
+    buildPlaylistEntries();
+    applyEntries(shelf?.centerIndex() ?? 0);
+  }, 870);
+  applyVisibility();
+  if (resumeTimer !== 0) window.clearTimeout(resumeTimer);
+  if (immediate) {
+    resumeWorlds();
+    return;
+  }
+  resumeTimer = window.setTimeout(() => {
+    resumeTimer = 0;
+    resumeWorlds();
+  }, RESUME_MS);
+};
+
+const setPromptStage = (next: 'virgin' | 'typing' | 'message'): void => {
+  promptStage = next;
+  promptEl?.classList.toggle('virgin', next === 'virgin');
+  promptEl?.classList.toggle('typing', next === 'typing');
+  promptEl?.classList.toggle('message', next === 'message');
+};
+
+const showSpeak = (id: string, word: string, holdMs: number): void => {
+  window.clearTimeout(speakTimer);
+  speakingId = id;
+  speakingWord = word;
+  shelf?.speak(id, word);
+  if (holdMs > 0) {
+    speakTimer = window.setTimeout(() => hideSpeak(), holdMs);
+  }
+};
+
+const hideSpeak = (): void => {
+  window.clearTimeout(speakTimer);
+  speakingId = null;
+  speakingWord = '';
+  shelf?.speak(null);
+};
+
+const commitFile = (entry: ShelfEntry): void => {
+  const track = filingTrack;
+  const plId = entry.ref;
+  if (track === null || plId === undefined) return;
+  commitPending = true;
+  void fileIntoPlaylist(plId, track).then((outcome) => {
+    if (!filing) return;
+    if (outcome === 'added') {
+      showSpeak(entry.id, 'Added', 0);
+      window.setTimeout(() => endFiling(), SPEAK_WORD_MS);
+    } else if (outcome === 'alreadyInPlaylist') {
+      showSpeak(entry.id, 'Already there', SPEAK_BACK_MS);
+    } else {
+      endFiling();
+    }
+  });
+};
+
+const openPrompt = (idx: number): void => {
+  if (promptEl === null || promptInput === null || promptOpen || idx < 0) return;
+  promptOpen = true;
+  promptPartIndex = idx;
+  if (echoTimer !== 0) {
+    window.clearTimeout(echoTimer);
+    echoTimer = 0;
+  }
+  if (promptEchoEl !== null) promptEchoEl.textContent = '';
+  promptInput.value = '';
+  setPromptStage('virgin');
+  shelf?.beginTransit(idx);
+  if (promptRiseTimer !== 0) window.clearTimeout(promptRiseTimer);
+  promptRiseTimer = window.setTimeout(() => {
+    promptRiseTimer = 0;
+    if (!promptOpen) return;
+    promptEl?.classList.add('on');
+    requestAnimationFrame(() => promptInput?.focus());
+  }, PROMPT_RISE_MS);
+};
+
+const closePrompt = (restore = true): void => {
+  if (!promptOpen) return;
+  promptOpen = false;
+  if (promptRiseTimer !== 0) {
+    window.clearTimeout(promptRiseTimer);
+    promptRiseTimer = 0;
+  }
+  if (echoTimer !== 0) {
+    window.clearTimeout(echoTimer);
+    echoTimer = 0;
+  }
+  if (promptEchoEl !== null) promptEchoEl.textContent = '';
+  promptEl?.classList.remove('on');
+  promptInput?.blur();
+  setPromptStage('virgin');
+  const idx = promptPartIndex;
+  promptPartIndex = -1;
+  if (restore && idx >= 0) {
+    shelf?.beginReturn(idx, () => {});
+  }
+};
+
+const promptEscape = (): void => {
+  if (promptStage === 'virgin') {
+    closePrompt();
+    return;
+  }
+  if (echoTimer !== 0) {
+    window.clearTimeout(echoTimer);
+    echoTimer = 0;
+  }
+  if (promptEchoEl !== null) promptEchoEl.textContent = '';
+  if (promptInput !== null) promptInput.value = '';
+  setPromptStage('virgin');
+};
+
+const finishCreate = (plId: string): void => {
+  const partIdx = promptPartIndex;
+  closePrompt(false);
+  const idx = partIdx >= 0 ? partIdx : shelf?.centerIndex() ?? 0;
+  buildPlaylistEntries();
+  const newIdx = currentEntries().findIndex((e) => e.id === `playlist:${plId}`);
+  const target = newIdx >= 0 ? newIdx : idx;
+  shelf?.beginReturn(idx, () => {
+    applyEntries(target);
+    highlight(target);
+  });
+};
+
+const commitPrompt = (): void => {
+  if (promptInput === null || !promptOpen || promptStage === 'message') return;
+  const name = promptInput.value.trim();
+  if (name === '') return;
+  const track = filingTrack;
+  void playlistsStore.create(name).then((pl) => {
+    if (pl === null) {
+      if (promptEchoEl !== null) promptEchoEl.textContent = 'Name already taken';
+      setPromptStage('message');
+      if (echoTimer !== 0) window.clearTimeout(echoTimer);
+      echoTimer = window.setTimeout(() => {
+        echoTimer = 0;
+        if (!promptOpen || promptStage !== 'message') return;
+        if (promptEchoEl !== null) promptEchoEl.textContent = '';
+        setPromptStage(promptInput !== null && promptInput.value !== '' ? 'typing' : 'virgin');
+      }, 1300);
+      return;
+    }
+    if (promptEchoEl !== null) promptEchoEl.textContent = 'Created.';
+    setPromptStage('message');
+    if (echoTimer !== 0) window.clearTimeout(echoTimer);
+    echoTimer = window.setTimeout(() => {
+      echoTimer = 0;
+      if (track === null || !filing) {
+        finishCreate(pl.id);
+        return;
+      }
+      void fileIntoPlaylist(pl.id, track).then(() => {
+        closePrompt(false);
+        endFiling();
+      });
+    }, 950);
+  });
+};
+
 export const shelfSurface = {
   setBrowserVisible(next: boolean): void {
     if (browserVisible === next) return;
     browserVisible = next;
+    if (filing && !next) endFiling();
     applyVisibility();
   },
+  isFiling(): boolean {
+    return filing;
+  },
   clearOnEscape(): boolean {
-    if (!active || litLetters.size === 0) return false;
+    if (!active) return false;
+    if (promptOpen) {
+      promptEscape();
+      return true;
+    }
+    if (filing) {
+      endFiling();
+      return true;
+    }
+    if (litLetters.size === 0) return false;
     clearLit();
     return true;
   },
@@ -338,6 +660,7 @@ export const shelfSurface = {
     shelf?.stepRelease();
   },
   summonEnter(name: string, focus?: { dimToAlbum?: string; focusTrackId?: string }): boolean {
+    if (filing) endFiling(true);
     if (artistRiverSurface.isOpen()) {
       artistRiverSurface.close();
       window.setTimeout(() => {
@@ -366,6 +689,7 @@ export const shelfSurface = {
     return true;
   },
   summonEnterPlaylist(id: string): boolean {
+    if (filing) endFiling(true);
     if (artistRiverSurface.isOpen()) {
       artistRiverSurface.close();
       window.setTimeout(() => {
@@ -397,6 +721,22 @@ export const shelfSurface = {
     const idx = shelf?.centerIndex() ?? -1;
     const entry = currentEntries()[idx];
     if (entry === undefined) return;
+    if (promptOpen) return;
+    if (filing) {
+      const focusedIdx = selectedId !== null ? currentEntries().findIndex((e) => e.id === selectedId) : -1;
+      const target = focusedIdx >= 0 ? currentEntries()[focusedIdx] : entry;
+      if (target === undefined) return;
+      if (target.id !== PLUS_ID && litLetters.size > 0 && !litLetters.has(letterOf(target.name))) return;
+      const tIdx = focusedIdx >= 0 ? focusedIdx : idx;
+      highlight(tIdx);
+      if (target.id === PLUS_ID) openPrompt(tIdx);
+      else commitFile(target);
+      return;
+    }
+    if (entry.id === PLUS_ID) {
+      openPrompt(idx);
+      return;
+    }
     if (lens === 'playlists' && entry.ref === undefined) return;
     if (litLetters.size > 0 && !litLetters.has(letterOf(entry.name))) return;
     enterCurrent(entry, idx);
@@ -445,6 +785,26 @@ export function initShelfSurface(): void {
     if (idx < 0) return;
     const entry = currentEntries()[idx];
     if (entry === undefined) return;
+    if (promptOpen) return;
+    if (filing) {
+      if (litLetters.size > 0 && !litLetters.has(letterOf(entry.name))) return;
+      const focused = selectedId === entry.id;
+      highlight(idx);
+      if (!focused) {
+        shelf?.glideTo(idx);
+        return;
+      }
+      if (id === PLUS_ID) openPrompt(idx);
+      else commitFile(entry);
+      return;
+    }
+    if (id === PLUS_ID) {
+      if (idx === shelf?.centerIndex() || currentEntries().length <= SMALL_PIN_COUNT) {
+        highlight(idx);
+        openPrompt(idx);
+        return;
+      }
+    }
     if (idx === shelf?.centerIndex()) {
       if (lens === 'playlists' && entry.ref === undefined) return;
       if (litLetters.size > 0 && !litLetters.has(letterOf(entry.name))) return;
@@ -458,7 +818,7 @@ export function initShelfSurface(): void {
   });
   shelf.onVoidTap((taps) => {
     gestMark(String(taps));
-    if (!active) {
+    if (!active || filing) {
       gestMark('i');
       return;
     }
@@ -514,7 +874,32 @@ export function initShelfSurface(): void {
   if (rootEl !== null) {
     buildLetterRuler(rootEl);
     buildLensSwitcher(rootEl);
+    promptEl = document.createElement('div');
+    promptEl.id = 'shelf-prompt';
+    promptEchoEl = document.createElement('div');
+    promptEchoEl.className = 'shelf-prompt-echo';
+    promptWordEl = document.createElement('div');
+    promptWordEl.className = 'shelf-prompt-word';
+    promptWordEl.textContent = 'Choose a name';
+    promptInput = document.createElement('input');
+    promptInput.className = 'shelf-prompt-input';
+    promptInput.spellcheck = false;
+    promptInput.addEventListener('input', () => {
+      if (promptStage === 'message') return;
+      setPromptStage(promptInput !== null && promptInput.value !== '' ? 'typing' : 'virgin');
+    });
+    promptInput.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      e.stopPropagation();
+      commitPrompt();
+    });
+    promptEl.append(promptEchoEl, promptWordEl, promptInput);
+    rootEl.append(promptEl);
   }
+  floorEl = document.createElement('div');
+  floorEl.id = 'shelf-filing-floor';
+  document.body.append(floorEl);
   buildArtistEntries();
   buildPlaylistEntries();
   applyEntries();
@@ -534,6 +919,7 @@ export function initShelfSurface(): void {
   });
 
   playlistsStore.onChange(() => {
+    if (promptOpen || commitPending) return;
     buildPlaylistEntries();
     if (lens === 'playlists') {
       for (const letter of [...litLetters]) {
@@ -544,13 +930,27 @@ export function initShelfSurface(): void {
   });
 
   appBus.on('artist-river-opened', () => {
+    if (filing) endFiling(true);
     artistRiverOpen = true;
     applyVisibility();
   });
 
   appBus.on('playlist-river-opened', () => {
+    if (filing) endFiling(true);
     playlistRiverOpen = true;
     applyVisibility();
+  });
+
+  appBus.on('queue-river-opened', () => {
+    if (filing) endFiling(true);
+  });
+
+  appBus.on('summon-opened', () => {
+    if (filing) endFiling();
+  });
+
+  appBus.on('file-requested', ({ track }) => {
+    beginFiling(track);
   });
 
   appBus.on('artist-river-closed', ({ artist }) => {
@@ -590,16 +990,28 @@ export function initShelfSurface(): void {
   (window as unknown as { __shelf?: unknown }).__shelf = {
     visible: () => active,
     lens: () => lens,
-    names: () => currentEntries().map((e) => e.name),
-    entries: () => currentEntries(),
-    letters: () => currentEntries().map((e) => letterOf(e.name)),
+    names: () => realEntries().map((e) => e.name),
+    entries: () => realEntries(),
+    letters: () => realEntries().map((e) => letterOf(e.name)),
     lit: () => [...litLetters],
     scroll: () => shelf?.scrollPosition() ?? 0,
     summonEnterPlaylist: (id: string) => shelfSurface.summonEnterPlaylist(id),
+    summonEnter: (name: string) => shelfSurface.summonEnter(name),
     center: () => shelf?.centerIndex() ?? 0,
     selected: () => selectedId,
     cards: () => shelf?.cardsState() ?? [],
     rect: (id: string) => shelf?.entryRect(id) ?? null,
     goto: (index: number) => shelf?.scrollTo(index),
+    filing: () => filing,
+    filingTrack: () => filingTrack?.title ?? null,
+    speakOn: () => speakingId !== null,
+    speakWord: () => speakingWord,
+    promptMessage: () => promptEchoEl?.textContent ?? null,
+    prompt: () => promptOpen,
+    beginFiling: (id: string) => {
+      const t = libraryStore.getTrackList().find((x) => x.id === id);
+      return t !== undefined ? beginFiling(t) : false;
+    },
+    endFiling: () => endFiling(),
   };
 }

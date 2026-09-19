@@ -104,6 +104,27 @@ if (!lensReady) {
   process.exit(1);
 }
 
+const fieldSize = plNames.length + 1;
+const fieldIsRing = fieldSize > 7;
+console.log(`field size: ${fieldSize} cards (plus square included) -> ${fieldIsRing ? 'RING (loops past the band)' : 'bounded/pinned small set'}`);
+if (fieldIsRing) {
+  console.log('=== RING TEST: the field loops past the band (bounded-field facts skipped) ===');
+  const pos0 = await evalJs(`window.__shelf.scroll()`);
+  for (let k = 0; k < 4; k++) {
+    await send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: Math.round((await evalJs('innerWidth')) / 2), y: 400, deltaX: 0, deltaY: 600 });
+    await sleep(80);
+  }
+  await sleep(1800);
+  const ringState = await evalJs(`(() => {
+    const names = window.__shelf.names();
+    const center = window.__shelf.center();
+    return { pos: window.__shelf.scroll(), moved: Math.abs(window.__shelf.scroll() - (${Number(pos0).toFixed(3)})) > 1, validCenter: center >= 0 && center <= names.length };
+  })()`);
+  fact('ring: wheel rolls past the band', ringState.moved === true, `pos ${Number(pos0).toFixed(2)} -> ${Number(ringState.pos).toFixed(2)}`);
+  fact('ring: settles on a valid center', ringState.validCenter === true, `center ${ringState.validCenter}`);
+  await evalJs(`window.__shelf.goto(0)`);
+  await sleep(900);
+} else {
 await evalJs(`(() => {
   window.__smallProbe = { samples: [] };
   return null;
@@ -321,6 +342,8 @@ fact('wall: hard stop, no stretch motion', wallMove < 10, `${wallMove.toFixed(1)
 fact('wall: boundary card centered', Math.abs(wallEnd - 2) < 0.06 && wallAfter.center === 2, `pos ${wallEnd.toFixed(2)}, center ${wallAfter.centerName}`);
 
 console.log('');
+}
+
 console.log('=== TEST 6: every face stays visible at every resting position ===');
 let allVisible = true;
 const visibility = [];
@@ -343,7 +366,7 @@ fact('small set: all faces visible at every resting position', allVisible, JSON.
 
 console.log('');
 console.log('=== TEST 7: playlist squares carry their first song art ===');
-const plFaces = await evalJs(`[...document.querySelectorAll('#shelf .shelf-card')].map((c) => ({
+const plFaces = await evalJs(`[...document.querySelectorAll('#shelf .shelf-card')].filter((c) => c.dataset.id !== 'new:playlist').map((c) => ({
   n: c.querySelector('.shelf-name')?.textContent ?? '',
   plain: c.classList.contains('shelf-card-plain'),
   img: c.querySelector('.shelf-face img') !== null,

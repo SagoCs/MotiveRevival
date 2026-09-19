@@ -27,7 +27,8 @@ body.song-river-active #carousel-content {
 
 #queue-river {
   z-index: 28;
-  transition: opacity 420ms var(--ease-drift);
+  opacity: 0.8;
+  transition: opacity 800ms var(--ease-drift);
 }
 
 #artist-river.pre,
@@ -50,7 +51,8 @@ body.song-river-active #carousel-content {
 }
 
 #artist-river.sinking .rv2-card,
-#playlist-river.sinking .rv2-card {
+#playlist-river.sinking .rv2-card,
+#playlist-river.sinking .playlist-void-note {
   opacity: 0 !important;
   transition: opacity 220ms var(--ease-drift);
 }
@@ -80,19 +82,21 @@ body.song-river-active #carousel-content {
   position: fixed;
   inset: 0;
   z-index: 27;
-  background: var(--void-0);
+  background: color-mix(in srgb, var(--void-0) 88%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
   transition:
-    opacity 420ms var(--ease-drift),
-    visibility 0s linear 420ms;
+    opacity 800ms var(--ease-drift),
+    visibility 0s linear 800ms;
 }
 
 #queue-river-floor.on {
   opacity: 1;
   visibility: visible;
-  transition: opacity 420ms var(--ease-drift);
+  transition: opacity 800ms var(--ease-drift);
 }
 
 .rv2-cap {
@@ -134,6 +138,38 @@ body.song-river-active #carousel-content {
   position: absolute;
   inset: 0;
   pointer-events: none;
+}
+
+.playlist-void-note {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 360ms var(--ease-drift);
+}
+
+.playlist-void-note.on {
+  opacity: 1;
+}
+
+.playlist-void-note-main {
+  font: 300 30px/1.2 var(--font-display);
+  letter-spacing: 0.04em;
+  color: color-mix(in srgb, var(--acc-a) 60%, var(--moon-bright));
+  text-shadow: 0 0 26px color-mix(in srgb, var(--acc-glow) 24%, transparent);
+}
+
+.playlist-void-note-hint {
+  font: 300 13px/1.4 var(--font-display);
+  letter-spacing: 0.06em;
+  color: color-mix(in srgb, var(--moon-bright) 58%, transparent);
 }
 
 .rv2-void {
@@ -225,4 +261,50 @@ body.song-river-active #carousel-content {
 
 .rv2-meta::before {
   content: ' — ';
+}
+
+#queue-title {
+  position: fixed;
+  left: 50%;
+  top: 64px;
+  transform: translateX(-50%);
+  z-index: 29;
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: 16px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--moon-bright);
+  text-shadow: 0 0 16px color-mix(in srgb, var(--acc-glow) 55%, transparent);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 800ms var(--ease-drift);
+}
+
+#queue-title.on {
+  opacity: 1;
+}
+
+#queue-river .rv2-cap {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--acc-a) 70%, var(--moon-bright));
+  background: color-mix(in srgb, var(--void-0) 58%, transparent);
+  border-radius: inherit;
+  z-index: 3;
+}
+
+#queue-river .rv2-cap.cap-accent {
+  color: color-mix(in srgb, var(--acc-a) 82%, var(--moon-bright));
+}
+
+#queue-river .rv2-card.rv2-ghost .rv2-cap {
+  display: none;
 }

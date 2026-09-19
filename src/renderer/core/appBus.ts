@@ -7,6 +7,9 @@ export interface AppEventMap {
   'reveal-playing': Record<string, never>;
   'song-menu-opened': { row: HTMLElement | null };
   'song-menu-closed': Record<string, never>;
+  'file-requested': { track: IndexedTrack };
+  'summon-opened': Record<string, never>;
+  'summon-close': Record<string, never>;
   'artist-river-opened': { artist: string };
   'artist-river-closed': { artist: string };
   'playlist-river-opened': { playlistId: string };

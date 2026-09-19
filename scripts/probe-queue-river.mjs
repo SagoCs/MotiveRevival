@@ -151,7 +151,7 @@ await sleep(2800);
 for (let i = 0; i < 20; i++) {
   const ready = await evalJs(`window.__songActions !== undefined && window.__songActions.libraryTracks().length > 0 && window.__queueRiver !== undefined`);
   if (ready) break;
-  await sleep(700);
+  await sleep(850);
 }
 const ready = await evalJs(`window.__songActions !== undefined && window.__songActions.libraryTracks().length > 0 && window.__queueRiver !== undefined`);
 if (!ready) {
@@ -200,7 +200,7 @@ const s0 = await evalJs(`window.__songActions.queueSnapshot()`);
 check('seed snapshot: t0 current, four upcoming', s0.index === 0 && JSON.stringify(s0.upcoming) === JSON.stringify(picks.slice(1, 5).map((p) => p.id)), JSON.stringify({ index: s0.index, upcoming: s0.upcoming.length }));
 
 await evalJs(`window.__songActions.libraryTracks() && document.querySelector('[data-mode="albums"]').click()`);
-await sleep(700);
+await sleep(850);
 
 const qBtn = await evalJs(`(() => { const b = document.querySelector('.queue-toggle'); const r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
 await realClick(qBtn.x, qBtn.y);
@@ -354,7 +354,7 @@ check('jump-play: the world stayed open', afterJump.center === picks[4].id);
 void snapBeforeJump;
 
 await realEsc();
-await sleep(800);
+await sleep(950);
 const closedByEsc = await evalJs(`(() => ({ open: window.__queueRiver.isOpen(), lit: document.querySelector('.queue-toggle').classList.contains('lit'), floorOn: document.getElementById('queue-river-floor').classList.contains('on') }))()`);
 check('esc closes the world and unlights the button', closedByEsc.open === false && closedByEsc.lit === false && closedByEsc.floorOn === false, JSON.stringify(closedByEsc));
 
@@ -439,7 +439,7 @@ check('played ghost present in view', ghostSpot !== undefined);
 if (ghostSpot !== undefined) {
   const beforeGhostClick = await evalJs(`window.__songActions.queueSnapshot()`);
   await realClick(ghostSpot.x, ghostSpot.y);
-  await sleep(700);
+  await sleep(850);
   const afterGhostClick = await evalJs(`(() => ({ s: window.__songActions.queueSnapshot(), title: document.title, open: window.__queueRiver.isOpen() }))()`);
   check('played cards are inert: clicking the past changes nothing', JSON.stringify(afterGhostClick.s.ids) === JSON.stringify(beforeGhostClick.ids) && afterGhostClick.title.includes(picks[4].title) === true && afterGhostClick.open === true, JSON.stringify({ title: afterGhostClick.title }));
 }
@@ -500,7 +500,7 @@ const emptyState = await evalJs(`(() => {
 })()`);
 check('a resting queue of one: the song holds the center alone', empty === true && emptyState.open === true && emptyState.cards === 1 && emptyState.center === picks[0].id, JSON.stringify(emptyState));
 await realEsc();
-await sleep(700);
+await sleep(950);
 check('esc leaves the empty world', await evalJs(`window.__queueRiver.isOpen() === false`));
 
 const longLine = await evalJs(`(() => {
@@ -512,7 +512,7 @@ const longLine = await evalJs(`(() => {
   A.setContext(lib.filter((t) => pick.some((p) => p.id === t.id)), 0);
   return pick.map((p) => p.id);
 })()`);
-await sleep(700);
+await sleep(850);
 await realClick(qBtn.x, qBtn.y);
 await sleep(1100);
 const startShape = await evalJs(`(() => {
@@ -552,7 +552,7 @@ const endShape = await evalJs(`(() => {
 })()`);
 check('the line has no end: the wheel rolls past the last song into the wrap', endShape.scroll > 20.05 && endShape.count === 21 && endShape.ids.length === 21, JSON.stringify({ scroll: Number(endShape.scroll.toFixed(2)), count: endShape.count }));
 await realEsc();
-await sleep(800);
+await sleep(950);
 check('esc leaves the long line', await evalJs(`window.__queueRiver.isOpen() === false`));
 
 await evalJs(`document.querySelector('[data-mode="albums"]').click()`);

@@ -14,6 +14,16 @@
   transition: opacity 420ms var(--ease-drift);
 }
 
+#shelf.filing {
+  transition:
+    opacity 800ms var(--ease-drift),
+    visibility 0s linear 800ms;
+}
+
+#shelf.filing.on {
+  transition: opacity 800ms var(--ease-drift);
+}
+
 #shelf .shelf-void {
   position: absolute;
   inset: 0;
@@ -256,4 +266,158 @@
 #shelf.instruments-off #shelf-lens {
   opacity: 0;
   pointer-events: none;
+}
+
+#shelf-lens.filing button {
+  display: none;
+}
+
+.shelf-lens-title {
+  display: none;
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: 16px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--moon-bright);
+  text-shadow: 0 0 16px color-mix(in srgb, var(--acc-glow) 55%, transparent);
+  padding: 2px 0;
+  white-space: nowrap;
+}
+
+#shelf-lens.filing .shelf-lens-title {
+  display: block;
+}
+
+.shelf-veil {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-card);
+  background: color-mix(in srgb, var(--void-0) 58%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 220ms var(--ease-drift);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.shelf-veil.speaking {
+  opacity: 1;
+}
+
+.shelf-veil-word {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: 13px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--acc-a) 70%, var(--moon-bright));
+  text-shadow: 0 1px 10px rgba(3, 5, 12, 0.9);
+  white-space: nowrap;
+}
+
+#shelf-filing-floor {
+  position: fixed;
+  inset: 0;
+  z-index: 23;
+  background: color-mix(in srgb, var(--void-0) 88%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 800ms var(--ease-drift),
+    visibility 0s linear 800ms;
+}
+
+#shelf-filing-floor.on {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 800ms var(--ease-drift);
+}
+
+#shelf-prompt {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -40%);
+  z-index: 31;
+  display: grid;
+  justify-items: center;
+  align-items: center;
+  pointer-events: none;
+  opacity: 0;
+  transition:
+    opacity 360ms var(--ease-drift),
+    transform 360ms var(--ease-drift);
+}
+
+#shelf-prompt.on {
+  opacity: 1;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+}
+
+.shelf-prompt-word,
+.shelf-prompt-echo,
+.shelf-prompt-input {
+  grid-area: 1 / 1;
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: 22px;
+  letter-spacing: 0.14em;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.shelf-prompt-word {
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--acc-a) 62%, var(--moon-bright));
+  text-shadow: 0 0 18px color-mix(in srgb, var(--acc-glow) 40%, transparent);
+  transition: opacity 300ms var(--ease-drift);
+}
+
+#shelf-prompt.typing .shelf-prompt-word,
+#shelf-prompt.message .shelf-prompt-word {
+  opacity: 0;
+}
+
+.shelf-prompt-echo {
+  color: color-mix(in srgb, var(--acc-a) 75%, var(--moon-bright));
+  text-shadow: 0 0 18px color-mix(in srgb, var(--acc-glow) 45%, transparent);
+}
+
+#shelf-prompt.message .shelf-prompt-echo,
+#shelf-prompt.typing .shelf-prompt-input {
+  opacity: 1;
+}
+
+#shelf-prompt.typing .shelf-prompt-echo,
+#shelf-prompt.message .shelf-prompt-input,
+#shelf-prompt.message .shelf-prompt-word {
+  opacity: 0;
+}
+
+.shelf-prompt-echo,
+.shelf-prompt-input {
+  opacity: 0;
+  transition: opacity 300ms var(--ease-drift);
+}
+
+.shelf-prompt-input {
+  appearance: none;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--moon-bright);
+  width: min(60vw, 560px);
+  padding: 4px 6px;
+  caret-color: transparent;
+}
+
+#shelf-prompt.typing .shelf-prompt-input {
+  caret-color: var(--acc-a);
 }

@@ -9,10 +9,11 @@ import type { IndexedTrack } from '../../shared/types';
 
 const BEZEL_H = 52;
 const TIMELINE_H = 62;
-const WORLD_MS = 420;
+const WORLD_MS = 800;
 
 let river: ReturnType<typeof createRiverV2> | null = null;
 let floor: HTMLDivElement | null = null;
+let titleEl: HTMLDivElement | null = null;
 let opened = false;
 let closing = false;
 let closeTimer = 0;
@@ -54,6 +55,16 @@ const ensureFloor = (): HTMLDivElement => {
   node.id = 'queue-river-floor';
   document.body.append(node);
   floor = node;
+  return node;
+};
+
+const ensureTitle = (): HTMLDivElement => {
+  if (titleEl !== null) return titleEl;
+  const node = document.createElement('div');
+  node.id = 'queue-title';
+  node.textContent = 'Queue';
+  document.body.append(node);
+  titleEl = node;
   return node;
 };
 
@@ -121,6 +132,7 @@ export const queueRiverSurface = {
         el.classList.remove('pre');
       }
       ensureFloor().classList.add('on');
+      ensureTitle().classList.add('on');
       return true;
     }
     if (opened) return false;
@@ -139,6 +151,7 @@ export const queueRiverSurface = {
       el.classList.remove('pre');
     }
     ensureFloor().classList.add('on');
+    ensureTitle().classList.add('on');
     appBus.emit('queue-river-opened', {});
     return true;
   },
@@ -146,6 +159,7 @@ export const queueRiverSurface = {
     if (!opened || closing) return false;
     closing = true;
     ensureFloor().classList.remove('on');
+    ensureTitle().classList.remove('on');
     document.getElementById('queue-river')?.classList.add('pre');
     closeTimer = window.setTimeout(() => {
       river?.setVisible(false);
@@ -213,6 +227,7 @@ export function initQueueRiverSurface(): void {
   river.mount(currentRegion(), window.devicePixelRatio || 1, 'queue-river');
   river.setVisible(false);
   ensureFloor();
+  ensureTitle();
 
   window.addEventListener('resize', () => {
     river?.setRegion(currentRegion(), window.devicePixelRatio || 1);

@@ -16,6 +16,7 @@ const FLOOR_DELAY_MS = 360;
 
 let river: ReturnType<typeof createRiverV2> | null = null;
 let floor: HTMLDivElement | null = null;
+let note: HTMLDivElement | null = null;
 let floorTimer = 0;
 let opened = false;
 let closing = false;
@@ -101,6 +102,7 @@ const load = (id: string): boolean => {
   tracks = list.flatMap((item) => (item.track !== undefined ? [item.track] : []));
   playlistId = id;
   playlistName = pl.name;
+  note?.classList.toggle('on', items.length === 0);
   river?.setEntries(entriesFrom(items));
   return true;
 };
@@ -150,6 +152,7 @@ export const playlistRiverSurface = {
       floorTimer = 0;
     }
     floor?.classList.remove('on');
+    note?.classList.remove('on');
     document.getElementById('playlist-river')?.classList.add('sinking');
     window.setTimeout(() => {
       river?.setVisible(false);
@@ -223,6 +226,17 @@ export function initPlaylistRiverSurface(): void {
   });
   river.mount(currentRegion(), window.devicePixelRatio || 1, 'playlist-river');
   river.setVisible(false);
+  const noteEl = document.createElement('div');
+  noteEl.className = 'playlist-void-note';
+  const main = document.createElement('div');
+  main.className = 'playlist-void-note-main';
+  main.textContent = 'Silence, for now.';
+  const hint = document.createElement('div');
+  hint.className = 'playlist-void-note-hint';
+  hint.textContent = 'SUMMON or right-click any song, then Add to playlist';
+  noteEl.append(main, hint);
+  document.getElementById('playlist-river')?.append(noteEl);
+  note = noteEl;
 
   window.addEventListener('resize', () => {
     river?.setRegion(currentRegion(), window.devicePixelRatio || 1);

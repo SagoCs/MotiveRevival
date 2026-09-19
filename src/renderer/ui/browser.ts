@@ -151,6 +151,9 @@ export function initBrowser(onCompactLyric?: (text: string | null, upcoming: boo
     reconcilePlayingRows();
   });
   appBus.on('track-selected', ({ track }) => uiTheme.setBase(track.palette, track.paletteWeights));
+  appBus.on('summon-close', () => {
+    if (isOracleOpen()) closeOracle();
+  });
 
   window.addEventListener(
     'mr-go-to-album',
@@ -267,6 +270,7 @@ function openOracle(): void {
   if (panel === null) return;
   closeSongMenu();
   queueRiverSurface.close();
+  appBus.emit('summon-opened', {});
   panel.hidden = false;
   requestAnimationFrame(() => panel.classList.add('open'));
   summonZone.classList.add('active');
@@ -416,6 +420,10 @@ function wireGlobalKeys(): void {
         e.preventDefault();
         return;
       }
+      if (shelfSurface.isFiling() && shelfSurface.clearOnEscape()) {
+        e.preventDefault();
+        return;
+      }
       if (queueRiverSurface.close()) {
         e.preventDefault();
         return;
@@ -444,6 +452,11 @@ function wireGlobalKeys(): void {
     if (!inInput && !settingsOpen && !isOracleOpen() && !isOverlayOpen() && !detailOpen && !isPlaylistLayerOpen()) {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         const dir: 1 | -1 = e.key === 'ArrowDown' ? 1 : -1;
+        if (shelfSurface.isFiling()) {
+          shelfSurface.step(dir, e.repeat);
+          e.preventDefault();
+          return;
+        }
         if (queueRiverSurface.isOpen()) {
           queueRiverSurface.arrowStep(dir, e.repeat);
           e.preventDefault();
@@ -466,6 +479,11 @@ function wireGlobalKeys(): void {
         }
       }
       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        if (shelfSurface.isFiling()) {
+          shelfSurface.step(e.key === 'ArrowRight' ? 1 : -1, e.repeat);
+          e.preventDefault();
+          return;
+        }
         if (queueRiverSurface.isOpen()) {
           e.preventDefault();
           return;
@@ -482,6 +500,11 @@ function wireGlobalKeys(): void {
         }
       }
       if (e.key === 'Enter') {
+        if (shelfSurface.isFiling()) {
+          shelfSurface.activateCenter();
+          e.preventDefault();
+          return;
+        }
         if (queueRiverSurface.isOpen()) {
           queueRiverSurface.activateCenter();
           e.preventDefault();
@@ -538,6 +561,10 @@ function wireGlobalKeys(): void {
 
   window.addEventListener('keyup', (e) => {
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    if (shelfSurface.isFiling()) {
+      shelfSurface.stepRelease();
+      return;
+    }
     if (queueRiverSurface.isOpen()) {
       queueRiverSurface.arrowRelease();
       return;

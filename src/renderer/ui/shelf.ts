@@ -7,6 +7,8 @@ export interface ShelfEntry {
   ref?: string;
 }
 
+export const SHELF_PLUS_ID = 'new:playlist';
+
 export interface ShelfRegion {
   x: number;
   y: number;
@@ -42,15 +44,19 @@ export interface ShelfHandle {
   onVoidTap(cb: (taps: number) => void): void;
   onEntryTap(cb: (id: string) => void): void;
   onSettle(cb: (index: number) => void): void;
+  speak(id: string | null, word?: string): void;
   entryRect(id: string): DOMRect | null;
   cardsState(): ShelfCardState[];
   destroy(): void;
 }
 
 interface Card {
+  sig: string;
   el: HTMLDivElement;
   faceEl: HTMLDivElement;
   bloomEl: HTMLDivElement;
+  veilEl: HTMLDivElement;
+  veilWord: HTMLSpanElement;
   captionEl: HTMLDivElement;
   ledgerEl: HTMLDivElement;
   id: string;
@@ -83,7 +89,6 @@ const DEFAULT_VISIBLE_COUNT = 7;
 const DEFAULT_DEPTH = 0.9;
 const SLOT_USE = 0.84;
 const LENS_BOOST = 0.18;
-const WRAP_MIN_RATIO = 2;
 const SNAP_DURATION = 380;
 const SIZE_HEIGHT_CAP = 0.5;
 const MIN_CARD = 96;
@@ -103,6 +108,8 @@ const STEP_HOLD_SPEED = 6;
 const STEP_HOLD_WATCHDOG_MS = 250;
 
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
+
+const entrySig = (entry: ShelfEntry): string => `${entry.name}|${entry.ledger}|${entry.art ?? ''}`;
 
 export function createShelf(): ShelfHandle {
   let root: HTMLDivElement | null = null;
@@ -129,6 +136,7 @@ export function createShelf(): ShelfHandle {
   let raf = 0;
   let last = 0;
   let shown = false;
+  let hideTimer = 0;
   let resting = true;
   let lastWheelAt = 0;
   let tapCb: ((id: string) => void) | null = null;
@@ -151,7 +159,7 @@ export function createShelf(): ShelfHandle {
 
   const mod = (v: number, n: number): number => ((v % n) + n) % n;
   const wrapDist = (d: number, n: number): number => d - Math.round(d / n) * n;
-  const wrapped = (): boolean => cards.length >= visibleCount * WRAP_MIN_RATIO;
+  const wrapped = (): boolean => cards.length > visibleCount;
 
   const centerIndexNow = (): number => {
     const n = cards.length;
@@ -542,7 +550,9 @@ export function createShelf(): ShelfHandle {
   };
 
   const applyLitClasses = (): void => {
-    for (const card of cards) card.el.classList.toggle('dimmed', litIds !== null && !litIds.has(card.id));
+    for (const card of cards) {
+      card.el.classList.toggle('dimmed', litIds !== null && !litIds.has(card.id) && card.id !== SHELF_PLUS_ID);
+    }
   };
 
   const buildCard = (entry: ShelfEntry, index: number, host: HTMLDivElement): Card => {
@@ -575,6 +585,12 @@ export function createShelf(): ShelfHandle {
     const ledger = document.createElement('div');
     ledger.className = 'shelf-ledger';
     ledger.textContent = entry.ledger;
+    const veil = document.createElement('div');
+    veil.className = 'shelf-veil';
+    const veilWord = document.createElement('span');
+    veilWord.className = 'shelf-veil-word';
+    veil.append(veilWord);
+    face.append(veil);
     el.append(bloom, face, caption, ledger);
     if (index < STAGGER_CAP / 18) el.style.animationDelay = `${Math.min(index * 18, STAGGER_CAP)}ms`;
     host.append(el);
@@ -584,9 +600,12 @@ export function createShelf(): ShelfHandle {
       });
     });
     return {
+      sig: entrySig(entry),
       el,
       faceEl: face,
       bloomEl: bloom,
+      veilEl: veil,
+      veilWord,
       captionEl: caption,
       ledgerEl: ledger,
       id: entry.id,
@@ -663,11 +682,42 @@ export function createShelf(): ShelfHandle {
     },
     setEntries(entries: ShelfEntry[]): void {
       if (world === null) return;
-      transit = null;
-      for (const card of cards) card.el.remove();
-      cards = [];
       const host = world;
-      entries.forEach((entry, index) => cards.push(buildCard(entry, index, host)));
+      transit = null;
+      const byId = new Map<string, Card>();
+      for (const card of cards) byId.set(card.id, card);
+      let surgical = true;
+      for (const entry of entries) {
+        const card = byId.get(entry.id);
+        if (card !== undefined && card.sig !== entrySig(entry)) {
+          surgical = false;
+          break;
+        }
+      }
+      const nextIds = new Set(entries.map((e) => e.id));
+      if (surgical) {
+        const survivors = new Map<string, Card>();
+        for (const card of cards) {
+          if (nextIds.has(card.id)) survivors.set(card.id, card);
+          else card.el.remove();
+        }
+        const next: Card[] = [];
+        entries.forEach((entry, index) => {
+          let card = survivors.get(entry.id);
+          if (card === undefined) {
+            card = buildCard(entry, index, host);
+          } else {
+            card.index = index;
+            card.el.dataset.index = String(index);
+          }
+          next.push(card);
+        });
+        cards = next;
+      } else {
+        for (const card of cards) card.el.remove();
+        cards = [];
+        entries.forEach((entry, index) => cards.push(buildCard(entry, index, host)));
+      }
       position = wrapped() ? mod(position, cards.length) : clamp(position, 0, maxIndex());
       if (selectedId !== null && !entries.some((e) => e.id === selectedId)) selectedId = null;
       applyLitClasses();
@@ -709,7 +759,20 @@ export function createShelf(): ShelfHandle {
     },
     setVisible(visible: boolean): void {
       shown = visible;
-      if (root !== null) root.hidden = !visible;
+      if (root !== null) {
+        if (visible) {
+          if (hideTimer !== 0) {
+            window.clearTimeout(hideTimer);
+            hideTimer = 0;
+          }
+          root.hidden = false;
+        } else if (!root.hidden) {
+          hideTimer = window.setTimeout(() => {
+            hideTimer = 0;
+            if (!shown && root !== null) root.hidden = true;
+          }, 850);
+        }
+      }
       root?.classList.toggle('on', visible);
       if (!visible) {
         window.cancelAnimationFrame(raf);
@@ -801,6 +864,13 @@ export function createShelf(): ShelfHandle {
     },
     onSettle(cb: (index: number) => void): void {
       settleCb = cb;
+    },
+    speak(id: string | null, word = ''): void {
+      for (const card of cards) {
+        const on = id !== null && card.id === id;
+        card.veilEl.classList.toggle('speaking', on);
+        if (on) card.veilWord.textContent = word;
+      }
     },
     entryRect(id: string): DOMRect | null {
       const card = cards.find((c) => c.id === id);

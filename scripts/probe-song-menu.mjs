@@ -281,155 +281,32 @@ if (plBtn !== null) {
   await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: plBtn.x, y: plBtn.y, button: 'left', clickCount: 1 });
   await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: plBtn.x, y: plBtn.y, button: 'left', clickCount: 1 });
 }
-await sleep(350);
-const plPhase = await evalJs(`(() => {
-  const m = document.querySelector('.song-menu');
-  const head = m?.querySelector('.sm-head')?.textContent ?? '';
-  const rows = m ? m.querySelectorAll('.sm-list .sm-row').length : 0;
-  const firstName = m?.querySelector('.sm-list .sm-row .sm-name')?.textContent ?? '';
-  return { head, rows, firstName };
+await sleep(700);
+const filingTakeover = await evalJs(`(() => {
+  const title = document.querySelector('.shelf-lens-title');
+  return {
+    menuGone: document.querySelector('.song-menu') === null,
+    filing: window.__shelf.filing(),
+    title: title?.textContent ?? null,
+    titleVisible: title !== null && getComputedStyle(title).display !== 'none',
+    lensButtonsHidden: Array.from(document.querySelectorAll('#shelf-lens button')).every((b) => getComputedStyle(b).display === 'none'),
+  };
 })()`);
-check('playlist path lists playlists with New playlist first', plPhase.head === 'ADD TO PLAYLIST' && plPhase.rows > 0 && plPhase.firstName === 'New playlist', JSON.stringify(plPhase));
+check('add to playlist hands off to the filing lens', filingTakeover.menuGone === true && filingTakeover.filing === true && filingTakeover.title === 'Choose a playlist' && filingTakeover.titleVisible === true && filingTakeover.lensButtonsHidden === true, JSON.stringify(filingTakeover));
+
+await evalJs(`document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+await sleep(900);
+const filingCancelled = await evalJs(`(() => ({
+  filing: window.__shelf.filing(),
+  riverBack: document.getElementById('river-v2').classList.contains('on'),
+  shelfHidden: !document.getElementById('shelf').classList.contains('on'),
+}))()`);
+check('escape cancels filing back to the origin river', filingCancelled.filing === false && filingCancelled.riverBack === true && filingCancelled.shelfHidden === true, JSON.stringify(filingCancelled));
 
 await evalJs(`(async () => {
   const A = window.__songActions;
   for (const pl of A.playlists().filter((x) => x.name === '__probe_del')) await A.removePlaylist(pl.id);
-  const track = A.libraryTracks().find((t) => t.id === A.queueSnapshot().ids[0]);
-  await A.createPlaylistWithTrack('__probe_del', track);
 })()`);
-await sleep(400);
-const xBtn = await evalJs(`(() => {
-  const rows = Array.from(document.querySelectorAll('.sm-list .sm-row'));
-  const row = rows.find((r) => r.querySelector('.sm-name')?.textContent === '__probe_del');
-  const x = row?.querySelector('.sm-x');
-  if (x === undefined || x === null) return null;
-  row.scrollIntoView({ block: 'nearest' });
-  const r = x.getBoundingClientRect();
-  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
-})()`);
-if (xBtn !== null) {
-  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: xBtn.x, y: xBtn.y, button: 'left', clickCount: 1 });
-  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: xBtn.x, y: xBtn.y, button: 'left', clickCount: 1 });
-}
-await sleep(350);
-const inline = await evalJs(`(() => {
-  const m = document.querySelector('.song-menu');
-  const btns = m ? Array.from(m.querySelectorAll('.sm-confirm-pair .sm-mini')).map((b) => b.textContent) : [];
-  return { head: m?.querySelector('.sm-head')?.textContent ?? null, btns, nameKept: m?.querySelector('.sm-confirming .sm-name')?.textContent ?? null };
-})()`);
-check('delete confirm arms inline on the row', inline.head === 'ADD TO PLAYLIST' && JSON.stringify(inline.btns) === JSON.stringify(['Confirm', 'Cancel']) && inline.nameKept === '__probe_del', JSON.stringify(inline));
-
-const cancelBtn = await evalJs(`(() => {
-  const b = Array.from(document.querySelectorAll('.sm-mini')).find((x) => x.textContent === 'Cancel');
-  if (b === undefined) return null;
-  const r = b.getBoundingClientRect();
-  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
-})()`);
-if (cancelBtn !== null) {
-  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: cancelBtn.x, y: cancelBtn.y, button: 'left', clickCount: 1 });
-  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: cancelBtn.x, y: cancelBtn.y, button: 'left', clickCount: 1 });
-}
-await sleep(350);
-const afterCancel = await evalJs(`(() => {
-  const m = document.querySelector('.song-menu');
-  const rows = Array.from(m?.querySelectorAll('.sm-list .sm-row') ?? []);
-  return { pairGone: m?.querySelector('.sm-confirm-pair') === null, rowBack: rows.some((r) => r.querySelector('.sm-name')?.textContent === '__probe_del') };
-})()`);
-check('cancel returns to the list with the playlist intact', afterCancel.pairGone === true && afterCancel.rowBack === true, JSON.stringify(afterCancel));
-
-const xBtn2 = await evalJs(`(() => {
-  const rows = Array.from(document.querySelectorAll('.sm-list .sm-row'));
-  const row = rows.find((r) => r.querySelector('.sm-name')?.textContent === '__probe_del');
-  const x = row?.querySelector('.sm-x');
-  if (x === undefined || x === null) return null;
-  row.scrollIntoView({ block: 'nearest' });
-  const r = x.getBoundingClientRect();
-  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
-})()`);
-if (xBtn2 !== null) {
-  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: xBtn2.x, y: xBtn2.y, button: 'left', clickCount: 1 });
-  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: xBtn2.x, y: xBtn2.y, button: 'left', clickCount: 1 });
-}
-await sleep(300);
-const confirmBtn = await evalJs(`(() => {
-  const b = Array.from(document.querySelectorAll('.sm-mini')).find((x) => x.textContent === 'Confirm');
-  if (b === undefined) return null;
-  const r = b.getBoundingClientRect();
-  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
-})()`);
-if (confirmBtn !== null) {
-  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: confirmBtn.x, y: confirmBtn.y, button: 'left', clickCount: 1 });
-  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: confirmBtn.x, y: confirmBtn.y, button: 'left', clickCount: 1 });
-}
-await sleep(300);
-const deleting = await evalJs(`(() => {
-  const m = document.querySelector('.song-menu');
-  const row = m?.querySelector('.sm-deleted');
-  return { menuOpen: m !== null, word: row?.querySelector('.sm-deleted-word')?.textContent ?? null };
-})()`);
-check('confirm speaks Deleted on the row with the menu staying open', deleting.menuOpen === true && deleting.word === 'Deleted', JSON.stringify(deleting));
-await sleep(1300);
-const settled = await evalJs(`(() => {
-  const m = document.querySelector('.song-menu');
-  return { menuOpen: m !== null, animating: m?.querySelector('.sm-deleted') !== null, gone: window.__songActions.playlists().every((x) => x.name !== '__probe_del') };
-})()`);
-check('deleted row fades out and the list settles', settled.menuOpen === true && settled.animating === false && settled.gone === true, JSON.stringify(settled));
-
-await evalJs(`document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
-await sleep(350);
-const plBtn2 = await evalJs(`(() => {
-  const b = Array.from(document.querySelectorAll('.sm-fork-btn')).find((x) => x.textContent === 'Add to playlist');
-  if (b === undefined) return null;
-  const r = b.getBoundingClientRect();
-  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
-})()`);
-if (plBtn2 !== null) {
-  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: plBtn2.x, y: plBtn2.y, button: 'left', clickCount: 1 });
-  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: plBtn2.x, y: plBtn2.y, button: 'left', clickCount: 1 });
-}
-await sleep(350);
-
-const newRow = await evalJs(`(() => {
-  const r = document.querySelector('.sm-row-new')?.getBoundingClientRect();
-  return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
-})()`);
-if (newRow !== null) {
-  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: newRow.x, y: newRow.y, button: 'left', clickCount: 1 });
-  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: newRow.x, y: newRow.y, button: 'left', clickCount: 1 });
-}
-await sleep(250);
-const typing = await evalJs(`(async () => {
-  for (let i = 0; i < 12; i++) {
-    const input = document.querySelector('.sm-input');
-    if (input !== null) {
-      input.value = '__probe_scratch';
-      return { typing: true, focused: document.activeElement === input };
-    }
-    await new Promise((r) => setTimeout(r, 50));
-  }
-  return { typing: false };
-})()`);
-check('new playlist opens a focused typing field', typing.typing === true && typing.focused === true, JSON.stringify(typing));
-
-await evalJs(`document.querySelector('.sm-input').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`);
-await sleep(500);
-const added = await evalJs(`(() => {
-  const word = document.querySelector('.song-menu .sm-word')?.textContent ?? '';
-  const pl = window.__songActions.playlists().find((x) => x.name === '__probe_scratch');
-  return { word, created: pl !== undefined };
-})()`);
-check('enter commits the new playlist (Added)', added.word === 'Added' && added.created === true, JSON.stringify(added));
-await sleep(900);
-check('panel fades out after the word', await evalJs(`document.querySelector('.song-menu') === null`));
-
-const cleanup = await evalJs(`(() => {
-  const pl = window.__songActions.playlists().find((x) => x.name === '__probe_scratch');
-  return pl === undefined ? Promise.resolve(false) : window.__songActions.removePlaylist(pl.id).then(() => true);
-})()`);
-check('scratch playlist cleaned up', cleanup === true);
-
-await evalJs(`document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
-await sleep(300);
 
 await evalJs(`(() => {
   document.getElementById('search-summon').click();
@@ -510,7 +387,7 @@ await evalJs(`(() => {
 })()`);
 await sleep(350);
 const forkRow = await evalJs(`(() => {
-  const b = Array.from(document.querySelectorAll('.sm-fork-btn')).find((x) => x.textContent === 'Add to playlist');
+  const b = Array.from(document.querySelectorAll('.sm-fork-btn')).find((x) => x.textContent === 'Add to queue');
   if (b === undefined) return null;
   const r = b.getBoundingClientRect();
   return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
@@ -521,37 +398,51 @@ if (forkRow !== null) {
 }
 await sleep(350);
 const realPressFork = await evalJs(`(() => ({
-  head: document.querySelector('.song-menu .sm-head')?.textContent ?? null,
+  word: document.querySelector('.song-menu .sm-word')?.textContent ?? null,
+  menuOpen: document.querySelector('.song-menu') !== null,
   summonOpen: document.getElementById('search-oracle').classList.contains('open'),
 }))()`);
-check('real press inside the menu leaves the summon open', realPressFork.head === 'ADD TO PLAYLIST' && realPressFork.summonOpen === true, JSON.stringify(realPressFork));
-const addRow = await evalJs(`(() => {
-  const rows = Array.from(document.querySelectorAll('.sm-list .sm-row'));
-  const row = rows.find((r) => r.querySelector('.sm-name')?.textContent === '__probe_add');
-  if (row === undefined) return null;
-  const r = row.getBoundingClientRect();
+check('real press on the fork answers with the word and keeps the summon open', realPressFork.word !== null && realPressFork.menuOpen === true && realPressFork.summonOpen === true, JSON.stringify(realPressFork));
+await sleep(1200);
+await evalJs(`(() => {
+  const row = document.querySelector('#oracle-results .oracle-row.kind-song');
+  if (row !== null) row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+})()`);
+await sleep(350);
+const forkRow2 = await evalJs(`(() => {
+  const b = Array.from(document.querySelectorAll('.sm-fork-btn')).find((x) => x.textContent === 'Add to playlist');
+  if (b === undefined) return null;
+  const r = b.getBoundingClientRect();
   return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
 })()`);
-if (addRow !== null) {
-  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: addRow.x, y: addRow.y, button: 'left', clickCount: 1 });
-  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: addRow.x, y: addRow.y, button: 'left', clickCount: 1 });
+if (forkRow2 !== null) {
+  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: forkRow2.x, y: forkRow2.y, button: 'left', clickCount: 1 });
+  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: forkRow2.x, y: forkRow2.y, button: 'left', clickCount: 1 });
 }
-await sleep(350);
-const realAdd = await evalJs(`(() => {
-  const pl = window.__songActions.playlists().find((x) => x.name === '__probe_add');
-  return {
-    word: document.querySelector('.song-menu .sm-word')?.textContent ?? null,
-    summonOpen: document.getElementById('search-oracle').classList.contains('open'),
-    filed: pl !== undefined && pl.tracks.length === 2,
-  };
-})()`);
-check('real click files the song with the summon still open', realAdd.word === 'Added' && realAdd.summonOpen === true && realAdd.filed === true, JSON.stringify(realAdd));
+await sleep(700);
+const realFile = await evalJs(`(() => ({
+  menuGone: document.querySelector('.song-menu') === null,
+  summonClosed: !document.getElementById('search-oracle').classList.contains('open'),
+  filing: window.__shelf.filing(),
+}))()`);
+check('add to playlist closes the summon and opens filing', realFile.menuGone === true && realFile.summonClosed === true && realFile.filing === true, JSON.stringify(realFile));
+await evalJs(`document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+await sleep(900);
+check('escape leaves the filing lens clean', await evalJs(`window.__shelf.filing() === false`));
 await evalJs(`(async () => {
   const A = window.__songActions;
   for (const pl of A.playlists().filter((x) => x.name === '__probe_add')) await A.removePlaylist(pl.id);
 })()`);
 await sleep(1000);
 
+await evalJs(`(() => {
+  document.getElementById('search-summon').click();
+  const i = document.getElementById('oracle-input');
+  i.focus();
+  i.value = 'mili';
+  i.dispatchEvent(new Event('input', { bubbles: true }));
+})()`);
+await sleep(700);
 await evalJs(`(() => {
   const row = document.querySelector('#oracle-results .oracle-row.kind-song');
   row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
