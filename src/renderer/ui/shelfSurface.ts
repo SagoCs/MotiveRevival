@@ -8,7 +8,7 @@ import { fold } from '../core/fold';
 import { shakeReject } from '../core/dom';
 import { uiTheme } from '../core/uiTheme';
 import { deriveAccent } from '../core/palette';
-import { fileIntoPlaylist } from '../core/songActions';
+import { fileIntoPlaylist, removePlaylist } from '../core/songActions';
 import { createShelf } from './shelf';
 import { SHELF_PLUS_ID as PLUS_ID } from './shelf';
 import { artistRiverSurface } from './artistRiverSurface';
@@ -23,7 +23,6 @@ const RULER_LETTERS: string[] = ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')]
 const SMALL_PIN_COUNT = 5;
 const PROMPT_RISE_MS = 300;
 const SPEAK_WORD_MS = 950;
-const SPEAK_BACK_MS = 1150;
 const RESUME_MS = 350;
 
 type Lens = 'artists' | 'playlists';
@@ -51,6 +50,19 @@ let filingTrack: IndexedTrack | null = null;
 let promptOpen = false;
 let instrumentsWereOff = false;
 let commitPending = false;
+let sceneOpen = false;
+let sceneId: string | null = null;
+let sceneIdx = -1;
+let sceneFocus: 'rename' | 'delete' = 'rename';
+let sceneRiseTimer = 0;
+let renameEl: HTMLButtonElement | null = null;
+let deleteEl: HTMLButtonElement | null = null;
+let deleteHover = false;
+let departWordEl: HTMLDivElement | null = null;
+let dissolveTimers = new Map<string, number>();
+let renameTargetId: string | null = null;
+let originalName = '';
+let pendingManage: string | null = null;
 let suspended: HTMLElement[] = [];
 let speakingId: string | null = null;
 let speakingWord = '';
@@ -405,13 +417,14 @@ const resumeWorlds = (): void => {
 };
 
 const beginFiling = (track: IndexedTrack): boolean => {
-  if (shelf === null) return false;
+    if (shelf === null) return false;
   if (filing) {
     filingTrack = track;
     return true;
   }
   filingTrack = track;
   filing = true;
+  closeManagement(false);
   instrumentsWereOff = shelfRoot?.classList.contains('instruments-off') ?? false;
   shelfRoot?.classList.remove('instruments-off');
   shelfRoot?.classList.add('filing');
@@ -433,7 +446,7 @@ const beginFiling = (track: IndexedTrack): boolean => {
 };
 
 const endFiling = (immediate = false): void => {
-  if (!filing) return;
+    if (!filing) return;
   filing = false;
   filingTrack = null;
   hideSpeak();
@@ -454,7 +467,7 @@ const endFiling = (immediate = false): void => {
     if (filing) return;
     commitPending = false;
     buildPlaylistEntries();
-    applyEntries(shelf?.centerIndex() ?? 0);
+    shelf?.setEntries(currentEntries());
   }, 870);
   applyVisibility();
   if (resumeTimer !== 0) window.clearTimeout(resumeTimer);
@@ -503,7 +516,8 @@ const commitFile = (entry: ShelfEntry): void => {
       showSpeak(entry.id, 'Added', 0);
       window.setTimeout(() => endFiling(), SPEAK_WORD_MS);
     } else if (outcome === 'alreadyInPlaylist') {
-      showSpeak(entry.id, 'Already there', SPEAK_BACK_MS);
+      showSpeak(entry.id, 'Already there', 0);
+      window.setTimeout(() => endFiling(), SPEAK_WORD_MS);
     } else {
       endFiling();
     }
@@ -554,6 +568,25 @@ const closePrompt = (restore = true): void => {
 };
 
 const promptEscape = (): void => {
+  if (promptStage === 'message') return;
+  if (renameTargetId !== null) {
+    if (promptInput !== null && promptInput.value.trim() !== originalName) {
+      promptInput.value = originalName;
+      setPromptStage('typing');
+      if (renameTargetId !== null) {
+        setCardDissolved(`playlist:${renameTargetId}`, false);
+      }
+      return;
+    }
+    renameTargetId = null;
+    closePrompt(false);
+    if (sceneOpen) {
+      setCardDissolved(`playlist:${renameTargetId}`, false);
+      positionScene();
+      showSceneWords();
+    }
+    return;
+  }
   if (promptStage === 'virgin') {
     closePrompt();
     return;
@@ -567,6 +600,163 @@ const promptEscape = (): void => {
   setPromptStage('virgin');
 };
 
+const setCardDissolved = (id: string, dissolved: boolean): void => {
+  const el = document.querySelector(`#shelf .shelf-card[data-id="${id}"]`);
+  if (el === null || !(el instanceof HTMLElement)) return;
+  const prev = dissolveTimers.get(id);
+  if (prev !== undefined) {
+    window.clearTimeout(prev);
+    dissolveTimers.delete(id);
+  }
+  el.style.transition = 'opacity 300ms var(--ease-drift)';
+  el.style.opacity = dissolved ? '0' : '1';
+  if (dissolved) return;
+  const timer = window.setTimeout(() => {
+    dissolveTimers.delete(id);
+    el.style.transition = '';
+    el.style.opacity = '';
+  }, 330);
+  dissolveTimers.set(id, timer);
+};
+
+const positionScene = (): void => {
+  if (sceneId === null || renameEl === null || deleteEl === null) return;
+  const rect = shelf?.entryRect(sceneId);
+  if (rect == null) return;
+  const cy = rect.top + rect.height / 2;
+  const gap = 44;
+  renameEl.style.left = `${rect.left - gap - renameEl.offsetWidth}px`;
+  deleteEl.style.left = `${rect.right + gap}px`;
+  renameEl.style.top = `${cy}px`;
+  deleteEl.style.top = `${cy}px`;
+};
+
+const showSceneWords = (): void => {
+  renameEl?.classList.add('on');
+  deleteEl?.classList.add('on');
+};
+
+const hideSceneWords = (): void => {
+  renameEl?.classList.remove('on');
+  deleteEl?.classList.remove('on');
+};
+
+const syncDeleteLook = (): void => {
+  if (deleteEl === null) return;
+  const armed = sceneFocus === 'delete' || deleteHover;
+  deleteEl.classList.toggle('armed', armed);
+  deleteEl.textContent = armed ? 'Confirm?' : 'Delete';
+};
+
+const setSceneFocus = (next: 'rename' | 'delete'): void => {
+  sceneFocus = next;
+  renameEl?.classList.toggle('focused', next === 'rename');
+  deleteEl?.classList.toggle('focused', next === 'delete');
+  syncDeleteLook();
+};
+
+const sceneArrow = (dir: 1 | -1, repeat = false): void => {
+  void dir;
+  if (!sceneOpen || repeat) return;
+  setSceneFocus(sceneFocus === 'rename' ? 'delete' : 'rename');
+};
+
+const sceneEnter = (): void => {
+  if (!sceneOpen) return;
+  if (sceneFocus === 'rename') startRename();
+  else performDelete();
+};
+
+const openManagement = (idx: number, id: string): void => {
+  if (filing || promptOpen || sceneOpen) return;
+  const entry = currentEntries()[idx];
+  if (entry === undefined || entry.ref === undefined) return;
+  sceneOpen = true;
+  sceneId = id;
+  sceneIdx = idx;
+  sceneFocus = 'rename';
+  deleteHover = false;
+  highlight(idx);
+  shelf?.beginTransit(idx, true);
+  window.clearTimeout(sceneRiseTimer);
+  sceneRiseTimer = window.setTimeout(() => {
+    sceneRiseTimer = 0;
+    if (!sceneOpen) return;
+    positionScene();
+    showSceneWords();
+  }, 340);
+};
+
+const closeManagement = (restore = true): void => {
+  if (!sceneOpen) return;
+  sceneOpen = false;
+  const idx = sceneIdx;
+  sceneId = null;
+  sceneIdx = -1;
+  renameTargetId = null;
+  window.clearTimeout(sceneRiseTimer);
+  sceneRiseTimer = 0;
+  hideSceneWords();
+  renameEl?.classList.remove('focused');
+  deleteEl?.classList.remove('focused', 'armed');
+  if (deleteEl !== null) deleteEl.textContent = 'Delete';
+  if (restore && idx >= 0) {
+    shelf?.returnFromScene(idx, currentEntries(), () => {
+      applyEntries(shelf?.centerIndex() ?? idx);
+      highlight(shelf?.centerIndex() ?? idx);
+    });
+  }
+};
+
+const startRename = (): void => {
+  if (sceneId === null || promptEl === null || promptInput === null || promptOpen) return;
+  const entry = currentEntries().find((e) => e.id === sceneId);
+  if (entry === undefined) return;
+  originalName = entry.name;
+  renameTargetId = entry.ref ?? null;
+  if (renameTargetId === null) return;
+  hideSceneWords();
+  setCardDissolved(sceneId, true);
+  promptOpen = true;
+  promptPartIndex = sceneIdx;
+  promptInput.value = originalName;
+  setPromptStage('typing');
+  promptEl.classList.add('on');
+  requestAnimationFrame(() => {
+    promptInput?.focus();
+    promptInput?.select();
+  });
+};
+
+
+const performDelete = (): void => {
+  if (sceneId === null) return;
+  const plId = sceneId.slice('playlist:'.length);
+  const idx = sceneIdx;
+  commitPending = true;
+  hideSceneWords();
+  setCardDissolved(sceneId, true);
+  const rect = shelf?.entryRect(sceneId);
+  if (departWordEl !== null && rect != null) {
+    departWordEl.textContent = 'Deleted.';
+    departWordEl.style.left = `${rect.left + rect.width / 2}px`;
+    departWordEl.style.top = `${rect.top + rect.height / 2}px`;
+    departWordEl.classList.add('on');
+  }
+  window.setTimeout(() => {
+    departWordEl?.classList.remove('on');
+    closeManagement(false);
+    void removePlaylist(plId).then(() => {
+      buildPlaylistEntries();
+      commitPending = false;
+      shelf?.returnFromScene(idx, currentEntries(), () => {
+        applyEntries(shelf?.centerIndex() ?? idx);
+        highlight(shelf?.centerIndex() ?? idx);
+      });
+    });
+  }, 1000);
+};
+
 const finishCreate = (plId: string): void => {
   const partIdx = promptPartIndex;
   closePrompt(false);
@@ -574,28 +764,58 @@ const finishCreate = (plId: string): void => {
   buildPlaylistEntries();
   const newIdx = currentEntries().findIndex((e) => e.id === `playlist:${plId}`);
   const target = newIdx >= 0 ? newIdx : idx;
-  shelf?.beginReturn(idx, () => {
+  shelf?.returnFromScene(target, currentEntries(), () => {
     applyEntries(target);
     highlight(target);
   });
+};
+
+const refuseName = (): void => {
+  if (promptEchoEl === null) return;
+  promptEchoEl.textContent = 'Name already taken';
+  setPromptStage('message');
+  if (echoTimer !== 0) window.clearTimeout(echoTimer);
+  echoTimer = window.setTimeout(() => {
+    echoTimer = 0;
+    if (!promptOpen || promptStage !== 'message') return;
+    if (promptEchoEl !== null) promptEchoEl.textContent = '';
+    setPromptStage(promptInput !== null && promptInput.value !== '' ? 'typing' : 'virgin');
+  }, 1300);
 };
 
 const commitPrompt = (): void => {
   if (promptInput === null || !promptOpen || promptStage === 'message') return;
   const name = promptInput.value.trim();
   if (name === '') return;
+  if (renameTargetId !== null) {
+    const targetId = renameTargetId;
+    void playlistsStore.rename(targetId, name).then((ok) => {
+      if (!ok) {
+        refuseName();
+        return;
+      }
+      closePrompt(false);
+      setCardDissolved(`playlist:${targetId}`, false);
+      showSpeak(`playlist:${targetId}`, 'Renamed', 0);
+      const idx = sceneIdx >= 0 ? sceneIdx : shelf?.centerIndex() ?? 0;
+      window.setTimeout(() => {
+        hideSpeak();
+        closeManagement(false);
+        buildPlaylistEntries();
+        const newIdx = currentEntries().findIndex((e) => e.id === `playlist:${targetId}`);
+        const target = newIdx >= 0 ? newIdx : idx;
+        shelf?.returnFromScene(target, currentEntries(), () => {
+          applyEntries(target);
+          highlight(target);
+        });
+      }, 1000);
+    });
+    return;
+  }
   const track = filingTrack;
   void playlistsStore.create(name).then((pl) => {
     if (pl === null) {
-      if (promptEchoEl !== null) promptEchoEl.textContent = 'Name already taken';
-      setPromptStage('message');
-      if (echoTimer !== 0) window.clearTimeout(echoTimer);
-      echoTimer = window.setTimeout(() => {
-        echoTimer = 0;
-        if (!promptOpen || promptStage !== 'message') return;
-        if (promptEchoEl !== null) promptEchoEl.textContent = '';
-        setPromptStage(promptInput !== null && promptInput.value !== '' ? 'typing' : 'virgin');
-      }, 1300);
+      refuseName();
       return;
     }
     if (promptEchoEl !== null) promptEchoEl.textContent = 'Created.';
@@ -620,15 +840,23 @@ export const shelfSurface = {
     if (browserVisible === next) return;
     browserVisible = next;
     if (filing && !next) endFiling();
+    if (sceneOpen && !next) closeManagement(false);
     applyVisibility();
   },
   isFiling(): boolean {
     return filing;
   },
+  isManaging(): boolean {
+    return sceneOpen;
+  },
   clearOnEscape(): boolean {
     if (!active) return false;
     if (promptOpen) {
       promptEscape();
+      return true;
+    }
+    if (sceneOpen) {
+      closeManagement();
       return true;
     }
     if (filing) {
@@ -641,6 +869,10 @@ export const shelfSurface = {
   },
   step(dir: 1 | -1, repeat = false): void {
     if (!active) return;
+    if (sceneOpen) {
+      sceneArrow(dir, repeat);
+      return;
+    }
     if (repeat) {
       shelf?.stepHold(dir);
       return;
@@ -661,6 +893,7 @@ export const shelfSurface = {
   },
   summonEnter(name: string, focus?: { dimToAlbum?: string; focusTrackId?: string }): boolean {
     if (filing) endFiling(true);
+    closeManagement(false);
     if (artistRiverSurface.isOpen()) {
       artistRiverSurface.close();
       window.setTimeout(() => {
@@ -690,6 +923,7 @@ export const shelfSurface = {
   },
   summonEnterPlaylist(id: string): boolean {
     if (filing) endFiling(true);
+    closeManagement(false);
     if (artistRiverSurface.isOpen()) {
       artistRiverSurface.close();
       window.setTimeout(() => {
@@ -717,7 +951,12 @@ export const shelfSurface = {
     return true;
   },
   activateCenter(): void {
-    if (!active || shelf?.isBusy() === true) return;
+    if (!active) return;
+    if (sceneOpen) {
+      sceneEnter();
+      return;
+    }
+    if (shelf?.isBusy() === true) return;
     const idx = shelf?.centerIndex() ?? -1;
     const entry = currentEntries()[idx];
     if (entry === undefined) return;
@@ -779,6 +1018,24 @@ const enterCurrent = (entry: ShelfEntry, idx: number): void => {
 export function initShelfSurface(): void {
   if (shelf !== null) return;
   shelf = createShelf();
+  shelf.onEntryContext((id) => {
+    if (!active || filing || promptOpen) return;
+    if (lens !== 'playlists') return;
+    if (sceneOpen) {
+      if (sceneId === id) closeManagement();
+      return;
+    }
+    const idx = currentEntries().findIndex((e) => e.id === id);
+    const entry = currentEntries()[idx];
+    if (entry === undefined || entry.ref === undefined) return;
+    if (currentEntries().length <= 5 || idx === shelf?.centerIndex()) {
+      openManagement(idx, id);
+      return;
+    }
+    pendingManage = id;
+    highlight(idx);
+    shelf?.glideTo(idx);
+  });
   shelf.onEntryTap((id) => {
     if (!active) return;
     const idx = currentEntries().findIndex((e) => e.id === id);
@@ -818,7 +1075,7 @@ export function initShelfSurface(): void {
   });
   shelf.onVoidTap((taps) => {
     gestMark(String(taps));
-    if (!active || filing) {
+    if (!active || filing || sceneOpen) {
       gestMark('i');
       return;
     }
@@ -855,6 +1112,16 @@ export function initShelfSurface(): void {
   });
   shelf.onSettle((index) => {
     if (!active) return;
+    if (pendingManage !== null) {
+      const id = pendingManage;
+      pendingManage = null;
+      const entry = currentEntries()[index];
+      if (entry !== undefined && entry.id === id) {
+        highlight(index);
+        openManagement(index, id);
+        return;
+      }
+    }
     const pending = pendingGesture;
     if (pending !== null) {
       pendingGesture = null;
@@ -896,6 +1163,42 @@ export function initShelfSurface(): void {
     });
     promptEl.append(promptEchoEl, promptWordEl, promptInput);
     rootEl.append(promptEl);
+    renameEl = document.createElement('button');
+    renameEl.type = 'button';
+    renameEl.className = 'shelf-manage-opt';
+    renameEl.textContent = 'Rename';
+    deleteEl = document.createElement('button');
+    deleteEl.type = 'button';
+    deleteEl.className = 'shelf-manage-opt danger';
+    deleteEl.textContent = 'Delete';
+    renameEl.addEventListener('click', () => {
+      if (!sceneOpen) return;
+      setSceneFocus('rename');
+      startRename();
+    });
+    deleteEl.addEventListener('click', () => {
+      if (!sceneOpen) return;
+      setSceneFocus('delete');
+      performDelete();
+    });
+    renameEl.addEventListener('mouseenter', () => syncDeleteLook());
+    deleteEl.addEventListener('mouseenter', () => {
+      deleteHover = true;
+      syncDeleteLook();
+    });
+    deleteEl.addEventListener('mouseleave', () => {
+      deleteHover = false;
+      syncDeleteLook();
+    });
+    renameEl.addEventListener('focus', () => setSceneFocus('rename'));
+    deleteEl.addEventListener('focus', () => {
+      setSceneFocus('delete');
+      syncDeleteLook();
+    });
+    rootEl.append(renameEl, deleteEl);
+    departWordEl = document.createElement('div');
+    departWordEl.id = 'shelf-depart-word';
+    rootEl.append(departWordEl);
   }
   floorEl = document.createElement('div');
   floorEl.id = 'shelf-filing-floor';
@@ -919,7 +1222,7 @@ export function initShelfSurface(): void {
   });
 
   playlistsStore.onChange(() => {
-    if (promptOpen || commitPending) return;
+    if (promptOpen || commitPending || sceneOpen) return;
     buildPlaylistEntries();
     if (lens === 'playlists') {
       for (const letter of [...litLetters]) {
@@ -942,10 +1245,12 @@ export function initShelfSurface(): void {
   });
 
   appBus.on('queue-river-opened', () => {
+    if (sceneOpen) closeManagement(false);
     if (filing) endFiling(true);
   });
 
   appBus.on('summon-opened', () => {
+    if (sceneOpen) closeManagement(false);
     if (filing) endFiling();
   });
 
@@ -961,7 +1266,7 @@ export function initShelfSurface(): void {
       enteredRiver = null;
       const idx = artistEntries.findIndex((e) => e.name === artist);
       if (idx >= 0) {
-        shelf?.beginReturn(idx, () => {
+        shelf?.returnFromScene(idx, currentEntries(), () => {
           shelf?.glideTo(idx);
         });
       }
@@ -978,7 +1283,7 @@ export function initShelfSurface(): void {
       enteredRiver = null;
       const idx = playlistEntries.findIndex((e) => e.ref === playlistId);
       if (idx >= 0) {
-        shelf?.beginReturn(idx, () => {
+        shelf?.returnFromScene(idx, currentEntries(), () => {
           shelf?.glideTo(idx);
         });
       }
@@ -1003,6 +1308,9 @@ export function initShelfSurface(): void {
     rect: (id: string) => shelf?.entryRect(id) ?? null,
     goto: (index: number) => shelf?.scrollTo(index),
     filing: () => filing,
+    managing: () => sceneOpen,
+    sceneFocus: () => sceneFocus,
+    deleteWord: () => deleteEl?.textContent ?? null,
     filingTrack: () => filingTrack?.title ?? null,
     speakOn: () => speakingId !== null,
     speakWord: () => speakingWord,

@@ -421,3 +421,68 @@
 #shelf-prompt.typing .shelf-prompt-input {
   caret-color: var(--acc-a);
 }
+
+.shelf-manage-opt {
+  position: fixed;
+  z-index: 32;
+  appearance: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: 20px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--moon-bright) 72%, transparent);
+  padding: 8px 10px;
+  white-space: nowrap;
+  pointer-events: auto;
+  opacity: 0;
+  transition:
+    opacity 300ms var(--ease-drift),
+    color 200ms ease,
+    text-shadow 200ms ease;
+}
+
+.shelf-manage-opt.on {
+  opacity: 1;
+}
+
+.shelf-manage-opt.focused,
+.shelf-manage-opt:hover {
+  color: var(--moon-bright);
+  text-shadow: 0 0 14px color-mix(in srgb, var(--acc-glow) 55%, transparent);
+}
+
+.shelf-manage-opt.armed,
+.shelf-manage-opt.danger.focused,
+.shelf-manage-opt.danger:hover {
+  color: #e0685c;
+  text-shadow: 0 0 14px rgba(224, 104, 92, 0.4);
+}
+
+.shelf-manage-opt {
+  transform: translateY(-50%);
+}
+
+#shelf-depart-word {
+  position: fixed;
+  z-index: 33;
+  transform: translate(-50%, -50%);
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: 15px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--acc-a) 70%, var(--moon-bright));
+  text-shadow: 0 1px 10px rgba(3, 5, 12, 0.9);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 300ms var(--ease-drift);
+}
+
+#shelf-depart-word.on {
+  opacity: 1;
+}

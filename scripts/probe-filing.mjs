@@ -89,7 +89,7 @@ if (!ready) {
   process.exit(1);
 }
 
-for (const name of ['__probe_file', '__probe_file2', '__probe_new', '__probe_empty2']) await removeScratch(name);
+for (const name of ['__probe_file', '__probe_file2', '__probe_new', '__probe_empty2', '__probe_mgmt', 'Mgmt Renamed']) await removeScratch(name);
 
 await evalJs(`document.querySelector('#mode-tabs button[data-mode="songs"]')?.click()`);
 await sleep(1200);
@@ -170,10 +170,9 @@ const already = await evalJs(`(() => ({
   speakOn: window.__shelf.speakOn(),
   stillFiling: window.__shelf.filing(),
 }))()`);
-check('a second file answers Already there and stays', already.speakOn === true && already.word === 'Already there' && already.stillFiling === true, JSON.stringify(already));
-await escape();
-await sleep(700);
-check('escape cancels after Already there', await evalJs(`window.__shelf.filing() === false`));
+check('a second file answers Already there', already.speakOn === true && already.word === 'Already there', JSON.stringify(already));
+await sleep(1400);
+check('already-there returns home', await evalJs(`window.__shelf.filing() === false`));
 
 await evalJs(`window.__shelf.beginFiling(${JSON.stringify(seed.songId)})`);
 await sleep(500);
@@ -318,7 +317,87 @@ check('opening the summon abandons the pending song', abandoned === true);
 await escape();
 await sleep(400);
 
-for (const name of ['__probe_file', '__probe_file2', '__probe_new', '__probe_empty2']) await removeScratch(name);
+console.log('');
+console.log('=== MANAGEMENT SCENE ===');
+await evalJs(`document.querySelector('#mode-tabs button[data-mode="shelf"]')?.click()`);
+await sleep(900);
+await evalJs(`[...document.querySelectorAll('#shelf-lens button')].find((b) => b.textContent === 'Playlists')?.click()`);
+await sleep(900);
+await evalJs(`(async () => {
+  const A = window.__songActions;
+  await A.createPlaylistWithTrack('__probe_mgmt', A.libraryTracks()[0]);
+})()`);
+await sleep(700);
+const mgmtIdx = await evalJs(`window.__shelf.entries().findIndex((e) => e.name === '__probe_mgmt')`);
+await evalJs(`window.__shelf.goto(${mgmtIdx})`);
+await sleep(1100);
+const mgmtPt = await evalJs(`(() => {
+  const pl = window.__songActions.playlists().find((p) => p.name === '__probe_mgmt');
+  const el = pl === undefined ? null : document.querySelector('#shelf .shelf-card[data-id="playlist:' + pl.id + '"]');
+  if (el === null) return null;
+  const r = el.getBoundingClientRect();
+  return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+})()`);
+await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: mgmtPt.x, y: mgmtPt.y, button: 'right', clickCount: 1 });
+await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: mgmtPt.x, y: mgmtPt.y, button: 'right', clickCount: 1 });
+await sleep(400);
+await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: mgmtPt.x, y: mgmtPt.y, button: 'right', clickCount: 1 });
+await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: mgmtPt.x, y: mgmtPt.y, button: 'right', clickCount: 1 });
+await sleep(900);
+await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: mgmtPt.x, y: mgmtPt.y, button: 'right', clickCount: 1 });
+await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: mgmtPt.x, y: mgmtPt.y, button: 'right', clickCount: 1 });
+await sleep(900);
+const sceneOn = await evalJs(`(() => ({
+  managing: window.__shelf.managing(),
+  words: [...document.querySelectorAll('.shelf-manage-opt')].map((b) => b.textContent),
+  focused: window.__shelf.sceneFocus(),
+}))()`);
+check('right-click opens the management scene', sceneOn.managing === true && sceneOn.words.includes('Rename') && sceneOn.words.includes('Delete') && sceneOn.focused === 'rename', JSON.stringify(sceneOn));
+
+await evalJs(`document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`);
+await sleep(700);
+const renameStage = await evalJs(`(() => ({
+  prompt: window.__shelf.prompt(),
+  value: document.querySelector('.shelf-prompt-input')?.value ?? null,
+}))()`);
+check('enter opens the rename stage pre-filled', renameStage.prompt === true && renameStage.value === '__probe_mgmt', JSON.stringify(renameStage));
+await evalJs(`(() => {
+  const input = document.querySelector('.shelf-prompt-input');
+  input.value = 'Mgmt Renamed';
+  input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+})()`);
+await sleep(3000);
+const renamed = await evalJs(`(() => {
+  const A = window.__songActions;
+  const pl = A.playlists().find((p) => p.name === 'Mgmt Renamed');
+  return { made: pl !== undefined, gone: !A.playlists().some((p) => p.name === '__probe_mgmt'), center: window.__shelf.names()[window.__shelf.center()], promptGone: window.__shelf.prompt() === false };
+})()`);
+check('rename commits and lands on the square', renamed.made === true && renamed.gone === true && renamed.center === 'Mgmt Renamed' && renamed.promptGone === true, JSON.stringify(renamed));
+
+await sleep(600);
+const mgmtPt2 = await evalJs(`(() => {
+  const pl = window.__songActions.playlists().find((p) => p.name === 'Mgmt Renamed');
+  const el = pl === undefined ? null : document.querySelector('#shelf .shelf-card[data-id="playlist:' + pl.id + '"]');
+  if (el === null) return null;
+  const r = el.getBoundingClientRect();
+  return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+})()`);
+await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: mgmtPt2.x, y: mgmtPt2.y, button: 'right', clickCount: 1 });
+await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: mgmtPt2.x, y: mgmtPt2.y, button: 'right', clickCount: 1 });
+await sleep(1000);
+await evalJs(`document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))`);
+await sleep(300);
+const deleteArmed = await evalJs(`(() => ({
+  focus: window.__shelf.sceneFocus(),
+  word: window.__shelf.deleteWord(),
+}))()`);
+check('arrowing onto delete arms the warning', deleteArmed.focus === 'delete' && deleteArmed.word === 'Confirm?', JSON.stringify(deleteArmed));
+await evalJs(`document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`);
+await sleep(3200);
+const deleted = await evalJs(`window.__songActions.playlists().some((p) => p.name === 'Mgmt Renamed') === false`);
+check('enter on the armed delete removes the playlist', deleted === true);
+
+for (const name of ['__probe_file', '__probe_file2', '__probe_new', '__probe_empty2', '__probe_mgmt', 'Mgmt Renamed']) await removeScratch(name);
 const clean = await evalJs(`window.__songActions.playlists().every((p) => !p.name.startsWith('__probe'))`);
 check('scratch playlists cleaned up', clean === true);
 

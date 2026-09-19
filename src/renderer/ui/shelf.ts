@@ -37,12 +37,14 @@ export interface ShelfHandle {
   setVisible(visible: boolean): void;
   setSelected(id: string | null, colors?: { ledger: string; ring: string; glow: string }): void;
   setLitIds(ids: string[] | null): void;
-  beginTransit(index: number): void;
-  beginReturn(index: number, onDone: () => void): void;
+  beginTransit(index: number, keep?: boolean): void;
+  beginReturn(index: number, onDone: () => void, fromVisible?: boolean): void;
+  returnFromScene(index: number, entries: ShelfEntry[], onDone: () => void): void;
   cancelTransit(): void;
   isBusy(): boolean;
   onVoidTap(cb: (taps: number) => void): void;
   onEntryTap(cb: (id: string) => void): void;
+  onEntryContext(cb: (id: string) => void): void;
   onSettle(cb: (index: number) => void): void;
   speak(id: string | null, word?: string): void;
   entryRect(id: string): DOMRect | null;
@@ -72,6 +74,10 @@ interface Card {
 }
 
 interface Transit {
+  keep?: boolean;
+  fromVisible?: boolean;
+  fromOpacity?: string;
+  held?: Map<string, { x: number; scale: number; tilt: number; opacity: number; capX: number; ledgerX: number; ledgerY: number }>;
   index: number;
   phase: 'open' | 'hold' | 'close';
   fadeStart: number;
@@ -140,6 +146,7 @@ export function createShelf(): ShelfHandle {
   let resting = true;
   let lastWheelAt = 0;
   let tapCb: ((id: string) => void) | null = null;
+  let contextCb: ((id: string) => void) | null = null;
   let voidTapCb: ((taps: number) => void) | null = null;
   let voidTapTimer = 0;
   let voidTapCount = 0;
@@ -202,6 +209,7 @@ export function createShelf(): ShelfHandle {
     const now = performance.now();
     let pFade: number;
     let pSlide: number;
+    let slideEased = 1;
     if (t.phase === 'hold') {
       pFade = 1;
       pSlide = 1;
@@ -209,7 +217,7 @@ export function createShelf(): ShelfHandle {
       const fadeRaw = clamp((now - t.fadeStart) / t.fadeDur, 0, 1);
       const slideRaw = clamp((now - t.slideStart) / t.slideDur, 0, 1);
       const fadeEased = 1 - Math.pow(1 - fadeRaw, 3);
-      const slideEased = 1 - Math.pow(1 - slideRaw, 3);
+      slideEased = 1 - Math.pow(1 - slideRaw, 3);
       pFade = t.phase === 'open' ? fadeEased : 1 - fadeEased;
       pSlide = t.phase === 'open' ? slideEased : 1 - slideEased;
     }
@@ -223,16 +231,63 @@ export function createShelf(): ShelfHandle {
     }
     const remap = fadeRange / effFade;
     const squash = effFade / fadeRange;
+    const heldMap = t.held ?? null;
+    const heldK = t.phase === 'hold' ? 1 : slideEased;
     for (const card of cards) {
+      if (heldMap !== null) {
+        const from = heldMap.get(card.id) ?? null;
+        let dist = card.index - anchor;
+        if (wrapped()) dist = wrapDist(dist, count);
+        const side = Math.sign(dist) || 1;
+        const xAbs = distanceAt(Math.abs(dist) * remap);
+        const n = Math.min(1, xAbs / fadeRange);
+        const trueScale = (1 - curve * n * n) * (1 + lensAmt * Math.exp(-dist * dist * 4));
+        const trueTilt = side * tiltMax * Math.pow(n, 1.5);
+        const trueOpacity = n <= fadeHold ? 1 : Math.max(0, 1 - Math.pow((n - fadeHold) / (1 - fadeHold), 2));
+        const trueX = Math.round((side * xAbs * squash) / pxStep) * pxStep;
+        const isChosen = card.index === t.index;
+        const fromX = from !== null ? from.x : trueX;
+        const fromScale = from !== null ? from.scale : trueScale;
+        const fromTilt = from !== null ? from.tilt : trueTilt;
+        const fromOpacity = from !== null ? from.opacity : trueOpacity;
+        const x = fromX + (trueX - fromX) * heldK;
+        const scale = fromScale + (trueScale - fromScale) * heldK;
+        const tilt = fromTilt + (trueTilt - fromTilt) * heldK;
+        const opacity = fromOpacity + (trueOpacity - fromOpacity) * heldK;
+        const art = `translate3d(${x.toFixed(3)}px, 0, 0) rotateY(${tilt.toFixed(3)}deg) scale(${scale.toFixed(4)})`;
+        card.faceEl.style.transform = art;
+        card.bloomEl.style.transform = art;
+        card.el.style.opacity = opacity.toFixed(3);
+        card.el.style.zIndex = isChosen ? '999' : '1';
+        card.el.style.visibility = opacity <= 0 ? 'hidden' : 'visible';
+        const capFrom = from !== null && Number.isFinite(from.capX) ? from.capX : x;
+        const capX = capFrom + (trueX - capFrom) * heldK;
+        const ledgerYT = Math.round((cardSize / 2 + scale * (cardSize / 2 + 35)) / pxStep) * pxStep;
+        const ledgerFromY = from !== null && Number.isFinite(from.ledgerY) ? from.ledgerY : ledgerYT;
+        const ledgerY = ledgerFromY + (ledgerYT - ledgerFromY) * heldK;
+        const capT = `translate3d(${capX.toFixed(2)}px, 0, 0) rotateY(${tilt.toFixed(3)}deg) scale(${scale.toFixed(4)})`;
+        card.captionEl.style.transform = capT;
+        card.ledgerEl.style.transform = `translate3d(${capX.toFixed(2)}px, ${ledgerY.toFixed(2)}px, 0)`;
+        const capOp = Math.max(0, Math.min(1, opacity));
+        card.captionEl.style.opacity = capOp.toFixed(3);
+        card.ledgerEl.style.opacity = card.id === selectedId ? capOp.toFixed(3) : '0';
+        card.lastX = x;
+        card.lastScale = scale;
+        card.lastTilt = tilt;
+        card.lastOpacity = opacity;
+        card.lastZ = isChosen ? 999 : 1;
+        continue;
+      }
       if (card.index === t.index) {
-        const chosenOpacity = 1 - pFade;
+        const held = t.fromVisible === true && t.fromOpacity !== undefined;
+        const chosenOpacity = t.keep === true ? 1 : held ? Number(t.fromOpacity) : 1 - pFade;
         card.faceEl.style.transform = restArt;
         card.bloomEl.style.transform = restArt;
         card.el.style.opacity = chosenOpacity.toFixed(4);
         card.el.style.zIndex = '999';
-        card.el.style.visibility = 'visible';
-        card.captionEl.style.opacity = '0';
-        card.ledgerEl.style.opacity = '0';
+        card.el.style.visibility = chosenOpacity <= 0 ? 'hidden' : 'visible';
+        card.captionEl.style.opacity = t.keep === true || held ? '1' : '0';
+        card.ledgerEl.style.opacity = t.keep === true || held ? '1' : '0';
         card.lastX = 0;
         card.lastScale = 1 + lensAmt;
         card.lastTilt = 0;
@@ -250,7 +305,7 @@ export function createShelf(): ShelfHandle {
       const trueOpacity = n <= fadeHold ? 1 : Math.max(0, 1 - Math.pow((n - fadeHold) / (1 - fadeHold), 2));
       const trueX = Math.round((side * xAbs * squash) / pxStep) * pxStep;
       const x = trueX + side * region.width * 0.7 * pSlide;
-      const opacity = t.phase === 'open' ? trueOpacity * (1 - pSlide * 1.6) : trueOpacity * Math.min(1, (1 - pSlide) * 1.8);
+      const opacity = t.fromVisible === true ? trueOpacity : t.phase === 'open' ? trueOpacity * (1 - pSlide * 1.6) : trueOpacity * Math.min(1, (1 - pSlide) * 1.8);
       const scale = trueScale * (1 - 0.15 * pSlide);
       const art = `translate3d(${x.toFixed(3)}px, 0, 0) rotateY(${trueTilt.toFixed(3)}deg) scale(${scale.toFixed(4)})`;
       card.faceEl.style.transform = art;
@@ -549,6 +604,31 @@ export function createShelf(): ShelfHandle {
     el.addEventListener('pointercancel', cancel);
   };
 
+    const applyEntryToCard = (card: Card, entry: ShelfEntry, index: number): void => {
+      card.index = index;
+      card.el.dataset.index = String(index);
+      if (card.sig === entrySig(entry)) return;
+      card.el.classList.toggle('shelf-card-plain', entry.art === null);
+      card.faceEl.replaceChildren();
+      if (entry.art !== null) {
+        const img = document.createElement('img');
+        img.src = entry.art;
+        img.alt = '';
+        img.decoding = 'async';
+        img.loading = 'lazy';
+        card.faceEl.append(img);
+      } else {
+        const initial = document.createElement('span');
+        initial.className = 'shelf-initial';
+        initial.textContent = entry.initial;
+        card.faceEl.append(initial);
+      }
+      const nameEl = card.captionEl.querySelector('.shelf-name');
+      if (nameEl !== null) nameEl.textContent = entry.name;
+      card.ledgerEl.textContent = entry.ledger;
+      card.sig = entrySig(entry);
+    };
+
   const applyLitClasses = (): void => {
     for (const card of cards) {
       card.el.classList.toggle('dimmed', litIds !== null && !litIds.has(card.id) && card.id !== SHELF_PLUS_ID);
@@ -598,6 +678,11 @@ export function createShelf(): ShelfHandle {
       beginPan(event, face, () => {
         if (tapCb !== null) tapCb(entry.id);
       });
+    });
+    face.addEventListener('contextmenu', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (contextCb !== null) contextCb(entry.id);
     });
     return {
       sig: entrySig(entry),
@@ -656,6 +741,44 @@ export function createShelf(): ShelfHandle {
     });
   };
 
+  const diffEntries = (entries: ShelfEntry[]): void => {
+    if (world === null) return;
+    const host = world;
+    const byId = new Map<string, Card>();
+    for (const card of cards) byId.set(card.id, card);
+    let surgical = true;
+    for (const entry of entries) {
+      const card = byId.get(entry.id);
+      if (card !== undefined && card.sig !== entrySig(entry)) {
+        surgical = false;
+        break;
+      }
+    }
+    const nextIds = new Set(entries.map((e) => e.id));
+    if (surgical) {
+      const survivors = new Map<string, Card>();
+      for (const card of cards) {
+        if (nextIds.has(card.id)) survivors.set(card.id, card);
+        else card.el.remove();
+      }
+      const next: Card[] = [];
+      entries.forEach((entry, index) => {
+        let card = survivors.get(entry.id);
+        if (card === undefined) {
+          card = buildCard(entry, index, host);
+        } else {
+          applyEntryToCard(card, entry, index);
+        }
+        next.push(card);
+      });
+      cards = next;
+    } else {
+      for (const card of cards) card.el.remove();
+      cards = [];
+      entries.forEach((entry, index) => cards.push(buildCard(entry, index, host)));
+    }
+  };
+
   return {
     mount(next: ShelfRegion, nextDpr: number): void {
       if (root === null || world === null || voidEl === null) {
@@ -682,42 +805,8 @@ export function createShelf(): ShelfHandle {
     },
     setEntries(entries: ShelfEntry[]): void {
       if (world === null) return;
-      const host = world;
       transit = null;
-      const byId = new Map<string, Card>();
-      for (const card of cards) byId.set(card.id, card);
-      let surgical = true;
-      for (const entry of entries) {
-        const card = byId.get(entry.id);
-        if (card !== undefined && card.sig !== entrySig(entry)) {
-          surgical = false;
-          break;
-        }
-      }
-      const nextIds = new Set(entries.map((e) => e.id));
-      if (surgical) {
-        const survivors = new Map<string, Card>();
-        for (const card of cards) {
-          if (nextIds.has(card.id)) survivors.set(card.id, card);
-          else card.el.remove();
-        }
-        const next: Card[] = [];
-        entries.forEach((entry, index) => {
-          let card = survivors.get(entry.id);
-          if (card === undefined) {
-            card = buildCard(entry, index, host);
-          } else {
-            card.index = index;
-            card.el.dataset.index = String(index);
-          }
-          next.push(card);
-        });
-        cards = next;
-      } else {
-        for (const card of cards) card.el.remove();
-        cards = [];
-        entries.forEach((entry, index) => cards.push(buildCard(entry, index, host)));
-      }
+      diffEntries(entries);
       position = wrapped() ? mod(position, cards.length) : clamp(position, 0, maxIndex());
       if (selectedId !== null && !entries.some((e) => e.id === selectedId)) selectedId = null;
       applyLitClasses();
@@ -799,14 +888,14 @@ export function createShelf(): ShelfHandle {
       litIds = ids !== null && ids.length > 0 ? new Set(ids) : null;
       applyLitClasses();
     },
-    beginTransit(index: number): void {
+    beginTransit(index: number, keep = false): void {
       if (cards.length === 0 || index < 0 || index >= cards.length) return;
       gliding = false;
       velocity = 0;
       resting = true;
       position = index;
       const now = performance.now();
-      transit = { index, phase: 'open', fadeStart: now, fadeDur: TRANSIT_FADE_OUT_MS, slideStart: now, slideDur: TRANSIT_SLIDE_OUT_MS };
+      transit = { keep, index, phase: 'open', fadeStart: now, fadeDur: TRANSIT_FADE_OUT_MS, slideStart: now, slideDur: TRANSIT_SLIDE_OUT_MS };
       renderTransit();
       const run = (): void => {
         if (transit === null) return;
@@ -820,7 +909,7 @@ export function createShelf(): ShelfHandle {
       };
       requestAnimationFrame(run);
     },
-    beginReturn(index: number, onDone: () => void): void {
+    beginReturn(index: number, onDone: () => void, fromVisible = false): void {
       if (cards.length === 0 || index < 0 || index >= cards.length) {
         onDone();
         return;
@@ -830,7 +919,9 @@ export function createShelf(): ShelfHandle {
       resting = true;
       position = index;
       const now = performance.now();
-      transit = { index, phase: 'close', fadeStart: now, fadeDur: TRANSIT_FADE_IN_MS, slideStart: now, slideDur: TRANSIT_SLIDE_HOME_MS };
+      const chosen = cards[index];
+      const fromOpacity = fromVisible && chosen !== undefined ? (chosen.el.style.opacity === '' ? '1' : chosen.el.style.opacity) : undefined;
+      transit = { fromVisible, fromOpacity, index, phase: 'close', fadeStart: now, fadeDur: TRANSIT_FADE_IN_MS, slideStart: now, slideDur: TRANSIT_SLIDE_HOME_MS };
       renderTransit();
       const run = (): void => {
         if (transit === null) return;
@@ -853,6 +944,54 @@ export function createShelf(): ShelfHandle {
       clearTransitStyles();
       layout();
     },
+    returnFromScene(index: number, entries: ShelfEntry[], onDone: () => void): void {
+      if (world === null || cards.length === 0 || index < 0 || index >= cards.length) {
+        diffEntries(entries);
+        position = wrapped() ? mod(position, cards.length) : clamp(position, 0, maxIndex());
+        if (selectedId !== null && !entries.some((e) => e.id === selectedId)) selectedId = null;
+        applyLitClasses();
+        derive();
+        onDone();
+        return;
+      }
+      const held = new Map<string, { x: number; scale: number; tilt: number; opacity: number; capX: number; ledgerX: number; ledgerY: number }>();
+      for (const card of cards) {
+        held.set(card.id, {
+          x: card.lastX,
+          scale: card.lastScale,
+          tilt: card.lastTilt,
+          opacity: card.lastOpacity,
+          capX: Number.isFinite(card.lastCapX) ? card.lastCapX : card.lastX,
+          ledgerX: Number.isFinite(card.lastLedgerX) ? card.lastLedgerX : card.lastX,
+          ledgerY: Number.isFinite(card.lastLedgerY) ? card.lastLedgerY : 0,
+        });
+      }
+      gliding = false;
+      velocity = 0;
+      resting = true;
+      position = index;
+      const now = performance.now();
+      transit = { fromVisible: true, held, index, phase: 'close', fadeStart: now, fadeDur: TRANSIT_FADE_IN_MS, slideStart: now, slideDur: TRANSIT_SLIDE_HOME_MS };
+      diffEntries(entries);
+      position = wrapped() ? mod(position, cards.length) : clamp(position, 0, maxIndex());
+      if (selectedId !== null && !entries.some((e) => e.id === selectedId)) selectedId = null;
+      applyLitClasses();
+      derive();
+      const run = (): void => {
+        if (transit === null) return;
+        renderTransit();
+        const now = performance.now();
+        if (now >= transit.fadeStart + transit.fadeDur && now >= transit.slideStart + transit.slideDur) {
+          transit = null;
+          clearTransitStyles();
+          layout();
+          onDone();
+          return;
+        }
+        requestAnimationFrame(run);
+      };
+      requestAnimationFrame(run);
+    },
     isBusy(): boolean {
       return transit !== null;
     },
@@ -861,6 +1000,9 @@ export function createShelf(): ShelfHandle {
     },
     onEntryTap(cb: (id: string) => void): void {
       tapCb = cb;
+    },
+    onEntryContext(cb: (id: string) => void): void {
+      contextCb = cb;
     },
     onSettle(cb: (index: number) => void): void {
       settleCb = cb;
